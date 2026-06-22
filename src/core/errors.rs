@@ -22,4 +22,15 @@ pub enum BoxError {
     /// been removed (allow-then-remove, mirroring STATE.md [01-03]).
     #[error("no input: pass an argument or pipe data")]
     MissingInput,
+
+    /// A `box hash --verify <hex>` value whose length matches no supported
+    /// algorithm (only 32→md5, 64→sha256, 128→sha512 auto-detect). `main()`
+    /// downcasts this variant and maps it to exit code 2 (a usage error), same
+    /// as [`BoxError::MissingInput`] — a mismatched-but-well-formed `--verify`
+    /// stays a plain exit-1 error, NOT this variant (D-04, RESEARCH Pitfall 1).
+    ///
+    /// Constructed in `commands::hash` and downcast-mapped to exit 2 in `main()`.
+    /// Live as of Plan 03-01.
+    #[error("unsupported --verify hash length: {len} (expected 32/64/128 hex)")]
+    UnsupportedHashLength { len: usize },
 }

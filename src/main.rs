@@ -89,17 +89,20 @@ fn main() -> ExitCode {
             // Lowercase `error:` prefix (matches clap's style), stderr only so
             // stdout stays clean for pipes (FOUND-03, D-06).
             eprintln!("error: {e:#}");
-            // A `BoxError::MissingInput` is a *usage* error (no arg + interactive
-            // TTY, D-04 branch 3) and must surface as exit 2 — same single-owner
-            // mapping pattern as the clap parse-error path above. All other errors
-            // (incl. NotImplemented) keep exit 1. Downcast on the typed variant so
-            // a plain `anyhow::bail!` elsewhere is unaffected (RESEARCH Pitfall 2).
-            if let Some(crate::core::errors::BoxError::MissingInput) =
-                e.downcast_ref::<crate::core::errors::BoxError>()
-            {
-                ExitCode::from(2)
-            } else {
-                ExitCode::from(1)
+            // Two typed variants are *usage* errors and must surface as exit 2 —
+            // same single-owner mapping pattern as the clap parse-error path above:
+            //   - `MissingInput`: no arg + interactive TTY (D-04 branch 3).
+            //   - `UnsupportedHashLength`: a `box hash --verify <hex>` whose length
+            //     matches no algorithm (D-04). A mismatched-but-valid `--verify` is
+            //     a plain `anyhow` error → exit 1, NOT this variant (Pitfall 1).
+            // All other errors (incl. NotImplemented) keep exit 1. Downcast on the
+            // typed variants so a plain `anyhow::bail!` elsewhere is unaffected.
+            match e.downcast_ref::<crate::core::errors::BoxError>() {
+                Some(
+                    crate::core::errors::BoxError::MissingInput
+                    | crate::core::errors::BoxError::UnsupportedHashLength { .. },
+                ) => ExitCode::from(2),
+                _ => ExitCode::from(1),
             }
         }
     }
