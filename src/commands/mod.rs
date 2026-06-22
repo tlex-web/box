@@ -9,7 +9,9 @@ pub mod color;
 pub mod cowsay;
 pub mod epoch;
 pub mod flatten;
+pub mod fortune;
 pub mod passgen;
+pub mod roast;
 pub mod stub;
 pub mod uuid;
 

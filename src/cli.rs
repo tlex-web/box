@@ -47,12 +47,12 @@ pub enum Commands {
     /// Wrap text in an ASCII-art speech bubble
     Cowsay(crate::commands::cowsay::CowsayArgs),
     /// Print a random fortune or quote
-    Fortune,
+    Fortune(crate::commands::fortune::FortuneArgs),
     /// Ask the magic 8-ball a question
     #[command(name = "8ball")]
     EightBall,
     /// Deliver a random programmer roast
-    Roast,
+    Roast(crate::commands::roast::RoastArgs),
     /// Compute and verify file hashes
     Hash,
     /// Print a directory tree with file sizes
