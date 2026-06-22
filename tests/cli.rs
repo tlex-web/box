@@ -69,3 +69,11 @@ fn stub_exits_1_to_stderr() {
         .stderr(predicate::str::contains("not yet implemented"))
         .stdout(predicate::str::is_empty());
 }
+
+/// FOUND-01 / SC1 — snapshot the full `box --help` listing of all 23 commands
+/// via a trycmd transcript (`tests/cmd/*.trycmd`). Locks the doc-comment `about`
+/// text and the complete command set against accidental drift.
+#[test]
+fn trycmd() {
+    trycmd::TestCases::new().case("tests/cmd/*.trycmd");
+}

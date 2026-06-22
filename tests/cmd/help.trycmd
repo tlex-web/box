@@ -1,0 +1,38 @@
+```
+$ box --help
+A Rust CLI toolbox
+
+Usage: box[EXE] [OPTIONS] <COMMAND>
+
+Commands:
+  flatten      Flatten a folder tree into a single output directory
+  uuid         Generate a random UUID
+  base64       Encode or decode base64 text
+  epoch        Convert between Unix timestamps and human-readable dates
+  color        Convert colors between hex and RGB formats
+  passgen      Generate secure passwords and passphrases
+  cowsay       Wrap text in an ASCII-art speech bubble
+  fortune      Print a random fortune or quote
+  8ball        Ask the magic 8-ball a question
+  roast        Deliver a random programmer roast
+  hash         Compute and verify file hashes
+  tree         Print a directory tree with file sizes
+  du           Analyze disk usage for a directory
+  dupes        Find duplicate files by content
+  bulk-rename  Bulk-rename files with a regex and dry-run preview
+  lolcat       Rainbow-colorize piped text
+  matrix       Run the Matrix digital-rain screensaver effect
+  ascii        Render an image as ASCII art
+  json         Pretty-print and validate JSON
+  qr           Render a QR code for text or a URL in the terminal
+  clip         Read from or write to the system clipboard
+  pomodoro     Run a focus timer with Windows toast notifications
+  weather      Fetch the weather for a location
+  help         Print this message or the help of the given subcommand(s)
+
+Options:
+      --no-color  Disable colored output (also honors NO_COLOR and non-TTY stdout)
+  -h, --help      Print help
+  -V, --version   Print version
+
+```
