@@ -66,7 +66,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — Foundation: `core::input` reader (read_input/read_input_bytes, D-04/D-05) + `BoxError::MissingInput`->exit-2 wiring + add the 4 locked crates to Cargo.toml (shared)
+- [x] 02-01-PLAN.md — Foundation: `core::input` reader (read_input/read_input_bytes, D-04/D-05) + `BoxError::MissingInput`->exit-2 wiring + add the 4 locked crates to Cargo.toml (shared)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -136,7 +136,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation + Flatten | 4/4 | Complete    | 2026-06-22 |
-| 2. Pure Transform Utilities | 0/5 | Planned     | - |
+| 2. Pure Transform Utilities | 1/5 | In Progress|  |
 | 3. Filesystem Power Tools | 0/? | Not started | - |
 | 4. Terminal Visuals | 0/? | Not started | - |
 | 5. Windows Platform Integration | 0/? | Not started | - |

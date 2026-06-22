@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: Not started
+current_plan: 2
 status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-06-22T15:48:33.879Z"
+stopped_at: "Completed 02-01-PLAN.md (core::input foundation slice)"
+last_updated: "2026-06-22T16:01:40.484Z"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 9
-  completed_plans: 4
-  percent: 20
+  completed_plans: 5
+  percent: 56
 ---
 
 # Project State: box — Rust CLI Toolbox
@@ -25,7 +25,7 @@ progress:
 
 **Core Value:** The toolbox must be globally available and instantly usable from PowerShell 7 — type `box <command>` from anywhere and the tool just works.
 
-**Current Focus:** Phase 2 — pure transform utilities
+**Current Focus:** Phase 02 — pure-transform-utilities
 
 **Milestone:** v1 (all 23 commands)
 
@@ -33,22 +33,24 @@ progress:
 
 ## Current Position
 
+Phase: 02 (pure-transform-utilities) — EXECUTING
+Plan: 2 of 5
 **Phase:** 2
-**Current Plan:** Not started
+**Current Plan:** 2
 **Total Plans in Phase:** 5
-**Status:** Ready to execute
+**Status:** Executing Phase 02 (plan 02-01 complete)
 
 **Progress:**
 
 ```
-[██░░░░░░░░] 20%
+[██████░░░░] 56%
 Phase 1 [██████████] 4 / 4 plans ✓ complete
-Phase 2 [          ] Not started
+Phase 2 [██░░░░░░░░] 1 / 5 plans — executing
 Phase 3 [          ] Not started
 Phase 4 [          ] Not started
 Phase 5 [          ] Not started
 
-Overall: 1 / 5 phases complete
+Overall: 1 / 5 phases complete (5 / 9 plans)
 ```
 
 ---
@@ -58,7 +60,7 @@ Overall: 1 / 5 phases complete
 | Phase | Name | Requirements | Status |
 |-------|------|-------------|--------|
 | 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | ✓ Complete (4/4 plans) |
-| 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | Not started |
+| 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | In Progress (1/5 plans) |
 | 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | Not started |
 | 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Not started |
 | 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | Not started |
@@ -67,8 +69,8 @@ Overall: 1 / 5 phases complete
 
 ## Performance Metrics
 
-**Plans executed:** 4
-**Plans succeeded:** 4
+**Plans executed:** 5
+**Plans succeeded:** 5
 **Plans failed:** 0
 **Phases completed:** 1 / 5
 
@@ -78,6 +80,7 @@ Overall: 1 / 5 phases complete
 | 01 | P02 | 6min | 2 | 7 |
 | 01 | P03 | 6min | 2 | 8 |
 | 01 | P04 | 2min | 2 (human-verify cleared) | 2 |
+| 02 | P01 | 5min | 3 | 6 |
 
 ---
 
@@ -109,6 +112,10 @@ Overall: 1 / 5 phases complete
 | [01-04] install.ps1 authored to match the 01-RESEARCH annotated example exactly | Only additions are two defensive guards (post-build Test-Path on the produced exe, Copy-Item -LiteralPath) that harden the documented flow with no happy-path behavior change |
 | [01-04] Release MSVC + crt-static link verified read-only (build only, no install) | `cargo build --release --target x86_64-pc-windows-msvc` with crt-static compiles clean and box.exe runs (box 0.1.0) — resolves the carried-over "MSVC+crt-static unverified" todo from 01-01/01-03; the actual install + user-PATH mutation is reserved for the human-verify gate |
 | [01-post-review] flatten silent-overwrite hardening (CR-01/WR-01/WR-02, fixed e1a8f38) | `sanitize_reserved` now trims trailing dots/spaces from the WHOLE name (was stem-only) so Windows-truncated names like `report.`/`report` can't collapse onto one file; collision keys use full-Unicode `to_lowercase` (was ASCII-only, missed `RÉSUMÉ` vs `résumé`); `safe_copy` opens dst with `create_new` so a missed collision errors loudly instead of clobbering. 4 regression tests added; supersedes the original stem-only trim note above |
+| [02-01] chrono added with `default-features = false, features = ["clock","std"]` | Trims `oldtime`/`wasmbind` per D-01 while keeping `Local` (needed by epoch D-12); verified `cargo build` still resolves `Local` |
+| [02-01] core::input branch-3 returns `BoxError::MissingInput` via `.into()` (never `bail!`) | A typed variant downcasts in main.rs to `ExitCode::from(2)` (D-04 usage error); a type-erased anyhow error would wrongly map to exit 1 (RESEARCH Pitfall 2) |
+| [02-01] Forward-compat `#[allow(dead_code)]` on core::input readers + `BoxError::MissingInput` | The foundation slice lands ahead of its Wave-2 callers; allows are documented to come off once the first command (base64/cowsay/epoch/color) becomes a live caller — mirrors the [01-03] allow-then-remove pattern |
+| [02-01] Cargo.toml completed for all of Phase 2 in this plan | The four crates (uuid v4, base64, chrono, rand 0.9) added once so Wave-2 command plans never touch the manifest, keeping their file-ownership footprints parallel-clean |
 
 ### Critical Pitfalls to Remember
 
@@ -148,9 +155,9 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-22T14:59:19.501Z
-**Stopped At:** Phase 2 context gathered
-**Resume File:** .planning/phases/02-pure-transform-utilities/02-CONTEXT.md
+**Last session:** 2026-06-22T16:01:40.475Z
+**Stopped At:** Completed 02-01-PLAN.md (core::input foundation slice)
+**Resume File:** None
 
 **Next action:** Start Phase 2 — `/gsd-discuss-phase 2` (recommended) or `/gsd-plan-phase 2` to skip discussion.
 
