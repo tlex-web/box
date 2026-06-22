@@ -363,3 +363,52 @@ fn renm_skips_and_first_match() {
     // The directory was never renamed.
     assert!(dir.path().join("subdir").exists());
 }
+
+/// RENM-01 / WR-05 — under `--recursive`, two SIBLING subdirectories each holding
+/// an `a.txt` are renamed to `b.txt` INDEPENDENTLY: the per-directory pre-flight
+/// scopes each rename to its own parent, so neither directory's plan bleeds into
+/// the other. This locks the per-directory collision scoping the safety argument
+/// depends on (D-14) — a same-named target in a sibling dir is NOT a cross-dir
+/// collision. Each `b.txt` keeps its own directory's original payload.
+#[test]
+fn renm_recursive_cross_directory_independent() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    // Two sibling subdirs, each with an identically-named a.txt but DISTINCT
+    // payloads so we can prove no cross-dir mix-up.
+    dir.child("one/a.txt").write_str("ONE").unwrap();
+    dir.child("two/a.txt").write_str("TWO").unwrap();
+
+    // Rename a.txt -> b.txt everywhere (full base name `a.txt` -> `b.txt`).
+    bulk_rename(
+        dir.path(),
+        r"^a\.txt$",
+        "b.txt",
+        &["--recursive", "--force"],
+    )
+    .success();
+
+    let one = dir.path().join("one");
+    let two = dir.path().join("two");
+
+    // Each sibling's rename succeeded independently: a.txt is gone, b.txt is
+    // present, and each b.txt carries ITS OWN directory's original payload (no
+    // cross-directory bleed).
+    assert!(
+        !one.join("a.txt").exists() && one.join("b.txt").exists(),
+        "one/a.txt must have been renamed to one/b.txt"
+    );
+    assert!(
+        !two.join("a.txt").exists() && two.join("b.txt").exists(),
+        "two/a.txt must have been renamed to two/b.txt"
+    );
+    assert_eq!(
+        fs::read(one.join("b.txt")).unwrap(),
+        b"ONE",
+        "one/b.txt must keep one/'s original payload (no sibling bleed)"
+    );
+    assert_eq!(
+        fs::read(two.join("b.txt")).unwrap(),
+        b"TWO",
+        "two/b.txt must keep two/'s original payload (no sibling bleed)"
+    );
+}
