@@ -8,7 +8,7 @@
 
 ## Phases
 
-- [~] **Phase 1: Foundation + Flatten** — Binary scaffold, install script, core infrastructure, and the anchor `flatten` command. All 4 plans authored; 01-04 awaits a human-verify gate (run install.ps1 in a real PS7 session) before the phase is shippable
+- [x] **Phase 1: Foundation + Flatten** — Binary scaffold, install script, core infrastructure, and the anchor `flatten` command. Shipped 2026-06-22: install.ps1 + same-session flatten human-verified in PS7; verification passed (5/5); code-review silent-data-loss findings (CR-01/WR-01/WR-02) fixed
 - [ ] **Phase 2: Pure Transform Utilities** — Nine zero-external-dependency commands proving the RunCommand pattern: uuid, base64, epoch, color, passgen, cowsay, fortune, 8ball, roast
 - [ ] **Phase 3: Filesystem Power Tools** — Five commands sharing walkdir: hash, tree, du, dupes, bulk-rename
 - [ ] **Phase 4: Terminal Visuals** — Four commands sharing crossterm and rendering libraries: lolcat, matrix, ascii, json
@@ -115,7 +115,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Flatten | 4/4 authored | Human-verify gate open | - |
+| 1. Foundation + Flatten | 4/4 | Complete    | 2026-06-22 |
 | 2. Pure Transform Utilities | 0/? | Not started | - |
 | 3. Filesystem Power Tools | 0/? | Not started | - |
 | 4. Terminal Visuals | 0/? | Not started | - |
@@ -137,4 +137,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-06-22*
-*Last updated: 2026-06-22 — 01-04 (install.ps1 + README) authored & committed; human-verify gate OPEN before Phase 1 ships*
+*Last updated: 2026-06-22 — Phase 1 COMPLETE: human-verify gate cleared, verification passed (5/5), flatten review findings CR-01/WR-01/WR-02 fixed*
