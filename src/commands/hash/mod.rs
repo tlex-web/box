@@ -41,13 +41,16 @@ const READ_BUF: usize = 64 * 1024;
 /// checksum (HASH-01). Reads PATH, piped stdin, or `-` via the shared input layer.
 #[derive(Debug, Args)]
 pub struct HashArgs {
-    /// Hash algorithm (default: sha256).
-    #[arg(long, value_enum, default_value_t = Algo::Sha256)]
-    pub algo: Algo,
+    /// Hash algorithm. Unset means sha256 when computing, or (under `--verify`)
+    /// auto-detect by the digest's hex length. An EXPLICIT `--algo` ALWAYS wins —
+    /// it is never overridden by length auto-detection (WR-01).
+    #[arg(long, value_enum)]
+    pub algo: Option<Algo>,
 
     /// Verify the input against this expected hex digest; exit 0 on match, 1 on
     /// mismatch, 2 on an unsupported length. Without `--algo`, the algorithm is
-    /// auto-detected from the hex length (32→md5, 64→sha256, 128→sha512).
+    /// auto-detected from the hex length (32→md5, 64→sha256, 128→sha512); WITH an
+    /// explicit `--algo`, that algorithm is used verbatim (WR-01).
     #[arg(long)]
     pub verify: Option<String>,
 
@@ -67,14 +70,6 @@ pub enum Algo {
     Sha512,
     /// MD5 (legacy interop only — not a security guarantee).
     Md5,
-}
-
-impl Algo {
-    /// Whether this algorithm was explicitly chosen on the CLI. Used by `--verify`
-    /// to know if it may fall back to length auto-detection.
-    fn is_default(self) -> bool {
-        self == Algo::Sha256
-    }
 }
 
 /// Auto-detect the algorithm for a `--verify` value by its hex length (D-04):
@@ -138,16 +133,18 @@ impl RunCommand for HashArgs {
         let label = input.label;
 
         match self.verify {
-            // --verify: pick the algorithm (explicit --algo wins; else length
-            // auto-detect), compute, compare case-insensitively (D-04).
+            // --verify: pick the algorithm — an EXPLICIT --algo ALWAYS wins; only
+            // a truly-unset --algo falls back to length auto-detect (WR-01).
             Some(expected) => {
                 let expected = expected.trim();
-                let algo = if self.algo.is_default() {
-                    // No explicit --algo: auto-detect by length. An unsupported
-                    // length returns the typed variant → exit 2 (never a panic).
-                    algo_from_len(expected.len())?
-                } else {
-                    self.algo
+                let algo = match self.algo {
+                    // Explicit choice is honored verbatim, even when the digest's
+                    // length would map to a DIFFERENT algorithm (e.g. `--algo
+                    // sha256 --verify <32-hex>` is sha256, NOT md5).
+                    Some(a) => a,
+                    // No --algo: auto-detect by length. An unsupported length
+                    // returns the typed variant → exit 2 (never a panic).
+                    None => algo_from_len(expected.len())?,
                 };
                 let computed = digest_reader(algo, input.reader)?;
                 if computed.eq_ignore_ascii_case(expected) {
@@ -160,8 +157,10 @@ impl RunCommand for HashArgs {
                 }
             }
             // No --verify: print `<hash>  <label>` (two spaces, coreutils — D-01).
+            // An unset --algo defaults to sha256 (D-02).
             None => {
-                let computed = digest_reader(self.algo, input.reader)?;
+                let algo = self.algo.unwrap_or(Algo::Sha256);
+                let computed = digest_reader(algo, input.reader)?;
                 println!("{computed}  {label}");
                 Ok(())
             }

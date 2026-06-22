@@ -138,6 +138,42 @@ fn hash_verify_autodetect() {
     hash_cmd(&["--verify", BOX_SHA512, path]).success().code(0);
 }
 
+/// HASH-01 / WR-01 — an EXPLICIT `--algo` is honored under `--verify` and is
+/// NEVER overridden by length auto-detection. The sharpest probe is the 32-hex
+/// MD5 of `box`: with the old "explicit-vs-default-by-value" bug, `--algo sha256
+/// --verify <md5-of-box>` auto-detected md5 by the 32-length, computed md5, and
+/// FALSELY MATCHED (exit 0). With the fix, the explicit sha256 is used: the
+/// computed digest is 64-hex, can never equal the 32-hex value, and the command
+/// MISMATCHES (exit 1) — it is NOT treated as md5, and NOT the exit-2
+/// unsupported-length path either.
+#[test]
+fn hash_verify_explicit_algo_overrides_length_autodetect() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let f = box_file(&dir);
+    let path = f.path().to_str().unwrap();
+
+    // `--algo sha256` + the 32-hex MD5 of `box`: must NOT auto-detect md5. The
+    // sha256 digest (64-hex) cannot equal a 32-hex value → mismatch → exit 1.
+    hash_cmd(&["--algo", "sha256", "--verify", BOX_MD5, path])
+        .failure()
+        .code(1);
+
+    // Symmetry check: `--algo md5` + the 64-hex SHA-256 of `box` must NOT
+    // auto-detect sha256. md5 (32-hex) cannot equal a 64-hex value → exit 1.
+    hash_cmd(&["--algo", "md5", "--verify", BOX_SHA256, path])
+        .failure()
+        .code(1);
+
+    // And the explicit algo still MATCHES its own correct digest (exit 0): proves
+    // the override honors the user's choice rather than just always failing.
+    hash_cmd(&["--algo", "sha256", "--verify", BOX_SHA256, path])
+        .success()
+        .code(0);
+    hash_cmd(&["--algo", "md5", "--verify", BOX_MD5, path])
+        .success()
+        .code(0);
+}
+
 /// HASH-01 / D-04 — a 40-hex `--verify` (sha1 length, unsupported) exits 2 via
 /// the typed `UnsupportedHashLength` variant.
 #[test]
