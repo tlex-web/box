@@ -11,14 +11,6 @@
 //! be unit-tested without a terminal, and so the leading status glyph (`+`/`~`/`-`)
 //! is always emitted as the source of truth — color is decoration only (D-09).
 
-// The flatten-row + summary helpers below (RowStatus, format_row,
-// truncate_middle, terminal_width, dry_run_summary, real_run_summary, and the
-// layout consts) are the reusable contract plan 03 (flatten) consumes — see the
-// PLAN <interfaces> block. No command emits colored rows yet, so the binary
-// build reports them as dead code; the unit tests exercise them. Allow it until
-// plan 03 wires the first caller (mirrors plan 01-01's RunCommand allow).
-#![allow(dead_code)]
-
 use std::io::IsTerminal;
 use std::sync::atomic::{AtomicBool, Ordering};
 

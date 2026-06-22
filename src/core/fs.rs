@@ -13,12 +13,6 @@
 //!   deep-path (>260 char) failures surface loudly per-file (FOUND-06,
 //!   Pitfalls 5 & 6).
 
-// Forward-compat surface: flatten (plan 03) is the first caller of these
-// helpers. They're exercised by the inline unit tests below but not yet by any
-// command, so the binary build reports them as dead code until plan 03 wires
-// the first call site (mirrors plan 01-01's RunCommand allow).
-#![allow(dead_code)]
-
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
