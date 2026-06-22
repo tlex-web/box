@@ -35,7 +35,7 @@ pub enum Commands {
     /// Flatten a folder tree into a single output directory
     Flatten(crate::commands::flatten::FlattenArgs),
     /// Generate a random UUID
-    Uuid,
+    Uuid(crate::commands::uuid::UuidArgs),
     /// Encode or decode base64 text
     Base64,
     /// Convert between Unix timestamps and human-readable dates

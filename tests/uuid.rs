@@ -49,10 +49,14 @@ fn uuid_lines(args: &[&str]) -> Vec<String> {
 /// `box uuid` → exactly one line matching the v4 regex; exit 0; stderr empty.
 #[test]
 fn single_uuid_is_v4() {
-    uuid(&[])
-        .success()
-        .stderr(predicate::str::is_empty())
-        .stdout(predicate::str::is_match(V4_RE).unwrap());
+    // Assert exit 0 + empty stderr via the assert handle; match the v4 regex on
+    // the single trimmed line (the raw stdout carries a trailing `\n`, so an
+    // anchored `^…$` against the whole captured buffer would not match).
+    uuid(&[]).success().stderr(predicate::str::is_empty());
+    let re = regex_lite_match(V4_RE);
+    let lines = uuid_lines(&[]);
+    assert_eq!(lines.len(), 1, "expected one line, got {lines:?}");
+    assert!(re(&lines[0]), "line is not a v4 UUID: {}", lines[0]);
 }
 
 /// `box uuid -n 5` → 5 lines, all distinct, all matching the v4 regex.
@@ -71,10 +75,11 @@ fn count_five_distinct_v4() {
 /// `box uuid --upper` → the uppercase form of a valid v4 UUID.
 #[test]
 fn upper_is_uppercase_v4() {
-    uuid(&["--upper"])
-        .success()
-        .stderr(predicate::str::is_empty())
-        .stdout(predicate::str::is_match(V4_RE_UPPER).unwrap());
+    uuid(&["--upper"]).success().stderr(predicate::str::is_empty());
+    let re = regex_lite_match(V4_RE_UPPER);
+    let lines = uuid_lines(&["--upper"]);
+    assert_eq!(lines.len(), 1, "expected one line, got {lines:?}");
+    assert!(re(&lines[0]), "line is not an uppercase v4 UUID: {}", lines[0]);
 }
 
 /// `box uuid -n 100` → 100 distinct lines (uniqueness via HashSet).

@@ -6,6 +6,7 @@
 
 pub mod flatten;
 pub mod stub;
+pub mod uuid;
 
 /// Implemented by each command's argument struct. `main()` calls `.run()` after
 /// parsing; the command owns all of its business logic and returns errors via
