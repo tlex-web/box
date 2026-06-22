@@ -210,3 +210,16 @@ fn du_depth_cap() {
         "uncapped, big/'s row must show the full recursive total (5000 -> 4.9 KB), got row: {big_row:?}"
     );
 }
+
+/// DU-01 / WR-02 — pointing `box du` at a FILE (not a directory) is a clear error,
+/// not silent empty output. Previously a file argument printed `0 of 0 entries
+/// shown. 0 B total.` with exit 0.
+#[test]
+fn du_file_argument_errors() {
+    let fixture = build_fixture();
+    let file = fixture.path().join("small.txt");
+
+    du(&file, &[])
+        .failure()
+        .stderr(predicate::str::contains("is not a directory"));
+}

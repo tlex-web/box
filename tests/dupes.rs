@@ -214,3 +214,20 @@ fn dupes_never_writes() {
         );
     }
 }
+
+/// DUPE-01 / WR-02 — pointing `box dupes` at a FILE (not a directory) is a clear
+/// error, not silent empty output. Previously a file argument printed `No
+/// duplicate files found.` with exit 0.
+#[test]
+fn dupes_file_argument_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("lonely.txt");
+    fs::write(&file, b"content").unwrap();
+
+    let output = dupes(&file, &[]).failure().get_output().clone();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("is not a directory"),
+        "a file argument must produce a clear 'is not a directory' error, got: {stderr:?}"
+    );
+}

@@ -83,6 +83,13 @@ impl RunCommand for TreeArgs {
         let root = normalize_path(&self.path)
             .with_context(|| format!("resolving {}", self.path.display()))?;
 
+        // `tree` is a directory-analysis tool: a FILE argument would walk to zero
+        // children and silently print an empty tree with a `0 directories, 0
+        // files` summary. Refuse it with a clear error instead (WR-02).
+        if !root.is_dir() {
+            anyhow::bail!("{} is not a directory", self.path.display());
+        }
+
         // Print the root label as the path the user passed (not the canonical
         // absolute path) so the render reads naturally, matching GNU `tree`.
         let root_label = self.path.to_string_lossy().to_string();

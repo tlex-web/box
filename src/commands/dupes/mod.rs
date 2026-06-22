@@ -62,6 +62,13 @@ impl RunCommand for DupesArgs {
         let root = normalize_path(&self.path)
             .with_context(|| format!("resolving {}", self.path.display()))?;
 
+        // `dupes` scans a directory tree: a FILE argument has nothing to walk, so
+        // it would silently print `No duplicate files found.`. Refuse it with a
+        // clear error instead (WR-02).
+        if !root.is_dir() {
+            anyhow::bail!("{} is not a directory", self.path.display());
+        }
+
         // Bucket every non-hidden regular file by size (the cheap pre-filter).
         let by_size = collect_by_size(&root)?;
 

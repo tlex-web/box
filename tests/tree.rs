@@ -114,3 +114,16 @@ fn tree_piped_no_ansi() {
         "piped tree output must contain no ANSI escape (\\x1b[)"
     );
 }
+
+/// TREE-01 / WR-02 — pointing `box tree` at a FILE (not a directory) is a clear
+/// error, not silent empty output. Previously a file argument walked to zero
+/// children and printed `0 directories, 0 files` with exit 0.
+#[test]
+fn tree_file_argument_errors() {
+    let fixture = build_fixture();
+    let file = fixture.path().join("alpha.txt");
+
+    tree(&file, &[])
+        .failure()
+        .stderr(predicate::str::contains("is not a directory"));
+}

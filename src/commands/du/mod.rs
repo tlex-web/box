@@ -78,6 +78,13 @@ impl RunCommand for DuArgs {
         let root = normalize_path(&self.path)
             .with_context(|| format!("resolving {}", self.path.display()))?;
 
+        // `du` reports one row per immediate child: a FILE argument has none, so it
+        // would silently print `0 of 0 entries shown. 0 B total.`. Refuse it with a
+        // clear error instead (WR-02).
+        if !root.is_dir() {
+            anyhow::bail!("{} is not a directory", self.path.display());
+        }
+
         // Build one row per immediate child (file = own size, dir = recursive
         // descendant sum capped by --depth).
         let mut rows = collect_rows(&root, self.depth)?;
