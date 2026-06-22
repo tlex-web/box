@@ -62,7 +62,27 @@ Plans:
   4. User runs `box passgen` and gets a 16-char cryptographically random password; `box passgen --words 4` gets a four-word passphrase; `box passgen --count 10` prints 10 passwords
   5. User runs `box cowsay "hello"`, `box fortune`, `box 8ball "Will it work?"`, and `box roast` — each prints the expected styled ASCII output, different random output on repeated calls for fortune/8ball/roast
 
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+**Wave 1**
+
+- [ ] 02-01-PLAN.md — Foundation: `core::input` reader (read_input/read_input_bytes, D-04/D-05) + `BoxError::MissingInput`->exit-2 wiring + add the 4 locked crates to Cargo.toml (shared)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 02-02-PLAN.md — uuid (v4, `-n`, `--upper`) + base64 (encode/decode round-trip, `--url-safe`, first read_input_bytes consumer) (UUID-01, B64-01)
+
+**Wave 3** *(blocked on Wave 2 — shares cli.rs/main.rs registry)*
+
+- [ ] 02-03-PLAN.md — epoch (3-mode timestamp<->date, D-12) + color (hex/RGB<->HSL bidirectional + gated truecolor swatch, D-10/D-13) (EPOC-01, COLR-01)
+
+**Wave 4** *(blocked on Wave 3 — shares cli.rs/main.rs registry)*
+
+- [ ] 02-04-PLAN.md — passgen (OsRng CSPRNG, unbiased selection, EFF wordlist, paste-safe charset, T-V6) + cowsay (40-col wrap + hard-break + classic bubble, D-11); creates src/data/ (PASS-01, COW-01)
+
+**Wave 5** *(blocked on Wave 4 — shares cli.rs/main.rs registry)*
+
+- [ ] 02-05-PLAN.md — fortune + roast (include_str! CC0 lists) + 8ball (canonical 20, eight_ball module) — rand::rng() + membership/varies-across-runs tests (FORT-01, 8BAL-01, ROST-01)
 
 ### Phase 3: Filesystem Power Tools
 
@@ -116,7 +136,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation + Flatten | 4/4 | Complete    | 2026-06-22 |
-| 2. Pure Transform Utilities | 0/? | Not started | - |
+| 2. Pure Transform Utilities | 0/5 | Planned     | - |
 | 3. Filesystem Power Tools | 0/? | Not started | - |
 | 4. Terminal Visuals | 0/? | Not started | - |
 | 5. Windows Platform Integration | 0/? | Not started | - |
@@ -138,3 +158,4 @@ Plans:
 ---
 *Roadmap created: 2026-06-22*
 *Last updated: 2026-06-22 — Phase 1 COMPLETE: human-verify gate cleared, verification passed (5/5), flatten review findings CR-01/WR-01/WR-02 fixed*
+*Last updated: 2026-06-22 — Phase 2 PLANNED: 5 plans across 5 waves (uuid/base64/epoch/color/passgen/cowsay/fortune/8ball/roast on a shared core::input foundation)*
