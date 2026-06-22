@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 current_plan: 4
 status: executing
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-06-22T13:54:42.737Z"
+stopped_at: 01-04-PLAN.md Task 2 — human-verify gate OPEN (install.ps1 same-session run)
+last_updated: "2026-06-22T13:59:24.000Z"
 progress:
   total_phases: 5
   completed_phases: 0
@@ -36,7 +36,7 @@ progress:
 **Phase:** 1 — Foundation + Flatten
 **Current Plan:** 4
 **Total Plans in Phase:** 4
-**Status:** Executing (3/4 plans complete)
+**Status:** Executing — 01-04 authored & committed; PAUSED at human-verify gate (3/4 plans fully done, 01-04 awaiting human verification)
 
 **Progress:**
 
@@ -77,6 +77,7 @@ Overall: 0 / 5 phases complete
 | 01 | P01 | 5min | 3 | 10 |
 | 01 | P02 | 6min | 2 | 7 |
 | 01 | P03 | 6min | 2 | 8 |
+| 01 | P04 | 2min | 1 (+1 human-verify gate open) | 2 |
 
 ---
 
@@ -105,6 +106,8 @@ Overall: 0 / 5 phases complete
 | [01-03] flatten `sanitize_reserved` trims trailing dots/spaces BEFORE matching reserved stems | The RESEARCH order matched the untrimmed stem, so `con .txt` was not recognised as `CON`; reordering closes a hidden-collision gap |
 | [01-03] flatten is first-claim-wins, deterministic by walkdir order | The first file to take a base name keeps it (Copy); later same-named files are collision-renamed — both always land with distinct names, never lost |
 | [01-03] Removed both forward-compat `#[allow(dead_code)]` (core::output, core::fs) | flatten is now a live caller of every helper; clippy `-D warnings` stays clean, proving the reusable surface has no orphans |
+| [01-04] install.ps1 authored to match the 01-RESEARCH annotated example exactly | Only additions are two defensive guards (post-build Test-Path on the produced exe, Copy-Item -LiteralPath) that harden the documented flow with no happy-path behavior change |
+| [01-04] Release MSVC + crt-static link verified read-only (build only, no install) | `cargo build --release --target x86_64-pc-windows-msvc` with crt-static compiles clean and box.exe runs (box 0.1.0) — resolves the carried-over "MSVC+crt-static unverified" todo from 01-01/01-03; the actual install + user-PATH mutation is reserved for the human-verify gate |
 
 ### Critical Pitfalls to Remember
 
@@ -143,12 +146,12 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-22 — completed 01-03-PLAN.md (flatten anchor command: pure `rename.rs` collision encoding + reserved-name sanitization + dedupe; `flatten/mod.rs` canonicalize/containment-guard/seed-occupied/walk/plan/dry-run-or-execute; `tests/flatten.rs` 8 integration tests green; removed both forward-compat `#[allow(dead_code)]`)
-**Stopped At:** Completed 01-03-PLAN.md
-**Resume File:** None
+**Last session:** 2026-06-22 — authored 01-04 (install.ps1 + README): build (MSVC + crt-static) → copy to `%LOCALAPPDATA%\Programs\box` → idempotent REG_EXPAND_SZ-safe user-PATH add → User+Machine session refresh → `box --help` smoke test; README Install section with execution-policy note + `box flatten` usage. Parse-clean; release link verified compiling read-only (box 0.1.0). Task 1 committed (`e3dbfe9`). PAUSED at the Task 2 human-verify gate.
+**Stopped At:** 01-04-PLAN.md Task 2 — human-verify gate OPEN
+**Resume File:** .planning/phases/01-foundation-flatten/01-04-SUMMARY.md (see "Human Verification Required")
 
-**Next action:** Execute 01-04-PLAN.md (install.ps1: build release MSVC+crt-static, copy to `%LOCALAPPDATA%\Programs\box`, idempotent user-PATH add, current-session refresh, `box --help` / `box flatten` smoke test).
+**Next action (HUMAN):** In a real PowerShell 7 window at the repo root, run `.\install.ps1` (or `pwsh -ExecutionPolicy Bypass -File install.ps1`), then confirm same-session `box --help` (all 23 subcommands), `box --version` → 0.1.0, exit codes (bare `box`=2, `box qr`=1), a real `box flatten` dry-run + run, idempotent re-install (no PATH duplicate), and fresh-window persistence. Reply `approved` to clear the gate and mark FOUND-07/FOUND-08 complete, or describe what failed.
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
-*Updated: 2026-06-22 by executor — 01-03 complete*
+*Updated: 2026-06-22 by executor — 01-04 authored & committed; human-verify gate OPEN*

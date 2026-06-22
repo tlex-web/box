@@ -8,7 +8,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: Foundation + Flatten** — Binary scaffold, install script, core infrastructure, and the anchor `flatten` command shipped as a working tool
+- [~] **Phase 1: Foundation + Flatten** — Binary scaffold, install script, core infrastructure, and the anchor `flatten` command. All 4 plans authored; 01-04 awaits a human-verify gate (run install.ps1 in a real PS7 session) before the phase is shippable
 - [ ] **Phase 2: Pure Transform Utilities** — Nine zero-external-dependency commands proving the RunCommand pattern: uuid, base64, epoch, color, passgen, cowsay, fortune, 8ball, roast
 - [ ] **Phase 3: Filesystem Power Tools** — Five commands sharing walkdir: hash, tree, du, dupes, bulk-rename
 - [ ] **Phase 4: Terminal Visuals** — Four commands sharing crossterm and rendering libraries: lolcat, matrix, ascii, json
@@ -46,7 +46,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 01-04-PLAN.md — install.ps1: build → copy → idempotent REG_EXPAND_SZ-safe PATH → session refresh → smoke test + human-verify (FOUND-07,08)
+- [~] 01-04-PLAN.md — install.ps1: build → copy → idempotent REG_EXPAND_SZ-safe PATH → session refresh → smoke test + human-verify (FOUND-07,08) — *authored & committed; human-verify gate OPEN*
 
 ### Phase 2: Pure Transform Utilities
 
@@ -115,7 +115,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Flatten | 3/4 | In Progress|  |
+| 1. Foundation + Flatten | 4/4 authored | Human-verify gate open | - |
 | 2. Pure Transform Utilities | 0/? | Not started | - |
 | 3. Filesystem Power Tools | 0/? | Not started | - |
 | 4. Terminal Visuals | 0/? | Not started | - |
@@ -137,4 +137,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-06-22*
-*Last updated: 2026-06-22 after Phase 1 planning — 4 plans created*
+*Last updated: 2026-06-22 — 01-04 (install.ps1 + README) authored & committed; human-verify gate OPEN before Phase 1 ships*
