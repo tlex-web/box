@@ -32,25 +32,25 @@ The toolbox must be **globally available and instantly usable from PowerShell 7*
 - [x] `8ball` — magic 8-ball oracle
 - [x] `roast` — random programmer-roast generator
 
+**Filesystem power tools** *(validated in Phase 3 — Filesystem Power Tools, 2026-06-23)*
+- [x] `hash` — compute/verify file checksums (default SHA-256; `--algo blake3|sha512|md5`; stdin or `--file`; `--verify` with the 0/1/2 exit contract)
+- [x] `tree` — box-drawing directory tree (dir-first, colored dirs, `--sizes`, `--depth`, `N directories, M files` summary)
+- [x] `du` — size-sorted disk usage (biggest-first, recursive dir totals, `--top`, `--depth`, human-readable sizes)
+- [x] `dupes` — content-duplicate finder (size pre-filter → parallel BLAKE3, grouped output, wasted-space summary; strictly read-only)
+- [x] `bulk-rename` — regex bulk rename, dry-run preview by default + `--force` to execute, abort-all-before-any pre-flight (collisions / cycles / path-escape)
+
 ### Active
 
 <!-- Current scope. Building toward these. All are hypotheses until shipped. -->
 
 **Useful staples**
 - [ ] `qr` — render QR codes for text/URLs in the terminal
-- [ ] `hash` — compute and verify file hashes / checksums
-
-**File power tools**
-- [ ] `dupes` — find duplicate files by content
-- [ ] `bulk-rename` — regex-based bulk rename with a dry-run preview
-- [ ] `tree` — pretty directory tree with file sizes
 
 **Dev utilities**
 - [ ] `clip` — read from / write to the clipboard
 - [ ] `json` — pretty-print and validate JSON
 
 **Disk & art**
-- [ ] `du` — analyze disk usage ("what's eating my space")
 - [ ] `ascii` — render an image as ASCII art
 
 **Fun**
@@ -115,4 +115,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-22 — Phase 2 (Pure Transform Utilities) complete: nine commands (uuid, base64, epoch, color, passgen, cowsay, fortune, 8ball, roast) shipped, verified, and human-UAT cleared on the shared core::input foundation*
+*Last updated: 2026-06-23 — Phase 3 (Filesystem Power Tools) complete: five commands (hash, tree, du, dupes, bulk-rename) shipped, verified 24/24, human-UAT cleared; a post-review BLOCKER (bulk-rename `..`/`.` path-escape) + 5 warnings fixed with covering tests. 14/23 commands live; next = Phase 4 (terminal visuals).*
