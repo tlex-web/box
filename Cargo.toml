@@ -23,6 +23,19 @@ crossterm = "0.29"
 walkdir = "2.5"
 # Path normalization (no \\?\ UNC leak)
 dunce = "1.0"
+# Phase-2 pure-transform crates (added once here so Wave-2 command plans never
+# touch the manifest — D-01 lean bundle):
+# `v4` auto-enables rng+std+getrandom; Display gives RFC-4122 lowercase-hyphenated.
+uuid = { version = "1.23.3", features = ["v4"] }
+# STANDARD + URL_SAFE_NO_PAD engines; zero transitive deps.
+base64 = "0.22.1"
+# default-features off trims oldtime/wasmbind; `clock` keeps `Local` (pulls
+# iana-time-zone transitively); `std` for the rest of the API (D-01).
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+# OsRng for passgen (CSPRNG) + rng() for the whimsy commands (D-08).
+rand = "0.9"
+# NOTE: no `rand_core` yet — verify `use rand::TryRngCore` resolves through rand
+# 0.9 re-exports during the passgen plan (RESEARCH A1); not needed here.
 # NOTE: no `filetime` — use std::fs::FileTimes (Rust 1.75+).
 # NOTE: no `is-terminal` — use std::io::IsTerminal (Rust 1.70+).
 
