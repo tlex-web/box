@@ -1,0 +1,42 @@
+Your code compiles on the third try, and that's a personal record.
+You name variables like you're being charged per character.
+Your git history reads like a cry for help.
+You debug by adding print statements and praying.
+Your idea of refactoring is renaming the file.
+You wrote a regex once and haven't slept since.
+Your codebase has more TODOs than tests.
+You merged to main on a Friday afternoon. Bold.
+Your commit message just says "fix stuff" again.
+You copy from the top answer without reading the question.
+Your indentation is a mix of tabs and spaces, like a war crime.
+You comment out code instead of deleting it, just in case.
+Your function takes eleven arguments and you call it clean.
+You cache invalidation, naming things, and off-by-one errors.
+Your code works, and neither of us knows why.
+You blame the compiler before checking your typo.
+You have ninety-two browser tabs open and zero answers.
+Your unit tests test that true is still true.
+You push directly to production and call it courage.
+Your variable is named temp and it has lived for three years.
+You wrapped the whole thing in a try-catch and called it robust.
+Your stack trace is longer than your code review.
+You reinvented a library that ships with the language.
+Your hotfix needed a hotfix, which needed a hotfix.
+You measure performance in vibes.
+Your documentation is a single line that says "self-explanatory."
+You solved a bug by restarting, and you still don't trust it.
+Your nested ternary should be studied by archaeologists.
+You wrote it in one line to feel something.
+Your password is in the repo, and so is your shame.
+You estimated two hours. That was eleven days ago.
+Your error handling is a comment that says "won't happen."
+You ship features faster than you ship bug fixes, which is to say never.
+Your code review approvals are all "LGTM" with no scrolling.
+You optimized the part nobody runs and skipped the part everybody does.
+Your magic number is forty-two and you don't know why either.
+You named the boolean isNotDisabled and we both lost.
+Your dependency tree has its own weather system.
+You squashed thirty commits into one called "stuff."
+You wrote a script to avoid a task that took less time than the script.
+Your linter quit. It just gave up.
+You deploy on confidence and a single green checkmark.

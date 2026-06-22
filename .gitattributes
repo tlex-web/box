@@ -1,3 +1,9 @@
 # The EFF wordlist is embedded verbatim via include_str! at compile time. Force
 # LF so no CR (\r) leaks into the parsed words on a CRLF checkout (autocrlf=true).
 src/data/eff_large_wordlist.txt text eol=lf
+
+# fortune/roast lists are embedded via include_str! too — same LF lock so no \r
+# leaks into the parsed lines on a CRLF checkout (autocrlf=true). The loaders also
+# trim defensively, but the eol=lf attribute is the root-cause fix.
+src/data/fortunes.txt text eol=lf
+src/data/roasts.txt text eol=lf
