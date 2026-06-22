@@ -70,7 +70,7 @@ fn main() -> ExitCode {
         Commands::Roast(args) => args.run(),
         Commands::Hash(args) => args.run(),
         Commands::Tree(args) => args.run(),
-        Commands::Du => Err(not_implemented("du")),
+        Commands::Du(args) => args.run(),
         Commands::Dupes => Err(not_implemented("dupes")),
         Commands::BulkRename => Err(not_implemented("bulk-rename")),
         Commands::Lolcat => Err(not_implemented("lolcat")),

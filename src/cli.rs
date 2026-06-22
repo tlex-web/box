@@ -58,7 +58,7 @@ pub enum Commands {
     /// Print a directory tree with file sizes
     Tree(crate::commands::tree::TreeArgs),
     /// Analyze disk usage for a directory
-    Du,
+    Du(crate::commands::du::DuArgs),
     /// Find duplicate files by content
     Dupes,
     /// Bulk-rename files with a regex and dry-run preview

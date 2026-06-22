@@ -7,6 +7,7 @@
 pub mod base64;
 pub mod color;
 pub mod cowsay;
+pub mod du;
 pub mod eight_ball;
 pub mod epoch;
 pub mod flatten;

@@ -166,25 +166,47 @@ fn du_top_and_total_summary() {
     );
 }
 
-/// DU-01 — `--depth N` caps how deep totals are rolled up. The immediate-child
-/// rows and the full-scan total are unchanged by the depth cap (every byte is
-/// still summed into its top-level child); the cap bounds the descent.
+/// DU-01 — `--depth N` caps how deep a directory's total is rolled up. With a
+/// cap, big/'s ROW shows a smaller total; without one it shows the full recursive
+/// sum. The cap bounds the descent — it changes the rolled-up totals as specified.
 #[test]
 fn du_depth_cap() {
     let fixture = build_fixture();
     let root = fixture.path();
 
-    // --depth 1: totals roll up no deeper than the immediate children. big/'s
-    // recursive total still includes its depth-1 file a.bin (3000) but NOT its
-    // depth-2 nested/b.bin (2000) -> big/ shows 3000 bytes = "2.9 KB".
-    du(root, &["--depth", "1"]).success().stdout(
-        predicate::str::contains("big/")
-            .and(predicate::str::contains("2.9 KB"))
-            .and(predicate::str::contains("4.9 KB").not()),
+    // --depth 1: big/'s recursive total rolls up only its depth-1 file a.bin
+    // (3000) and EXCLUDES its depth-2 nested/b.bin (2000), so big/'s ROW shows
+    // "2.9 KB  big/" (not "4.9 KB  big/"). We assert against the big/ ROW LINE so
+    // the summary total (which legitimately sums the capped rows) doesn't muddy
+    // the assertion.
+    let out = du(root, &["--depth", "1"])
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8(out).expect("du output is utf-8");
+    let big_row = text
+        .lines()
+        .find(|l| l.contains("big/"))
+        .expect("a big/ row");
+    assert!(
+        big_row.contains("2.9 KB"),
+        "--depth 1 must roll big/ up to only its depth-1 file (3000 -> 2.9 KB), got row: {big_row:?}"
+    );
+    assert!(
+        !big_row.contains("4.9 KB"),
+        "--depth 1 must EXCLUDE the depth-2 descendant from big/'s row, got row: {big_row:?}"
     );
 
-    // Without a cap, big/ rolls up the full recursive total (5000 -> 4.9 KB).
-    du(root, &[])
-        .success()
-        .stdout(predicate::str::contains("4.9 KB"));
+    // Without a cap, big/'s row rolls up the full recursive total (5000 -> 4.9 KB).
+    let out = du(root, &[]).success().get_output().stdout.clone();
+    let text = String::from_utf8(out).expect("du output is utf-8");
+    let big_row = text
+        .lines()
+        .find(|l| l.contains("big/"))
+        .expect("a big/ row");
+    assert!(
+        big_row.contains("4.9 KB"),
+        "uncapped, big/'s row must show the full recursive total (5000 -> 4.9 KB), got row: {big_row:?}"
+    );
 }
