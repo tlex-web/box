@@ -78,7 +78,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 — shares cli.rs/main.rs registry)*
 
-- [ ] 02-04-PLAN.md — passgen (OsRng CSPRNG, unbiased selection, EFF wordlist, paste-safe charset, T-V6) + cowsay (40-col wrap + hard-break + classic bubble, D-11); creates src/data/ (PASS-01, COW-01)
+- [x] 02-04-PLAN.md — passgen (OsRng CSPRNG, unbiased selection, EFF wordlist, paste-safe charset, T-V6) + cowsay (40-col wrap + hard-break + classic bubble, D-11); creates src/data/ (PASS-01, COW-01)
 
 **Wave 5** *(blocked on Wave 4 — shares cli.rs/main.rs registry)*
 
@@ -136,7 +136,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation + Flatten | 4/4 | Complete    | 2026-06-22 |
-| 2. Pure Transform Utilities | 3/5 | In Progress|  |
+| 2. Pure Transform Utilities | 4/5 | In Progress|  |
 | 3. Filesystem Power Tools | 0/? | Not started | - |
 | 4. Terminal Visuals | 0/? | Not started | - |
 | 5. Windows Platform Integration | 0/? | Not started | - |

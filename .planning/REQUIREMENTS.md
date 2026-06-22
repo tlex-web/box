@@ -41,7 +41,7 @@ Requirements for initial release. All 23 commands are in v1 scope. Each maps to 
 - [x] **EPOC-01**: User can convert a Unix timestamp to a human date (local + UTC) and a date string back to a timestamp; running with no args prints the current timestamp
 - [x] **COLR-01**: User can convert colors between hex and RGB, see all representations at once, and view an in-terminal swatch of the color
 - [ ] **CLIP-01**: User can pipe stdin to the clipboard and read the clipboard to stdout, with correct Unicode handling on Windows (bypassing clip.exe limitations)
-- [ ] **PASS-01**: User can generate cryptographically random passwords (length and character-set control) and passphrases (`--words N`), with `--count N` for bulk generation, printed to stdout only
+- [x] **PASS-01**: User can generate cryptographically random passwords (length and character-set control) and passphrases (`--words N`), with `--count N` for bulk generation, printed to stdout only
 
 ### Terminal Visuals
 
@@ -52,7 +52,7 @@ Requirements for initial release. All 23 commands are in v1 scope. Each maps to 
 
 ### Fun
 
-- [ ] **COW-01**: User can render an ASCII speech bubble (cowsay) for text given as an argument or piped via stdin, with word-wrapping
+- [x] **COW-01**: User can render an ASCII speech bubble (cowsay) for text given as an argument or piped via stdin, with word-wrapping
 - [ ] **FORT-01**: User can print a random fortune/quote, different each run, sized to fit the terminal
 - [ ] **8BAL-01**: User can ask a yes/no question and get a classic random Magic 8-Ball response (question optional)
 - [ ] **ROST-01**: User can print a random programmer roast, different each run
@@ -122,8 +122,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | B64-01 | Phase 2 | Complete |
 | EPOC-01 | Phase 2 | Complete |
 | COLR-01 | Phase 2 | Complete |
-| PASS-01 | Phase 2 | Pending |
-| COW-01 | Phase 2 | Pending |
+| PASS-01 | Phase 2 | Complete |
+| COW-01 | Phase 2 | Complete |
 | FORT-01 | Phase 2 | Pending |
 | 8BAL-01 | Phase 2 | Pending |
 | ROST-01 | Phase 2 | Pending |

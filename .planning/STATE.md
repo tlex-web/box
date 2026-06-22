@@ -2,22 +2,22 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 4
+current_plan: 5
 status: executing
-stopped_at: Completed 02-03-PLAN.md (epoch + color commands; EPOC-01, COLR-01)
-last_updated: "2026-06-22T16:22:21.591Z"
+stopped_at: Completed 02-04-PLAN.md (passgen + cowsay commands; PASS-01, COW-01)
+last_updated: "2026-06-22T16:39:48.785Z"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 9
-  completed_plans: 7
-  percent: 78
+  completed_plans: 8
+  percent: 89
 ---
 
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-22
-**Updated by:** plan-02-03 executor
+**Updated by:** plan-02-04 executor
 
 ---
 
@@ -34,23 +34,23 @@ progress:
 ## Current Position
 
 Phase: 02 (pure-transform-utilities) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 **Phase:** 2
-**Current Plan:** 4
+**Current Plan:** 5
 **Total Plans in Phase:** 5
-**Status:** Executing Phase 02 (plans 02-01, 02-02, 02-03 complete)
+**Status:** Executing Phase 02 (plans 02-01..02-04 complete)
 
 **Progress:**
 
 ```
-[████████░░] 78%
+[█████████░] 89%
 Phase 1 [██████████] 4 / 4 plans ✓ complete
-Phase 2 [██████░░░░] 3 / 5 plans — executing
+Phase 2 [████████░░] 4 / 5 plans — executing
 Phase 3 [          ] Not started
 Phase 4 [          ] Not started
 Phase 5 [          ] Not started
 
-Overall: 1 / 5 phases complete (7 / 9 plans)
+Overall: 1 / 5 phases complete (8 / 9 plans)
 ```
 
 ---
@@ -60,7 +60,7 @@ Overall: 1 / 5 phases complete (7 / 9 plans)
 | Phase | Name | Requirements | Status |
 |-------|------|-------------|--------|
 | 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | ✓ Complete (4/4 plans) |
-| 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | In Progress (3/5 plans) |
+| 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | In Progress (4/5 plans) |
 | 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | Not started |
 | 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Not started |
 | 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | Not started |
@@ -69,8 +69,8 @@ Overall: 1 / 5 phases complete (7 / 9 plans)
 
 ## Performance Metrics
 
-**Plans executed:** 7
-**Plans succeeded:** 7
+**Plans executed:** 8
+**Plans succeeded:** 8
 **Plans failed:** 0
 **Phases completed:** 1 / 5
 
@@ -83,6 +83,7 @@ Overall: 1 / 5 phases complete (7 / 9 plans)
 | 02 | P01 | 5min | 3 | 6 |
 | 02 | P02 | 5min | 2 | 9 |
 | 02 | P03 | 6min | 2 (TDD) | 9 |
+| 02 | P04 | 11min | 3 (2 TDD) | 11 |
 
 ---
 
@@ -123,6 +124,9 @@ Overall: 1 / 5 phases complete (7 / 9 plans)
 | [02-02] base64 decode uses `from_utf8_lossy + .trim()` then `engine.decode`, and writes raw bytes via `stdout().write_all` | Trimming tolerates the piped trailing newline (Pitfall 3); writing bytes (not a String) keeps decoded output byte-exact incl. non-UTF-8 (T-02-04); a malformed alphabet maps to an `anyhow` Err → exit 1 with no panic (T-02-03) |
 | [02-03] epoch self-resolves input (no-arg = "print now", NOT exit-2 missing-input) so it does NOT call `core::input::read_input`; color requires input so it delegates to `read_input` | For epoch a no-arg interactive TTY means "print the current timestamp" (a feature), not the missing-input/exit-2 case — so epoch has its own `resolve_value`. color requires input and inherits the exit-2-on-no-arg-TTY contract via `read_input`. This makes color, NOT epoch, the first live String-path caller |
 | [02-03] color is the first live `core::input::read_input` (String) consumer; removed the forward-compat `#[allow(dead_code)]` from `read_input` + `resolve` | Mirrors the 02-02 byte-path removal and the [01-03] allow-then-remove precedent: the byte path went live with base64, the String path now lives with color, so `core::input` carries no forward-compat allows. The color swatch is the ONLY color path — gated solely on `is_color_on()` (no `set_override`, no background-SGR fill) so piped output is byte-identical minus ANSI (D-10) |
+| [02-04] A1 closed to fact: `rand::TryRngCore` resolves under rand 0.9 (compiled `cargo --example` probe) → Cargo.toml UNCHANGED, no `rand_core` dep; passgen RNG is `OsRng.unwrap_err()` (D-08 literal) | The plan flagged A1 as a LOW-risk assumption; a one-line probe with the full import chain (`OsRng`/`TryRngCore`/`IndexedRandom::choose`/`random_range`) compiled clean, so the re-export path works and `rand_core` was never added. The bias-freedom + CSPRNG-source guarantee is a grep code-review gate (OsRng present, no `% len`), NOT a statistical test (T-V6) |
+| [02-04] passgen passphrase separator is a DOT, not a hyphen | Some EFF words are hyphenated (`t-shirt`, `yo-yo`, `drop-down`, `felt-tip`), so a hyphen separator makes word boundaries ambiguous; a dot is paste-safe in PS7 and never appears inside an EFF word (Rule-1 fix of a latent ambiguity). EFF list stored words-only (dice codes stripped) + `.gitattributes eol=lf` so no `\r` leaks via `include_str!` on a CRLF (autocrlf=true) checkout |
+| [02-04] cowsay fixed-40 wrap (NOT terminal width); trycmd normalizes `\`→`/` in snapshots (RESEARCH A4) | Fixed width keeps pipe-vs-TTY output reproducible (D-11). trycmd's Windows path normalization converts the cow's backslashes to forward slashes in the stored snapshot, so the byte-exact bubble (with real `\`) is locked by the `bubble` unit tests and the trycmd files are the end-to-end render lock — do not fight the harness. EFF CC-BY 3.0 US attribution attached via clap `after_help` (the variant doc-comment is locked byte-identical by help.trycmd) |
 
 ### Critical Pitfalls to Remember
 
@@ -162,14 +166,15 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-22T16:22:21.591Z
-**Stopped At:** Completed 02-03-PLAN.md (epoch + color commands; EPOC-01, COLR-01)
+**Last session:** 2026-06-22T16:39:26.805Z
+**Stopped At:** Completed 02-04-PLAN.md (passgen + cowsay commands; PASS-01, COW-01)
 **Resume File:** None
 
-**Next action:** Continue Phase 2 — execute plan 02-04 (next Wave-2 command slice).
+**Next action:** Continue Phase 2 — execute the final plan 02-05 (the whimsy commands: fortune, 8ball, roast).
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
 *Updated: 2026-06-22 by execute-phase orchestrator — Phase 1 COMPLETE (human-verify cleared, verification passed 5/5, flatten review findings CR-01/WR-01/WR-02 fixed)*
 *Updated: 2026-06-22 by plan-02-02 executor — uuid + base64 shipped (UUID-01, B64-01); strict dead-code gate restored on the core::input byte path*
 *Updated: 2026-06-22 by plan-02-03 executor — epoch + color shipped (EPOC-01, COLR-01); strict dead-code gate restored on the core::input String path (color is the first live read_input caller); first reuse of the core::output is_color_on() gate by a new styled command*
+*Updated: 2026-06-22 by plan-02-04 executor — passgen + cowsay shipped (PASS-01, COW-01); OsRng CSPRNG + unbiased choose (no % len, T-V6 grep gate); EFF 7776 list embedded + CC-BY 3.0 US attributed; A1 closed (rand::TryRngCore resolves, no rand_core); cowsay fixed-40 wrap + hard-break + bubble locked by units + 2 trycmd snapshots*
