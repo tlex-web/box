@@ -52,11 +52,7 @@ fn default_is_16_chars_from_curated_set() {
     let lines: Vec<&str> = out.lines().collect();
     assert_eq!(lines.len(), 1, "default prints exactly one line: {out:?}");
     let pw = lines[0];
-    assert_eq!(
-        pw.chars().count(),
-        16,
-        "default length is 16 chars: {pw:?}"
-    );
+    assert_eq!(pw.chars().count(), 16, "default length is 16 chars: {pw:?}");
     for c in pw.chars() {
         assert!(
             in_default_charset(c),
@@ -70,7 +66,11 @@ fn default_is_16_chars_from_curated_set() {
 fn length_flag_controls_length() {
     let out = passgen_stdout(&["--length", "24"]);
     let pw = out.lines().next().expect("one line");
-    assert_eq!(pw.chars().count(), 24, "--length 24 yields 24 chars: {pw:?}");
+    assert_eq!(
+        pw.chars().count(),
+        24,
+        "--length 24 yields 24 chars: {pw:?}"
+    );
 }
 
 /// `box passgen --no-symbols` over a large sample contains no symbol char —
@@ -101,12 +101,10 @@ fn no_symbols_excludes_all_symbols() {
 fn words_flag_yields_n_eff_words() {
     let out = passgen_stdout(&["--words", "4"]);
     let line = out.lines().next().expect("one line");
-    // The separator is implementation discretion; split on any non-word/hyphen
-    // boundary by counting EFF-shaped tokens. EFF words are [a-z-]+.
-    let words: Vec<&str> = line
-        .split(|c: char| !(c.is_ascii_lowercase() || c == '-'))
-        .filter(|w| !w.is_empty())
-        .collect();
+    // The separator is implementation discretion (a dot — unambiguous because no
+    // EFF word contains one; some EFF words ARE hyphenated, e.g. `t-shirt`, so a
+    // hyphen separator would not split cleanly). Split on the dot.
+    let words: Vec<&str> = line.split('.').filter(|w| !w.is_empty()).collect();
     assert_eq!(
         words.len(),
         4,
@@ -140,7 +138,5 @@ fn count_flag_yields_n_distinct_lines() {
 fn success_writes_nothing_to_stderr() {
     let mut cmd = Command::cargo_bin("box").unwrap();
     cmd.arg("passgen").env("NO_COLOR", "1");
-    cmd.assert()
-        .success()
-        .stderr(predicate::str::is_empty());
+    cmd.assert().success().stderr(predicate::str::is_empty());
 }

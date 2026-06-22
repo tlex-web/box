@@ -43,7 +43,7 @@ pub enum Commands {
     /// Convert colors between hex and RGB formats
     Color(crate::commands::color::ColorArgs),
     /// Generate secure passwords and passphrases
-    Passgen,
+    Passgen(crate::commands::passgen::PassgenArgs),
     /// Wrap text in an ASCII-art speech bubble
     Cowsay,
     /// Print a random fortune or quote

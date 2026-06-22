@@ -8,6 +8,7 @@ pub mod base64;
 pub mod color;
 pub mod epoch;
 pub mod flatten;
+pub mod passgen;
 pub mod stub;
 pub mod uuid;
 

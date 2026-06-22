@@ -63,7 +63,7 @@ fn main() -> ExitCode {
         Commands::Base64(args) => args.run(),
         Commands::Epoch(args) => args.run(),
         Commands::Color(args) => args.run(),
-        Commands::Passgen => Err(not_implemented("passgen")),
+        Commands::Passgen(args) => args.run(),
         Commands::Cowsay => Err(not_implemented("cowsay")),
         Commands::Fortune => Err(not_implemented("fortune")),
         Commands::EightBall => Err(not_implemented("8ball")),
