@@ -9,7 +9,7 @@
 ## Phases
 
 - [x] **Phase 1: Foundation + Flatten** — Binary scaffold, install script, core infrastructure, and the anchor `flatten` command. Shipped 2026-06-22: install.ps1 + same-session flatten human-verified in PS7; verification passed (5/5); code-review silent-data-loss findings (CR-01/WR-01/WR-02) fixed
-- [x] **Phase 2: Pure Transform Utilities** — Nine zero-external-dependency commands proving the RunCommand pattern: uuid, base64, epoch, color, passgen, cowsay, fortune, 8ball, roast (completed 2026-06-22)
+- [x] **Phase 2: Pure Transform Utilities** — Nine zero-external-dependency commands proving the RunCommand pattern: uuid, base64, epoch, color, passgen, cowsay, fortune, 8ball, roast (completed 2026-06-22)
 - [ ] **Phase 3: Filesystem Power Tools** — Five commands sharing walkdir: hash, tree, du, dupes, bulk-rename
 - [ ] **Phase 4: Terminal Visuals** — Four commands sharing crossterm and rendering libraries: lolcat, matrix, ascii, json
 - [ ] **Phase 5: Windows Platform Integration** — Four commands with the highest external/API risk: qr, clip, pomodoro, weather
@@ -98,7 +98,27 @@ Plans:
   4. User runs `box dupes ./downloads` and sees groups of identical files identified by content hash with wasted-space summary; no files are deleted or modified
   5. User runs `box bulk-rename ./photos "(\d+)" "img_$1"` and gets a dry-run preview by default showing every planned rename; `--force` executes the renames; collision detection aborts before any rename if a conflict is found
 
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — `hash`: streaming enum-dispatch Hasher (SHA-256 default; blake3/sha512/md5 via `--algo`, D-02/D-03) + `--verify` length auto-detect with 0/1/2 exit codes (D-04) + the deferred `--file PATH` input layer (D-05) + typed exit-2 error variant (HASH-01)
+
+**Wave 2** *(blocked on Wave 1 — shares cli.rs/main.rs registry)*
+
+- [ ] 03-02-PLAN.md — `tree`: dir-first Unicode box-drawing render + colored dir names + `--sizes`/`--depth` + `N directories, M files` summary (D-08/09/10); promotes flatten's `human_size` into `core::output` for shared use (D-12) (TREE-01)
+
+**Wave 3** *(blocked on Wave 2 — shares cli.rs/main.rs registry)*
+
+- [ ] 03-03-PLAN.md — `du`: per-immediate-child recursive totals, biggest-first deterministic sort, `--top`/`--depth`, full-scan total summary, trailing-`/` dir marker (D-11/D-12); reuses the promoted `human_size` (DU-01)
+
+**Wave 4** *(blocked on Wave 3 — shares cli.rs/main.rs registry; reuses 03-01 BLAKE3 infra)*
+
+- [ ] 03-04-PLAN.md — `dupes`: size pre-filter then rayon-parallel BLAKE3 content hash, deterministic sorted groups + wasted-space summary, strictly read-only (D-13, D-06/D-07) (DUPE-01)
+
+**Wave 5** *(blocked on Wave 4 — shares cli.rs/main.rs registry)*
+
+- [ ] 03-05-PLAN.md — `bulk-rename`: regex plan (first-match `replace`, full-base-name, D-16/D-17) + ABORT-ALL pre-flight collision/cycle/path-separator detection (the only backstop vs `std::fs::rename`'s silent overwrite, D-18) + dry-run-default/`--force` execute (D-19) (RENM-01)
 
 ### Phase 4: Terminal Visuals
 
@@ -137,7 +157,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation + Flatten | 4/4 | Complete    | 2026-06-22 |
 | 2. Pure Transform Utilities | 5/5 | Complete   | 2026-06-22 |
-| 3. Filesystem Power Tools | 0/? | Not started | - |
+| 3. Filesystem Power Tools | 0/5 | Planned | - |
 | 4. Terminal Visuals | 0/? | Not started | - |
 | 5. Windows Platform Integration | 0/? | Not started | - |
 
@@ -159,3 +179,4 @@ Plans:
 *Roadmap created: 2026-06-22*
 *Last updated: 2026-06-22 — Phase 1 COMPLETE: human-verify gate cleared, verification passed (5/5), flatten review findings CR-01/WR-01/WR-02 fixed*
 *Last updated: 2026-06-22 — Phase 2 PLANNED: 5 plans across 5 waves (uuid/base64/epoch/color/passgen/cowsay/fortune/8ball/roast on a shared core::input foundation)*
+*Last updated: 2026-06-22 — Phase 3 PLANNED: 5 plans across 5 waves (hash → tree → du → dupes → bulk-rename), one vertical slice per command; shared-core changes folded into first consumer (--file→hash, human_size→tree); all 19 CONTEXT decisions covered*
