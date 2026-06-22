@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: Not started
+current_plan: 2
 status: executing
-stopped_at: Phase 3 planned
-last_updated: "2026-06-22T18:55:28.000Z"
+stopped_at: Phase 3 Plan 03-01 (hash) complete — HASH-01 shipped; next 03-02 (tree)
+last_updated: "2026-06-22T20:14:01.000Z"
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 14
-  completed_plans: 9
+  completed_plans: 10
   percent: 40
 ---
 
@@ -25,7 +25,7 @@ progress:
 
 **Core Value:** The toolbox must be globally available and instantly usable from PowerShell 7 — type `box <command>` from anywhere and the tool just works.
 
-**Current Focus:** Phase 3 — filesystem power tools
+**Current Focus:** Phase 03 — filesystem-power-tools
 
 **Milestone:** v1 (all 23 commands)
 
@@ -33,10 +33,12 @@ progress:
 
 ## Current Position
 
+Phase: 03 (filesystem-power-tools) — EXECUTING
+Plan: 2 of 5 (Plan 03-01 hash complete)
 **Phase:** 3 (filesystem-power-tools)
-**Current Plan:** Not started
+**Current Plan:** 2
 **Total Plans in Phase:** 5
-**Status:** Ready to execute
+**Status:** Executing Phase 03
 
 **Progress:**
 
@@ -44,7 +46,7 @@ progress:
 [████░░░░░░] 40% (2 / 5 phases complete)
 Phase 1 [██████████] 4 / 4 plans ✓ complete
 Phase 2 [██████████] 5 / 5 plans ✓ complete (verified, human-UAT cleared)
-Phase 3 [          ] Planned — 5 / 5 plans, ready to execute
+Phase 3 [██░░░░░░░░] 1 / 5 plans — 03-01 hash ✓ (HASH-01); next 03-02 tree
 Phase 4 [          ] Not started
 Phase 5 [          ] Not started
 
@@ -59,7 +61,7 @@ Overall: 2 / 5 phases complete
 |-------|------|-------------|--------|
 | 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | ✓ Complete (4/4 plans) |
 | 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | ✓ Complete (5/5 plans, verified, human-UAT cleared) |
-| 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | ◆ Planned (5 plans, ready to execute) |
+| 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | ◆ Executing (1/5 plans — 03-01 hash ✓ HASH-01) |
 | 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Not started |
 | 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | Not started |
 
@@ -67,10 +69,10 @@ Overall: 2 / 5 phases complete
 
 ## Performance Metrics
 
-**Plans executed:** 9
-**Plans succeeded:** 9
+**Plans executed:** 10
+**Plans succeeded:** 10
 **Plans failed:** 0
-**Phases completed:** 1 / 5 (Phase 2 ready for verification)
+**Phases completed:** 2 / 5 (Phase 3 executing — 1/5 plans)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -83,6 +85,7 @@ Overall: 2 / 5 phases complete
 | 02 | P03 | 6min | 2 (TDD) | 9 |
 | 02 | P04 | 11min | 3 (2 TDD) | 11 |
 | 02 | P05 | 6min | 2 (2 TDD) | 12 |
+| 03 | P01 | 6min | 2 (1 TDD) | 7 |
 
 ---
 
@@ -130,6 +133,11 @@ Overall: 2 / 5 phases complete
 | [02-05] fortune fits-the-terminal soft-wrap breaks only between words and only when the line exceeds `terminal_width()` (FORT-01, Open Question 3) | Wrapping at word boundaries keeps the wrapped render whitespace-equal to its source entry, so the membership test stays valid (an over-long single word is left whole). roast reuses the same helper for a consistent UX at near-zero cost |
 | [02-05] 8ball question accepted but discarded for the draw (`let _ = self.question;`) | Classic 8-ball; the answer is drawn uniformly regardless. Makes the no-injection-surface contract (T-02-10) self-documenting. The Rust module is `eight_ball` (digit-leading-ident pitfall) while the CLI name stays `8ball` via the preserved `#[command(name = "8ball")]` attribute |
 | [02-05] List commands share one source of truth: integration tests `include_str!` the SAME asset the binary embeds and parse it identically | Membership assertions cannot drift from shipped data (no hardcoded duplicate of the 70/42 lists). 8ball's 20 are duplicated in the test — a `const` doesn't re-export cheaply — but the in-module count + tone-split + non-empty unit tests guard the const's shape. `.gitattributes eol=lf` reused for both new text assets (CRLF-leak root-cause fix from 02-04) |
+| [03-01] hash hex encoding uses `const-hex::encode` (already a dep), NOT `base16ct` `alloc` | Resolves the RESEARCH open item with ZERO Cargo.toml change: `const_hex::encode` takes the digest-0.11 hybrid-array `finalize()` output directly (`AsRef<[u8]>`, no `.as_slice()`) and was verified to match `sha256sum`. blake3 self-hexes via `to_hex()`. The `base16ct` `alloc` feature stays off |
+| [03-01] hash enum-dispatch Hasher: one generic `hash_rustcrypto<D: Digest>` (sha256/sha512/md5) + a SEPARATE native `blake3::Hasher::update_reader` arm — NO `dyn Digest`, NO `traits-preview` | D-03. blake3's `digest::Digest` impl is behind the unstable `traits-preview` feature, so it gets its own arm on the stable native `Hasher`; every algorithm streams (64 KiB loop for RustCrypto, SIMD-internal for blake3) — no whole-file buffering (T-03-03). This Hasher infra is what `dupes` (03-04) reuses |
+| [03-01] `core::input::read_file_or_stdin` returns a streaming `ResolvedInput { reader: Box<dyn Read>, label }`, NOT bytes; `--file` branch sits AHEAD of stdin | hash must stream a multi-GB payload, so the new layer carries an open handle + a coreutils label (path, or `-` for stdin) rather than a `Vec` — distinct from the byte/String resolvers. `-` sentinel + `MissingInput`→exit-2 inherited. `ResolvedInput` needed a manual `Debug` impl (Box<dyn Read> isn't Debug) for test `.unwrap_err()` |
+| [03-01] hash `--verify`: only an UNSUPPORTED length is the typed exit-2 `UnsupportedHashLength`; a well-formed-but-mismatched hash is a plain `bail!` (exit 1) | D-04 / Pitfall 1. Length auto-detect maps 32→md5, 64→sha256 (wins the sha256/blake3 64-tie — `--algo blake3` is the only way to verify a 64-hex blake3), 128→sha512; `--algo` is the explicit override. Compare is plain `eq_ignore_ascii_case` (a checksum is PUBLIC, NOT constant-time — T-03-01) |
+| [03-01] `box` is a binary-only crate, so `cargo test --lib` does NOT work | The plan's `cargo test --lib core::input` verify command errors (`no library targets`); the in-module unit tests run via `cargo test --bin box <filter>` (or the default `cargo test`). Note for all future Phase-3 plans that verify with `--lib` |
 
 ### Critical Pitfalls to Remember
 
@@ -169,11 +177,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-22T17:47:04.205Z
-**Stopped At:** Phase 3 planned (5 plans, verified — ready to execute)
-**Resume File:** .planning/phases/03-filesystem-power-tools/03-01-PLAN.md
+**Last session:** 2026-06-22T20:14:01.000Z
+**Stopped At:** Phase 3 Plan 03-01 (hash) complete — HASH-01 shipped, full suite green
+**Resume File:** .planning/phases/03-filesystem-power-tools/03-02-PLAN.md
 
-**Next action:** Phase 3 context captured (03-CONTEXT.md — hash/tree/du/dupes/bulk-rename decisions locked). Next: `/gsd:plan-phase 3` to create the phase plans.
+**Next action:** Execute Plan 03-02 (`tree`) — Wave 2. It shares cli.rs/main.rs and promotes flatten's `human_size` into `core::output` (D-12). Reuse the 03-01 `core::input::read_file_or_stdin` pattern if a streaming input is needed.
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
@@ -182,3 +190,4 @@ None.
 *Updated: 2026-06-22 by plan-02-03 executor — epoch + color shipped (EPOC-01, COLR-01); strict dead-code gate restored on the core::input String path (color is the first live read_input caller); first reuse of the core::output is_color_on() gate by a new styled command*
 *Updated: 2026-06-22 by plan-02-04 executor — passgen + cowsay shipped (PASS-01, COW-01); OsRng CSPRNG + unbiased choose (no % len, T-V6 grep gate); EFF 7776 list embedded + CC-BY 3.0 US attributed; A1 closed (rand::TryRngCore resolves, no rand_core); cowsay fixed-40 wrap + hard-break + bubble locked by units + 2 trycmd snapshots*
 *Updated: 2026-06-22 by plan-02-05 executor — fortune + 8ball + roast shipped (FORT-01, 8BAL-01, ROST-01); whimsy RNG = rand::rng() + unbiased IndexedRandom::choose, non-determinism tested by membership + N=10-runs-differ properties; 70 CC0 fortunes + 42 self-authored roasts embedded (include_str! + eol=lf); 8ball canonical-20 const in the eight_ball module with 8ball CLI name preserved; ALL 9 Phase-2 stubs gone — Phase 2 plans complete (9/9), ready for verification; full cargo test + clippy -D warnings + fmt --check clean*
+*Updated: 2026-06-22 by plan-03-01 executor — `box hash` shipped (HASH-01): streaming enum-dispatch Hasher (SHA-256 default; --algo blake3/sha512/md5; RustCrypto digest 0.11 + native blake3 update_reader, no traits-preview/no dyn Digest), const-hex hex (no base16ct alloc change), --verify length-autodetect (32/64/128, sha256 wins the 64-tie) with the 0/1/2 exit contract; core::input grew read_file_or_stdin + ResolvedInput (streaming --file ahead of stdin); BoxError::UnsupportedHashLength exit-2 variant added; 7/7 HASH-01 tests + full suite + clippy -D warnings + fmt --check all green; hash stub gone (4 phase-3 stubs remain: tree/du/dupes/bulk-rename)*

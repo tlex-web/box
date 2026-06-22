@@ -102,7 +102,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — `hash`: streaming enum-dispatch Hasher (SHA-256 default; blake3/sha512/md5 via `--algo`, D-02/D-03) + `--verify` length auto-detect with 0/1/2 exit codes (D-04) + the deferred `--file PATH` input layer (D-05) + typed exit-2 error variant (HASH-01)
+- [x] 03-01-PLAN.md — `hash`: streaming enum-dispatch Hasher (SHA-256 default; blake3/sha512/md5 via `--algo`, D-02/D-03) + `--verify` length auto-detect with 0/1/2 exit codes (D-04) + the deferred `--file PATH` input layer (D-05) + typed exit-2 error variant (HASH-01) ✓ (1/2 tasks, TDD; 7/7 HASH-01 tests green)
 
 **Wave 2** *(blocked on Wave 1 — shares cli.rs/main.rs registry)*
 
@@ -180,3 +180,4 @@ Plans:
 *Last updated: 2026-06-22 — Phase 1 COMPLETE: human-verify gate cleared, verification passed (5/5), flatten review findings CR-01/WR-01/WR-02 fixed*
 *Last updated: 2026-06-22 — Phase 2 PLANNED: 5 plans across 5 waves (uuid/base64/epoch/color/passgen/cowsay/fortune/8ball/roast on a shared core::input foundation)*
 *Last updated: 2026-06-22 — Phase 3 PLANNED: 5 plans across 5 waves (hash → tree → du → dupes → bulk-rename), one vertical slice per command; shared-core changes folded into first consumer (--file→hash, human_size→tree); all 19 CONTEXT decisions covered*
+*Last updated: 2026-06-22 — Phase 3 Plan 03-01 (hash) COMPLETE: live `box hash` (SHA-256 default, --algo blake3/sha512/md5, --verify 0/1/2 exit contract); streaming enum-dispatch Hasher + core::input --file layer shipped; HASH-01 satisfied; 7/7 HASH-01 tests + full suite green*
