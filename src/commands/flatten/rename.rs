@@ -66,19 +66,38 @@ pub fn sanitize_reserved(name: &str) -> String {
     if is_reserved {
         stem.push('_');
     }
-    match ext {
+    let rebuilt = match ext {
         Some(e) => format!("{stem}.{e}"),
         None => stem,
+    };
+    // Windows also strips trailing dots/spaces from the WHOLE name on write — not
+    // just the stem. A trailing dot/space AFTER the final `.` (`report.txt `), or a
+    // no-extension trailing dot (`report.`), survives the stem-only trim above, so
+    // two distinct encoded names (`report` and `report.`) would key differently yet
+    // land on the SAME physical file -> silent overwrite (CR-01). Trim the rebuilt
+    // name so the occupied-set key matches the real on-disk name.
+    let trimmed = rebuilt.trim_end_matches(['.', ' ']);
+    if trimmed.is_empty() {
+        // The name was nothing but dots/spaces (e.g. `...`): give it a stable,
+        // writable name so it can never collapse to ""/"."/".." as a copy target.
+        "_".to_string()
+    } else {
+        trimmed.to_string()
     }
 }
 
-/// Append `_1`, `_2`, … before the extension until the (lowercased) name is free
-/// in `occupied`. NTFS is case-insensitive, so keying is always done on
-/// `to_ascii_lowercase()` to catch `README.TXT` vs `readme.txt` (T-03-overwrite).
+/// Append `_1`, `_2`, … before the extension until the (case-folded) name is free
+/// in `occupied`. NTFS is case-insensitive over the FULL Unicode case table, so
+/// keying is done on `to_lowercase()` (not `to_ascii_lowercase()`) to catch both
+/// `README.TXT` vs `readme.txt` AND non-ASCII pairs like `RÉSUMÉ.txt` vs
+/// `résumé.txt` (T-03-overwrite, WR-01). NTFS uses an OS-version-specific uppercase
+/// table, so `to_lowercase()` is a close-but-imperfect superset of the ASCII-only
+/// check — strictly safer, and it removes the common silent-overwrite. Callers MUST
+/// key `occupied` the same way (also `to_lowercase()`).
 ///
 /// Returns `name` unchanged when it does not collide.
 pub fn dedupe(name: &str, occupied: &HashSet<String>) -> String {
-    let key = name.to_ascii_lowercase();
+    let key = name.to_lowercase();
     if !occupied.contains(&key) {
         return name.to_string();
     }
@@ -88,7 +107,7 @@ pub fn dedupe(name: &str, occupied: &HashSet<String>) -> String {
     };
     for n in 1.. {
         let cand = format!("{stem}_{n}{ext}");
-        if !occupied.contains(&cand.to_ascii_lowercase()) {
+        if !occupied.contains(&cand.to_lowercase()) {
             return cand;
         }
     }
@@ -102,7 +121,8 @@ mod tests {
     use std::path::Path;
 
     fn occupied(names: &[&str]) -> HashSet<String> {
-        names.iter().map(|s| s.to_ascii_lowercase()).collect()
+        // Fold the same way real callers seed `occupied` (full Unicode, WR-01).
+        names.iter().map(|s| s.to_lowercase()).collect()
     }
 
     #[test]
@@ -203,6 +223,44 @@ mod tests {
     }
 
     #[test]
+    fn sanitize_trims_whole_name_trailing_junk() {
+        // CR-01: a trailing dot/space AFTER the final `.` (or a no-extension
+        // trailing dot) must be trimmed from the WHOLE name. Otherwise `report`
+        // and `report.` produce different occupied keys yet collapse to the same
+        // file on Windows -> silent overwrite. Each of these must fold to the bare
+        // on-disk name Windows would actually create.
+        assert_eq!(sanitize_reserved("report."), "report");
+        assert_eq!(sanitize_reserved("report. "), "report");
+        assert_eq!(sanitize_reserved("report.txt."), "report.txt");
+        assert_eq!(sanitize_reserved("report.txt "), "report.txt");
+        assert_eq!(sanitize_reserved("data."), "data");
+        // Reserved stem + trailing dot: suffixed AND trimmed, no dangling dot.
+        assert_eq!(sanitize_reserved("CON."), "CON_");
+        // A name that is nothing but dots/spaces collapses to a stable placeholder —
+        // never "", ".", or ".." (a degenerate copy target; IN-01).
+        assert_eq!(sanitize_reserved("..."), "_");
+        assert_eq!(sanitize_reserved(".  "), "_");
+        assert_eq!(sanitize_reserved(""), "_");
+    }
+
+    /// CR-01 end-to-end at the pure-function layer: `report` and `report.` must
+    /// land on the SAME occupied key so the second is deduped, not silently lost.
+    #[test]
+    fn trailing_dot_collides_with_bare_name() {
+        let a = sanitize_reserved("report");
+        let b = sanitize_reserved("report.");
+        assert_eq!(a, "report");
+        assert_eq!(b, "report");
+        // First claims the name; the second must be forced to dedupe.
+        let occ = occupied(&[&a]);
+        assert_ne!(
+            dedupe(&b, &occ),
+            b,
+            "report. must dedupe against an existing report, not reuse the name"
+        );
+    }
+
+    #[test]
     fn dedupe_numeric_fallback() {
         let occ = occupied(&["readme.txt"]);
         assert_eq!(dedupe("readme.txt", &occ), "readme_1.txt");
@@ -220,6 +278,15 @@ mod tests {
         // NTFS: README.TXT already occupies the slot for readme.txt.
         let occ = occupied(&["README.TXT"]);
         assert_eq!(dedupe("readme.txt", &occ), "readme_1.txt");
+    }
+
+    #[test]
+    fn dedupe_is_case_insensitive_unicode() {
+        // WR-01: NTFS folds the FULL Unicode case table, not just ASCII. `RÉSUMÉ.txt`
+        // already occupies the slot for `résumé.txt`, so the latter must dedupe — an
+        // ASCII-only fold would have missed this and silently overwritten the file.
+        let occ = occupied(&["RÉSUMÉ.txt"]);
+        assert_eq!(dedupe("résumé.txt", &occ), "résumé_1.txt");
     }
 
     #[test]

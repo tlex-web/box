@@ -117,8 +117,10 @@ impl RunCommand for FlattenArgs {
             );
         }
 
-        // (3) Seed the occupied-name set from the existing output dir (lowercased)
-        //     so an incoming name that already exists is renamed, not clobbered
+        // (3) Seed the occupied-name set from the existing output dir (case-folded
+        //     with `to_lowercase`, matching `rename::dedupe` — full Unicode, not
+        //     ASCII-only, so non-ASCII case pairs also collide; WR-01) so an
+        //     incoming name that already exists is renamed, not clobbered
         //     (D-14, T-03-overwrite).
         let mut occupied: HashSet<String> = HashSet::new();
         for entry in std::fs::read_dir(&out_root)
@@ -126,7 +128,7 @@ impl RunCommand for FlattenArgs {
         {
             let entry =
                 entry.with_context(|| format!("reading an entry of {}", out_root.display()))?;
-            occupied.insert(entry.file_name().to_string_lossy().to_ascii_lowercase());
+            occupied.insert(entry.file_name().to_string_lossy().to_lowercase());
         }
 
         // (4) Walk + build the single plan.
@@ -136,7 +138,10 @@ impl RunCommand for FlattenArgs {
         if self.dry_run {
             print_plan(&plan);
             println!();
-            println!("{}", dry_run_summary(plan.to_copy, plan.renamed, plan.skipped));
+            println!(
+                "{}",
+                dry_run_summary(plan.to_copy, plan.renamed, plan.skipped)
+            );
             return Ok(());
         }
 
@@ -187,7 +192,12 @@ impl RunCommand for FlattenArgs {
         println!();
         println!(
             "{}",
-            real_run_summary(copied, plan.renamed, plan.skipped, &human_size(bytes_written))
+            real_run_summary(
+                copied,
+                plan.renamed,
+                plan.skipped,
+                &human_size(bytes_written)
+            )
         );
         Ok(())
     }
@@ -237,13 +247,13 @@ fn build_plan(src_root: &Path, occupied: &mut HashSet<String>) -> anyhow::Result
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
         let base_safe = rename::sanitize_reserved(&base);
-        let base_key = base_safe.to_ascii_lowercase();
+        let base_key = base_safe.to_lowercase();
 
         if occupied.contains(&base_key) {
             // Collision: encode the source-relative path, then numeric-dedupe.
             let encoded = rename::encode_relative(rel);
             let chosen = rename::dedupe(&encoded, occupied);
-            occupied.insert(chosen.to_ascii_lowercase());
+            occupied.insert(chosen.to_lowercase());
             // `[collision]` vs `[collision xN]` when the chosen name itself needed
             // a numeric suffix (a double collision).
             let reason = collision_reason(&encoded, &chosen);

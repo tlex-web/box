@@ -8,10 +8,11 @@
 //!   entry is hidden if its name starts with `.` or carries
 //!   `FILE_ATTRIBUTE_HIDDEN`. The root entry (depth 0) is never hidden, so a
 //!   dotted source root is not pruned to zero files (walkdir#142, Pitfall 8).
-//! - [`safe_copy`] — `fs::copy` plus timestamp preservation via
-//!   `std::fs::FileTimes`, with `.context(...)` on every fallible call so
-//!   deep-path (>260 char) failures surface loudly per-file (FOUND-06,
-//!   Pitfalls 5 & 6).
+//! - [`safe_copy`] — a create-new copy (refuses to overwrite an existing dst, so
+//!   a missed in-memory collision fails loudly instead of silently clobbering;
+//!   WR-02) plus timestamp preservation via `std::fs::FileTimes`, with
+//!   `.context(...)` on every fallible call so deep-path (>260 char) failures
+//!   surface loudly per-file (FOUND-06, Pitfalls 5 & 6).
 
 use std::path::{Path, PathBuf};
 
@@ -62,13 +63,35 @@ pub fn is_hidden(entry: &DirEntry) -> bool {
 /// Copy `src` to `dst`, preserving the source's modified and accessed times,
 /// returning the number of bytes copied.
 ///
-/// `fs::copy` does **not** preserve timestamps on Windows (Pitfall 6); we read
-/// the source metadata and apply `std::fs::FileTimes` afterward. Every fallible
-/// I/O call carries `.context(...)` so a deep-path (>260 char) `NotFound`-style
-/// failure surfaces loudly per-file rather than being silently dropped (FOUND-06,
-/// Pitfall 5).
+/// **Refuses to overwrite an existing `dst`** (`create_new`): if a destination is
+/// already present the copy fails loudly with `AlreadyExists` rather than silently
+/// clobbering it. `flatten`'s in-memory `occupied` name-set is the primary
+/// collision guard, but it can drift from on-disk reality — a Windows trailing
+/// dot/space or non-ASCII-case name collapse the set missed, or a file appearing in
+/// the output dir between the `read_dir` seed and the copy. `create_new` is the
+/// defense-in-depth backstop for those, upholding the "nothing is silently
+/// overwritten" guarantee (WR-02, FLAT-02 / D-14).
+///
+/// `std::io::copy` (unlike `fs::copy`) does **not** preserve timestamps on Windows
+/// (Pitfall 6); we read the source metadata and apply `std::fs::FileTimes` to the
+/// freshly created handle afterward. Every fallible I/O call carries `.context(...)`
+/// so a deep-path (>260 char) `NotFound`-style failure surfaces loudly per-file
+/// rather than being silently dropped (FOUND-06, Pitfall 5).
 pub fn safe_copy(src: &Path, dst: &Path) -> anyhow::Result<u64> {
-    let bytes = std::fs::copy(src, dst)
+    let mut reader =
+        std::fs::File::open(src).with_context(|| format!("opening source {}", src.display()))?;
+    // create_new: fail with AlreadyExists instead of clobbering an existing file.
+    let mut writer = std::fs::File::options()
+        .write(true)
+        .create_new(true)
+        .open(dst)
+        .with_context(|| {
+            format!(
+                "creating destination {} (refusing to overwrite)",
+                dst.display()
+            )
+        })?;
+    let bytes = std::io::copy(&mut reader, &mut writer)
         .with_context(|| format!("copying {} -> {}", src.display(), dst.display()))?;
 
     let meta = std::fs::metadata(src)
@@ -84,12 +107,8 @@ pub fn safe_copy(src: &Path, dst: &Path) -> anyhow::Result<u64> {
         Ok(accessed) => times.set_accessed(accessed),
         Err(_) => times,
     };
-
-    let dst_file = std::fs::File::options()
-        .write(true)
-        .open(dst)
-        .with_context(|| format!("opening {} to set timestamps", dst.display()))?;
-    dst_file
+    // Set times on the handle we just wrote (opened write(true)) — no reopen needed.
+    writer
         .set_times(times)
         .with_context(|| format!("setting timestamps on {}", dst.display()))?;
 
@@ -212,6 +231,32 @@ mod tests {
         assert!(
             diff < Duration::from_secs(2),
             "dst mtime must match src mtime (diff {diff:?})"
+        );
+    }
+
+    #[test]
+    fn safe_copy_refuses_to_overwrite_existing() {
+        // WR-02: an already-present destination must error (AlreadyExists) and leave
+        // the original untouched — never a silent clobber.
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("src.bin");
+        let dst = dir.path().join("dst.bin");
+        std::fs::write(&src, b"incoming").unwrap();
+        std::fs::write(&dst, b"original-keep-me").unwrap();
+
+        let err = safe_copy(&src, &dst).expect_err("safe_copy must refuse an existing destination");
+
+        // The original destination content is preserved byte-for-byte.
+        assert_eq!(
+            std::fs::read(&dst).unwrap(),
+            b"original-keep-me",
+            "existing destination must not be overwritten"
+        );
+        // The error chain explains the refusal.
+        let msg = format!("{err:#}").to_lowercase();
+        assert!(
+            msg.contains("refusing to overwrite") || msg.contains("already"),
+            "expected an overwrite-refusal error, got: {msg}"
         );
     }
 }
