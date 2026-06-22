@@ -53,7 +53,11 @@ fn badcmd_exits_2() {
 /// `arg_required_else_help` is exit 0; `main()` must override it (Pitfall 2).
 #[test]
 fn bare_box_exits_2() {
-    Command::cargo_bin("box").unwrap().assert().failure().code(2);
+    Command::cargo_bin("box")
+        .unwrap()
+        .assert()
+        .failure()
+        .code(2);
 }
 
 /// D-06 / FOUND-03 — invoking an unbuilt command exits 1 with the message on

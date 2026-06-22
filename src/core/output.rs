@@ -283,7 +283,10 @@ mod tests {
         );
         assert!(row.starts_with("  + "));
         assert!(row.contains("-> readme.md"));
-        assert!(!row.contains('\x1b'), "plain row must contain no ANSI: {row:?}");
+        assert!(
+            !row.contains('\x1b'),
+            "plain row must contain no ANSI: {row:?}"
+        );
     }
 
     #[test]
@@ -300,7 +303,10 @@ mod tests {
         );
         assert!(row.starts_with("  - "));
         assert!(row.ends_with("(skipped: symlink)"));
-        assert!(!row.contains('\x1b'), "plain row must contain no ANSI: {row:?}");
+        assert!(
+            !row.contains('\x1b'),
+            "plain row must contain no ANSI: {row:?}"
+        );
     }
 
     #[test]
@@ -311,7 +317,13 @@ mod tests {
         COLOR_ON.store(true, Ordering::Relaxed);
         let row = format_row(RowStatus::Rename, "a.txt", Some("b.txt"), None, 8, 80);
         COLOR_ON.store(false, Ordering::Relaxed); // restore for other tests
-        assert!(row.contains('\x1b'), "colored row should contain ANSI: {row:?}");
-        assert!(row.contains('~'), "glyph char must still be present: {row:?}");
+        assert!(
+            row.contains('\x1b'),
+            "colored row should contain ANSI: {row:?}"
+        );
+        assert!(
+            row.contains('~'),
+            "glyph char must still be present: {row:?}"
+        );
     }
 }

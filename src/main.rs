@@ -39,7 +39,10 @@ fn main() -> ExitCode {
             // Bare `box`: clap would print help to stdout and exit 0. D-08
             // requires exit 2; route the help text to stderr ("messages →
             // stderr", OQ-1) and force exit 2.
-            if matches!(e.kind(), ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand) {
+            if matches!(
+                e.kind(),
+                ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
+            ) {
                 eprint!("{e}");
                 return ExitCode::from(2);
             }

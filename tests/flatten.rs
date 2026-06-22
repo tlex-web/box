@@ -90,7 +90,8 @@ fn preserves_mtime() {
     f.write_str("payload").unwrap();
 
     // Backdate the source mtime so an unpreserved copy would visibly differ.
-    let backdated = std::time::SystemTime::now() - std::time::Duration::from_secs(60 * 60 * 24 * 365);
+    let backdated =
+        std::time::SystemTime::now() - std::time::Duration::from_secs(60 * 60 * 24 * 365);
     fs::File::options()
         .write(true)
         .open(f.path())

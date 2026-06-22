@@ -13,7 +13,12 @@ use clap::{Parser, Subcommand};
 
 /// Top-level CLI parser.
 #[derive(Parser)]
-#[command(name = "box", version, about = "A Rust CLI toolbox", arg_required_else_help = true)]
+#[command(
+    name = "box",
+    version,
+    about = "A Rust CLI toolbox",
+    arg_required_else_help = true
+)]
 pub struct Cli {
     /// Disable colored output (also honors NO_COLOR and non-TTY stdout)
     #[arg(long, global = true)]
