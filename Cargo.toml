@@ -1,0 +1,40 @@
+[package]
+name = "box"
+version = "0.1.0"
+edition = "2021"
+description = "A Rust CLI toolbox — 23 command-line tools in one binary"
+
+[[bin]]
+name = "box"
+path = "src/main.rs"
+
+[dependencies]
+# CLI
+clap = { version = "4.6", features = ["derive"] }
+anyhow = "1.0"
+thiserror = "2.0"
+# Terminal
+owo-colors = "4.3"
+enable-ansi-support = "0.3"
+crossterm = "0.29"
+# Directory walking
+walkdir = "2.5"
+# Path normalization (no \\?\ UNC leak)
+dunce = "1.0"
+# NOTE: no `filetime` — use std::fs::FileTimes (Rust 1.75+).
+# NOTE: no `is-terminal` — use std::io::IsTerminal (Rust 1.70+).
+
+[dev-dependencies]
+assert_cmd = "2.2"
+predicates = "3.1"
+assert_fs = "1.1"
+tempfile = "3.27"
+trycmd = "1.2"
+insta = "1.48"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
+opt-level = 3
