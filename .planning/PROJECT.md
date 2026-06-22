@@ -14,18 +14,16 @@ The toolbox must be **globally available and instantly usable from PowerShell 7*
 
 <!-- Shipped and confirmed valuable. -->
 
-(None yet — ship to validate)
+**Foundation** *(validated in Phase 1 — Foundation + Flatten, 2026-06-22)*
+- [x] Single binary `box` with discoverable subcommands (`box --help`, `box <cmd> --help`)
+- [x] `install.ps1` builds the release binary, copies it to a dedicated bin dir, and adds that dir to the user PATH so `box` works globally in PowerShell 7 (same-session, human-verified)
+
+**Anchor command** *(validated in Phase 1)*
+- [x] `flatten` — recursively copy every file from a folder tree into one flat output folder (originals untouched, folders dropped); on filename collision, rename by encoding the source path (e.g. `docs_sub_report.txt`). Silent-overwrite edge cases (Windows trailing dot/space, non-ASCII case, unconditional copy) hardened post-review.
 
 ### Active
 
 <!-- Current scope. Building toward these. All are hypotheses until shipped. -->
-
-**Foundation**
-- [ ] Single binary `box` with discoverable subcommands (`box --help`, `box <cmd> --help`)
-- [ ] `install.ps1` builds the release binary, copies it to a dedicated bin dir, and adds that dir to the user PATH so `box` works globally in PowerShell 7
-
-**Anchor command**
-- [ ] `flatten` — recursively copy every file from a folder tree into one flat output folder (originals untouched, folders dropped); on filename collision, rename by encoding the source path (e.g. `docs_sub_report.txt`)
 
 **Useful staples**
 - [ ] `qr` — render QR codes for text/URLs in the terminal
@@ -117,4 +115,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-22 after initialization*
+*Last updated: 2026-06-22 — Phase 1 (Foundation + Flatten) complete: the binary scaffold, install.ps1 global install, and the flatten anchor command shipped and validated*
