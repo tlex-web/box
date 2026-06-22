@@ -1,0 +1,11 @@
+```
+$ box tree project
+project
+├── src
+│   ├── lib.rs
+│   └── main.rs
+└── README.md
+
+1 directories, 3 files
+
+```

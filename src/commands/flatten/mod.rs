@@ -29,7 +29,7 @@ use walkdir::WalkDir;
 use crate::commands::RunCommand;
 use crate::core::fs::{is_hidden, normalize_path, safe_copy};
 use crate::core::output::{
-    dry_run_summary, format_row, real_run_summary, terminal_width, RowStatus,
+    dry_run_summary, format_row, human_size, real_run_summary, terminal_width, RowStatus,
 };
 
 /// `box flatten <src> <out> [--dry-run]` — flatten a folder tree into one
@@ -328,33 +328,9 @@ fn print_plan(plan: &Plan) {
     }
 }
 
-/// Human-readable byte size for the real-run summary (`1.2 MB`, `512 B`).
-fn human_size(bytes: u64) -> String {
-    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
-    if bytes < 1024 {
-        return format!("{bytes} B");
-    }
-    let mut size = bytes as f64;
-    let mut unit = 0;
-    while size >= 1024.0 && unit < UNITS.len() - 1 {
-        size /= 1024.0;
-        unit += 1;
-    }
-    format!("{size:.1} {}", UNITS[unit])
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn human_size_scales() {
-        assert_eq!(human_size(0), "0 B");
-        assert_eq!(human_size(512), "512 B");
-        assert_eq!(human_size(1024), "1.0 KB");
-        assert_eq!(human_size(1536), "1.5 KB");
-        assert_eq!(human_size(1024 * 1024), "1.0 MB");
-    }
 
     #[test]
     fn collision_reason_distinguishes_single_and_multi() {

@@ -189,6 +189,26 @@ pub fn truncate_middle(s: &str, max: usize) -> String {
     format!("{head_str}…{tail_str}")
 }
 
+/// Human-readable byte size (`1.2 MB`, `512 B`) — 1024-based with decimal-style
+/// `B`/`KB`/`MB`/`GB`/`TB` labels, capping at TB.
+///
+/// Promoted from `flatten` (D-12) so it is shared by every size-formatting
+/// consumer (flatten's real-run summary, `tree --sizes`, and du). Kept pure and
+/// string-returning so it is unit-testable without a terminal.
+pub fn human_size(bytes: u64) -> String {
+    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
+    if bytes < 1024 {
+        return format!("{bytes} B");
+    }
+    let mut size = bytes as f64;
+    let mut unit = 0;
+    while size >= 1024.0 && unit < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit += 1;
+    }
+    format!("{size:.1} {}", UNITS[unit])
+}
+
 /// The current terminal width in columns, or [`FALLBACK_WIDTH`] (80) when the
 /// width cannot be determined — e.g. when stdout is piped and there is no console
 /// to query (D-10).
@@ -245,6 +265,15 @@ mod tests {
         assert_eq!(RowStatus::Copy.glyph(), '+');
         assert_eq!(RowStatus::Rename.glyph(), '~');
         assert_eq!(RowStatus::Skip.glyph(), '-');
+    }
+
+    #[test]
+    fn human_size_scales() {
+        assert_eq!(human_size(0), "0 B");
+        assert_eq!(human_size(512), "512 B");
+        assert_eq!(human_size(1024), "1.0 KB");
+        assert_eq!(human_size(1536), "1.5 KB");
+        assert_eq!(human_size(1024 * 1024), "1.0 MB");
     }
 
     #[test]
