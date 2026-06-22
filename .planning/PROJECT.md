@@ -21,13 +21,23 @@ The toolbox must be **globally available and instantly usable from PowerShell 7*
 **Anchor command** *(validated in Phase 1)*
 - [x] `flatten` — recursively copy every file from a folder tree into one flat output folder (originals untouched, folders dropped); on filename collision, rename by encoding the source path (e.g. `docs_sub_report.txt`). Silent-overwrite edge cases (Windows trailing dot/space, non-ASCII case, unconditional copy) hardened post-review.
 
+**Pure transform utilities** *(validated in Phase 2 — Pure Transform Utilities, 2026-06-22)*
+- [x] `uuid` — generate v4 UUIDs (`-n N` for count, `--upper`)
+- [x] `base64` — encode / decode (`--decode`, `--url-safe`); byte-exact round-trip, missing input → exit 2
+- [x] `epoch` — convert between Unix timestamps and human-readable dates (no-arg → now; timestamp → local + UTC; date string → timestamp)
+- [x] `color` — convert between hex and RGB/HSL formats; gated truecolor swatch (plain glyphs when piped)
+- [x] `passgen` — CSPRNG passwords + EFF passphrases (`--length`, `--words`, `--count`, `--no-symbols`); OsRng source, unbiased selection
+- [x] `cowsay` — ASCII-character speech bubbles (greedy 40-col wrap + hard-break)
+- [x] `fortune` — random fortune / quote
+- [x] `8ball` — magic 8-ball oracle
+- [x] `roast` — random programmer-roast generator
+
 ### Active
 
 <!-- Current scope. Building toward these. All are hypotheses until shipped. -->
 
 **Useful staples**
 - [ ] `qr` — render QR codes for text/URLs in the terminal
-- [ ] `passgen` — generate secure passwords / passphrases
 - [ ] `hash` — compute and verify file hashes / checksums
 
 **File power tools**
@@ -37,25 +47,15 @@ The toolbox must be **globally available and instantly usable from PowerShell 7*
 
 **Dev utilities**
 - [ ] `clip` — read from / write to the clipboard
-- [ ] `uuid` — generate UUIDs
 - [ ] `json` — pretty-print and validate JSON
-
-**Converters**
-- [ ] `base64` — encode / decode base64
-- [ ] `epoch` — convert between Unix timestamps and human-readable dates
-- [ ] `color` — convert between hex and RGB color formats
 
 **Disk & art**
 - [ ] `du` — analyze disk usage ("what's eating my space")
 - [ ] `ascii` — render an image as ASCII art
 
 **Fun**
-- [ ] `cowsay` — ASCII-character speech bubbles
 - [ ] `lolcat` — rainbow-colorize piped text
 - [ ] `matrix` — Matrix digital-rain screensaver effect
-- [ ] `roast` — random programmer-roast generator
-- [ ] `fortune` — random fortune / quote
-- [ ] `8ball` — magic 8-ball oracle
 
 **Whimsy with utility**
 - [ ] `pomodoro` — focus timer with Windows toast notifications
@@ -115,4 +115,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-22 — Phase 1 (Foundation + Flatten) complete: the binary scaffold, install.ps1 global install, and the flatten anchor command shipped and validated*
+*Last updated: 2026-06-22 — Phase 2 (Pure Transform Utilities) complete: nine commands (uuid, base64, epoch, color, passgen, cowsay, fortune, 8ball, roast) shipped, verified, and human-UAT cleared on the shared core::input foundation*
