@@ -34,7 +34,7 @@
 Plans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — Crate scaffold: clap registry (23 commands), RunCommand trait, BoxError, exit-code mapping, Wave-0 cli tests (FOUND-01,02,03,05)
+- [x] 01-01-PLAN.md — Crate scaffold: clap registry (23 commands), RunCommand trait, BoxError, exit-code mapping, Wave-0 cli tests (FOUND-01,02,03,05)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -115,7 +115,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Flatten | 0/4 | Not started | - |
+| 1. Foundation + Flatten | 1/4 | In Progress|  |
 | 2. Pure Transform Utilities | 0/? | Not started | - |
 | 3. Filesystem Power Tools | 0/? | Not started | - |
 | 4. Terminal Visuals | 0/? | Not started | - |
