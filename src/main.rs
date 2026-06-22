@@ -66,7 +66,7 @@ fn main() -> ExitCode {
         Commands::Passgen(args) => args.run(),
         Commands::Cowsay(args) => args.run(),
         Commands::Fortune(args) => args.run(),
-        Commands::EightBall => Err(not_implemented("8ball")),
+        Commands::EightBall(args) => args.run(),
         Commands::Roast(args) => args.run(),
         Commands::Hash => Err(not_implemented("hash")),
         Commands::Tree => Err(not_implemented("tree")),

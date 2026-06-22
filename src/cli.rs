@@ -50,7 +50,7 @@ pub enum Commands {
     Fortune(crate::commands::fortune::FortuneArgs),
     /// Ask the magic 8-ball a question
     #[command(name = "8ball")]
-    EightBall,
+    EightBall(crate::commands::eight_ball::EightBallArgs),
     /// Deliver a random programmer roast
     Roast(crate::commands::roast::RoastArgs),
     /// Compute and verify file hashes
