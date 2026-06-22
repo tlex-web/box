@@ -34,6 +34,13 @@ base64 = "0.22.1"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 # OsRng for passgen (CSPRNG) + rng() for the whimsy commands (D-08).
 rand = "0.9"
+blake3 = "1.8.5"
+md-5 = "0.11.0"
+rayon = "1.12.0"
+sha2 = "0.11.0"
+regex = "1.12.4"
+base16ct = "1.0.0"
+const-hex = "1.19.1"
 # NOTE: no `rand_core` yet — verify `use rand::TryRngCore` resolves through rand
 # 0.9 re-exports during the passgen plan (RESEARCH A1); not needed here.
 # NOTE: no `filetime` — use std::fs::FileTimes (Rust 1.75+).
