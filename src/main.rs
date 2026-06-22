@@ -3,6 +3,8 @@
 //! the Task 1 checkpoint while still compiling the core/commands modules.
 
 #[allow(dead_code)]
+mod cli;
+#[allow(dead_code)]
 mod commands;
 #[allow(dead_code)]
 mod core;
