@@ -1,0 +1,13 @@
+```
+$ box cowsay "The quick brown fox jumps over the lazy dog and keeps on running"
+/                                         /
+| The quick brown fox jumps over the lazy |
+| dog and keeps on running                |
+/                                         /
+        /   ^__^
+         /  (oo)/_______
+            (__)/       )///
+                ||----w |
+                ||     ||
+
+```

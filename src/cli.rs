@@ -45,7 +45,7 @@ pub enum Commands {
     /// Generate secure passwords and passphrases
     Passgen(crate::commands::passgen::PassgenArgs),
     /// Wrap text in an ASCII-art speech bubble
-    Cowsay,
+    Cowsay(crate::commands::cowsay::CowsayArgs),
     /// Print a random fortune or quote
     Fortune,
     /// Ask the magic 8-ball a question
