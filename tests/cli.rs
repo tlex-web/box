@@ -70,6 +70,26 @@ fn stub_exits_1_to_stderr() {
         .stdout(predicate::str::is_empty());
 }
 
+/// FOUND-04 / SC3 — when stdout is not a TTY (assert_cmd captures it via a pipe),
+/// `box flatten --help` output must contain no ANSI escape sequence (`\x1b[`).
+/// Proves the color gate disables ANSI off-TTY (the `piped_help_has_no_ansi`
+/// validation test). Uses `flatten` specifically per the plan; `--help` is
+/// always available even while the command is a stub.
+#[test]
+fn piped_help_has_no_ansi() {
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .args(["flatten", "--help"])
+        .output()
+        .expect("run box flatten --help");
+    assert!(out.status.success(), "flatten --help should exit 0");
+    // ESC `[` is the start of every CSI/SGR ANSI sequence.
+    assert!(
+        !out.stdout.windows(2).any(|w| w == b"\x1b["),
+        "piped help must contain no ANSI escape (\\x1b[)"
+    );
+}
+
 /// FOUND-01 / SC1 — snapshot the full `box --help` listing of all 23 commands
 /// via a trycmd transcript (`tests/cmd/*.trycmd`). Locks the doc-comment `about`
 /// text and the complete command set against accidental drift.

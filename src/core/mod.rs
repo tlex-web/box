@@ -5,4 +5,5 @@
 //! hidden-entry predicate, and timestamp-preserving copy.
 
 pub mod errors;
+pub mod fs;
 pub mod output;
