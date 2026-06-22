@@ -53,9 +53,9 @@ Requirements for initial release. All 23 commands are in v1 scope. Each maps to 
 ### Fun
 
 - [x] **COW-01**: User can render an ASCII speech bubble (cowsay) for text given as an argument or piped via stdin, with word-wrapping
-- [ ] **FORT-01**: User can print a random fortune/quote, different each run, sized to fit the terminal
-- [ ] **8BAL-01**: User can ask a yes/no question and get a classic random Magic 8-Ball response (question optional)
-- [ ] **ROST-01**: User can print a random programmer roast, different each run
+- [x] **FORT-01**: User can print a random fortune/quote, different each run, sized to fit the terminal
+- [x] **8BAL-01**: User can ask a yes/no question and get a classic random Magic 8-Ball response (question optional)
+- [x] **ROST-01**: User can print a random programmer roast, different each run
 
 ### Whimsy with Utility
 
@@ -124,9 +124,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 | COLR-01 | Phase 2 | Complete |
 | PASS-01 | Phase 2 | Complete |
 | COW-01 | Phase 2 | Complete |
-| FORT-01 | Phase 2 | Pending |
-| 8BAL-01 | Phase 2 | Pending |
-| ROST-01 | Phase 2 | Pending |
+| FORT-01 | Phase 2 | Complete |
+| 8BAL-01 | Phase 2 | Complete |
+| ROST-01 | Phase 2 | Complete |
 | HASH-01 | Phase 3 | Pending |
 | TREE-01 | Phase 3 | Pending |
 | DU-01 | Phase 3 | Pending |

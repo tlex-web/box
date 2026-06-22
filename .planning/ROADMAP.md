@@ -9,7 +9,7 @@
 ## Phases
 
 - [x] **Phase 1: Foundation + Flatten** — Binary scaffold, install script, core infrastructure, and the anchor `flatten` command. Shipped 2026-06-22: install.ps1 + same-session flatten human-verified in PS7; verification passed (5/5); code-review silent-data-loss findings (CR-01/WR-01/WR-02) fixed
-- [ ] **Phase 2: Pure Transform Utilities** — Nine zero-external-dependency commands proving the RunCommand pattern: uuid, base64, epoch, color, passgen, cowsay, fortune, 8ball, roast
+- [x] **Phase 2: Pure Transform Utilities** — Nine zero-external-dependency commands proving the RunCommand pattern: uuid, base64, epoch, color, passgen, cowsay, fortune, 8ball, roast (completed 2026-06-22)
 - [ ] **Phase 3: Filesystem Power Tools** — Five commands sharing walkdir: hash, tree, du, dupes, bulk-rename
 - [ ] **Phase 4: Terminal Visuals** — Four commands sharing crossterm and rendering libraries: lolcat, matrix, ascii, json
 - [ ] **Phase 5: Windows Platform Integration** — Four commands with the highest external/API risk: qr, clip, pomodoro, weather
@@ -82,7 +82,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 — shares cli.rs/main.rs registry)*
 
-- [ ] 02-05-PLAN.md — fortune + roast (include_str! CC0 lists) + 8ball (canonical 20, eight_ball module) — rand::rng() + membership/varies-across-runs tests (FORT-01, 8BAL-01, ROST-01)
+- [x] 02-05-PLAN.md — fortune + roast (include_str! CC0 lists) + 8ball (canonical 20, eight_ball module) — rand::rng() + membership/varies-across-runs tests (FORT-01, 8BAL-01, ROST-01)
 
 ### Phase 3: Filesystem Power Tools
 
@@ -136,7 +136,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation + Flatten | 4/4 | Complete    | 2026-06-22 |
-| 2. Pure Transform Utilities | 4/5 | In Progress|  |
+| 2. Pure Transform Utilities | 5/5 | Complete   | 2026-06-22 |
 | 3. Filesystem Power Tools | 0/? | Not started | - |
 | 4. Terminal Visuals | 0/? | Not started | - |
 | 5. Windows Platform Integration | 0/? | Not started | - |

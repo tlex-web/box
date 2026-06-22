@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_plan: 5
-status: executing
-stopped_at: Completed 02-04-PLAN.md (passgen + cowsay commands; PASS-01, COW-01)
-last_updated: "2026-06-22T16:39:48.785Z"
+status: ready_for_verification
+stopped_at: Completed 02-05-PLAN.md (fortune + 8ball + roast commands; FORT-01, 8BAL-01, ROST-01) — Phase 2 complete
+last_updated: "2026-06-22T16:51:41.361Z"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 9
-  completed_plans: 8
-  percent: 89
+  completed_plans: 9
+  percent: 100
 ---
 
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-22
-**Updated by:** plan-02-04 executor
+**Updated by:** plan-02-05 executor
 
 ---
 
@@ -33,24 +33,24 @@ progress:
 
 ## Current Position
 
-Phase: 02 (pure-transform-utilities) — EXECUTING
-Plan: 5 of 5
+Phase: 02 (pure-transform-utilities) — READY FOR VERIFICATION
+Plan: 5 of 5 (all plans complete)
 **Phase:** 2
 **Current Plan:** 5
 **Total Plans in Phase:** 5
-**Status:** Executing Phase 02 (plans 02-01..02-04 complete)
+**Status:** Phase 2 complete — ready for verification (all 9 commands functional, all stubs gone)
 
 **Progress:**
 
 ```
-[█████████░] 89%
+[██████████] 100% of planned work (9 / 9 plans)
 Phase 1 [██████████] 4 / 4 plans ✓ complete
-Phase 2 [████████░░] 4 / 5 plans — executing
+Phase 2 [██████████] 5 / 5 plans ✓ complete — ready for verification
 Phase 3 [          ] Not started
 Phase 4 [          ] Not started
 Phase 5 [          ] Not started
 
-Overall: 1 / 5 phases complete (8 / 9 plans)
+Overall: 9 / 9 planned plans complete (Phase 2 awaiting verification)
 ```
 
 ---
@@ -60,7 +60,7 @@ Overall: 1 / 5 phases complete (8 / 9 plans)
 | Phase | Name | Requirements | Status |
 |-------|------|-------------|--------|
 | 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | ✓ Complete (4/4 plans) |
-| 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | In Progress (4/5 plans) |
+| 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | ✓ Plans complete (5/5) — ready for verification |
 | 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | Not started |
 | 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Not started |
 | 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | Not started |
@@ -69,10 +69,10 @@ Overall: 1 / 5 phases complete (8 / 9 plans)
 
 ## Performance Metrics
 
-**Plans executed:** 8
-**Plans succeeded:** 8
+**Plans executed:** 9
+**Plans succeeded:** 9
 **Plans failed:** 0
-**Phases completed:** 1 / 5
+**Phases completed:** 1 / 5 (Phase 2 ready for verification)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -84,6 +84,7 @@ Overall: 1 / 5 phases complete (8 / 9 plans)
 | 02 | P02 | 5min | 2 | 9 |
 | 02 | P03 | 6min | 2 (TDD) | 9 |
 | 02 | P04 | 11min | 3 (2 TDD) | 11 |
+| 02 | P05 | 6min | 2 (2 TDD) | 12 |
 
 ---
 
@@ -127,6 +128,10 @@ Overall: 1 / 5 phases complete (8 / 9 plans)
 | [02-04] A1 closed to fact: `rand::TryRngCore` resolves under rand 0.9 (compiled `cargo --example` probe) → Cargo.toml UNCHANGED, no `rand_core` dep; passgen RNG is `OsRng.unwrap_err()` (D-08 literal) | The plan flagged A1 as a LOW-risk assumption; a one-line probe with the full import chain (`OsRng`/`TryRngCore`/`IndexedRandom::choose`/`random_range`) compiled clean, so the re-export path works and `rand_core` was never added. The bias-freedom + CSPRNG-source guarantee is a grep code-review gate (OsRng present, no `% len`), NOT a statistical test (T-V6) |
 | [02-04] passgen passphrase separator is a DOT, not a hyphen | Some EFF words are hyphenated (`t-shirt`, `yo-yo`, `drop-down`, `felt-tip`), so a hyphen separator makes word boundaries ambiguous; a dot is paste-safe in PS7 and never appears inside an EFF word (Rule-1 fix of a latent ambiguity). EFF list stored words-only (dice codes stripped) + `.gitattributes eol=lf` so no `\r` leaks via `include_str!` on a CRLF (autocrlf=true) checkout |
 | [02-04] cowsay fixed-40 wrap (NOT terminal width); trycmd normalizes `\`→`/` in snapshots (RESEARCH A4) | Fixed width keeps pipe-vs-TTY output reproducible (D-11). trycmd's Windows path normalization converts the cow's backslashes to forward slashes in the stored snapshot, so the byte-exact bubble (with real `\`) is locked by the `bubble` unit tests and the trycmd files are the end-to-end render lock — do not fight the harness. EFF CC-BY 3.0 US attribution attached via clap `after_help` (the variant doc-comment is locked byte-identical by help.trycmd) |
+| [02-05] Whimsy RNG is `rand::rng()` (OS-seeded ThreadRng), NOT `OsRng` | fortune/roast/8ball are decorative, not security — no CSPRNG requirement (D-08). A fresh process reseeds from the OS so repeated calls differ. Unbiased `IndexedRandom::choose` is still used (over `% len`) as a distribution-quality choice, not a security gate. Non-determinism is tested by PROPERTY only (membership + N=10-runs-≥2-distinct), never a seeded/exact value (RESEARCH Pattern F) |
+| [02-05] fortune fits-the-terminal soft-wrap breaks only between words and only when the line exceeds `terminal_width()` (FORT-01, Open Question 3) | Wrapping at word boundaries keeps the wrapped render whitespace-equal to its source entry, so the membership test stays valid (an over-long single word is left whole). roast reuses the same helper for a consistent UX at near-zero cost |
+| [02-05] 8ball question accepted but discarded for the draw (`let _ = self.question;`) | Classic 8-ball; the answer is drawn uniformly regardless. Makes the no-injection-surface contract (T-02-10) self-documenting. The Rust module is `eight_ball` (digit-leading-ident pitfall) while the CLI name stays `8ball` via the preserved `#[command(name = "8ball")]` attribute |
+| [02-05] List commands share one source of truth: integration tests `include_str!` the SAME asset the binary embeds and parse it identically | Membership assertions cannot drift from shipped data (no hardcoded duplicate of the 70/42 lists). 8ball's 20 are duplicated in the test — a `const` doesn't re-export cheaply — but the in-module count + tone-split + non-empty unit tests guard the const's shape. `.gitattributes eol=lf` reused for both new text assets (CRLF-leak root-cause fix from 02-04) |
 
 ### Critical Pitfalls to Remember
 
@@ -166,11 +171,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-22T16:39:26.805Z
-**Stopped At:** Completed 02-04-PLAN.md (passgen + cowsay commands; PASS-01, COW-01)
+**Last session:** 2026-06-22T16:51:41.361Z
+**Stopped At:** Completed 02-05-PLAN.md (fortune + 8ball + roast commands; FORT-01, 8BAL-01, ROST-01) — Phase 2 complete
 **Resume File:** None
 
-**Next action:** Continue Phase 2 — execute the final plan 02-05 (the whimsy commands: fortune, 8ball, roast).
+**Next action:** Phase 2 plans are all complete (9/9). Run the Phase 2 verifier / phase gate, then transition to Phase 3 (Filesystem Power Tools: hash, tree, du, dupes, bulk-rename).
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
@@ -178,3 +183,4 @@ None.
 *Updated: 2026-06-22 by plan-02-02 executor — uuid + base64 shipped (UUID-01, B64-01); strict dead-code gate restored on the core::input byte path*
 *Updated: 2026-06-22 by plan-02-03 executor — epoch + color shipped (EPOC-01, COLR-01); strict dead-code gate restored on the core::input String path (color is the first live read_input caller); first reuse of the core::output is_color_on() gate by a new styled command*
 *Updated: 2026-06-22 by plan-02-04 executor — passgen + cowsay shipped (PASS-01, COW-01); OsRng CSPRNG + unbiased choose (no % len, T-V6 grep gate); EFF 7776 list embedded + CC-BY 3.0 US attributed; A1 closed (rand::TryRngCore resolves, no rand_core); cowsay fixed-40 wrap + hard-break + bubble locked by units + 2 trycmd snapshots*
+*Updated: 2026-06-22 by plan-02-05 executor — fortune + 8ball + roast shipped (FORT-01, 8BAL-01, ROST-01); whimsy RNG = rand::rng() + unbiased IndexedRandom::choose, non-determinism tested by membership + N=10-runs-differ properties; 70 CC0 fortunes + 42 self-authored roasts embedded (include_str! + eol=lf); 8ball canonical-20 const in the eight_ball module with 8ball CLI name preserved; ALL 9 Phase-2 stubs gone — Phase 2 plans complete (9/9), ready for verification; full cargo test + clippy -D warnings + fmt --check clean*
