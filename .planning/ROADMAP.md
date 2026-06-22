@@ -38,7 +38,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — Core infra: color gating (output.rs) + UNC-safe path/hidden/timestamp helpers (fs.rs); piped-no-ANSI test (FOUND-04,06)
+- [x] 01-02-PLAN.md — Core infra: color gating (output.rs) + UNC-safe path/hidden/timestamp helpers (fs.rs); piped-no-ANSI test (FOUND-04,06)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -115,7 +115,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Flatten | 1/4 | In Progress|  |
+| 1. Foundation + Flatten | 2/4 | In Progress|  |
 | 2. Pure Transform Utilities | 0/? | Not started | - |
 | 3. Filesystem Power Tools | 0/? | Not started | - |
 | 4. Terminal Visuals | 0/? | Not started | - |

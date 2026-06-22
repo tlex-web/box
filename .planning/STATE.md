@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 2
+current_plan: 3
 status: executing
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-06-22T13:33:18.876Z"
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-06-22T13:43:27.465Z"
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
-  percent: 0
+  completed_plans: 2
+  percent: 50
 ---
 
 # Project State: box — Rust CLI Toolbox
@@ -34,15 +34,15 @@ progress:
 ## Current Position
 
 **Phase:** 1 — Foundation + Flatten
-**Current Plan:** 2
+**Current Plan:** 3
 **Total Plans in Phase:** 4
 **Status:** Ready to execute
 
 **Progress:**
 
 ```
-[███░░░░░░░] 25%
-Phase 1 [███░░░░░░░] 1 / 4 plans
+[█████░░░░░] 50%
+Phase 1 [█████░░░░░] 2 / 4 plans
 Phase 2 [          ] Not started
 Phase 3 [          ] Not started
 Phase 4 [          ] Not started
@@ -57,7 +57,7 @@ Overall: 0 / 5 phases complete
 
 | Phase | Name | Requirements | Status |
 |-------|------|-------------|--------|
-| 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | In progress (1/4 plans) |
+| 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | In progress (2/4 plans) |
 | 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | Not started |
 | 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | Not started |
 | 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Not started |
@@ -67,14 +67,15 @@ Overall: 0 / 5 phases complete
 
 ## Performance Metrics
 
-**Plans executed:** 1
-**Plans succeeded:** 1
+**Plans executed:** 2
+**Plans succeeded:** 2
 **Plans failed:** 0
 **Phases completed:** 0 / 5
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 01 | P01 | 5min | 3 | 10 |
+| 01 | P02 | 6min | 2 | 7 |
 
 ---
 
@@ -96,6 +97,9 @@ Overall: 0 / 5 phases complete
 | [01-01] Stubs are real clap-derive enum variants dispatched to a NotImplemented handler | D-05 — keeps all 23 commands visible in `box --help` while only `flatten` will become functional |
 | [01-01] main() owns the strict 0/1/2 exit-code policy via `Cli::try_parse` | `parse()` auto-exits 0 on bare box; `try_parse` lets main() preserve clap's exit 2 for parse errors (D-07) and force exit 2 for bare box (D-08) |
 | [01-01] Committed `Cargo.lock` with the manifest | Binary crate — the lockfile is part of the reproducible-build contract |
+| [01-02] Gate row coloring on our own `COLOR_ON` flag, not `owo_colors::set_override` | The plain `.green()` trait method is unconditional; `set_override` only affects the `if_supports_color` API. Consulting our own AtomicBool is what makes piped output byte-identical minus ANSI (D-10) |
+| [01-02] Enabled the `owo-colors` `supports-colors` feature | Required for `set_override`/`with_override` to compile; the locked default feature set excluded it |
+| [01-02] `safe_copy` preserves atime best-effort, mtime always | Some filesystems don't report `accessed()`; only mtime is mandated by FLAT-04, so a missing atime must not fail the copy (Assumption A3) |
 
 ### Critical Pitfalls to Remember
 
@@ -134,12 +138,12 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-22 — completed 01-01-PLAN.md (crate scaffold + 23-command registry + exit-code mapping; Wave-0 tests green)
-**Stopped At:** Completed 01-01-PLAN.md
+**Last session:** 2026-06-22 — completed 01-02-PLAN.md (core infra: `output.rs` color gating + reusable glyph/summary helpers; `fs.rs` UNC-safe `normalize_path`, `is_hidden`, `safe_copy`; `piped_help_has_no_ansi` test green)
+**Stopped At:** Completed 01-02-PLAN.md
 **Resume File:** None
 
-**Next action:** Execute 01-02-PLAN.md (core infra: `output.rs` color gating + `fs.rs` UNC-safe path/hidden/timestamp helpers).
+**Next action:** Execute 01-03-PLAN.md (flatten: consume `core::output` rows/summaries + `core::fs` normalize/is_hidden/safe_copy; remove the two `#[allow(dead_code)]`).
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
-*Updated: 2026-06-22 by executor — 01-01 complete*
+*Updated: 2026-06-22 by executor — 01-02 complete*

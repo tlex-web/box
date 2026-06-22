@@ -12,9 +12,9 @@ Requirements for initial release. All 23 commands are in v1 scope. Each maps to 
 - [x] **FOUND-01**: User runs `box <command>` for any subcommand; `box --help` lists all commands with one-line descriptions and `box <cmd> --help` shows per-command usage
 - [x] **FOUND-02**: `box --version` prints the toolbox semantic version
 - [x] **FOUND-03**: All commands follow shared UX conventions — machine output to stdout, messages/errors to stderr, exit codes (0 success, 1 error, 2 bad args)
-- [ ] **FOUND-04**: Color/ANSI output auto-disables when stdout is not a TTY and when `NO_COLOR` (or `--no-color`) is set; ANSI is enabled correctly in PowerShell 7
+- [x] **FOUND-04**: Color/ANSI output auto-disables when stdout is not a TTY and when `NO_COLOR` (or `--no-color`) is set; ANSI is enabled correctly in PowerShell 7
 - [x] **FOUND-05**: Commands fail with a clear stderr message instead of panicking on bad input or missing files
-- [ ] **FOUND-06**: Paths are normalized safely on Windows (no verbatim `\\?\` UNC leakage) and long/edge-case paths are handled without silent failure
+- [x] **FOUND-06**: Paths are normalized safely on Windows (no verbatim `\\?\` UNC leakage) and long/edge-case paths are handled without silent failure
 - [ ] **FOUND-07**: User installs globally by running `install.ps1`, which builds the release binary, copies it to a dedicated bin dir, and adds that dir to the user PATH idempotently
 - [ ] **FOUND-08**: `install.ps1` refreshes PATH in the current session and smoke-tests the install by running `box --help`
 
@@ -109,9 +109,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 | FOUND-01 | Phase 1 | Complete |
 | FOUND-02 | Phase 1 | Complete |
 | FOUND-03 | Phase 1 | Complete |
-| FOUND-04 | Phase 1 | Pending |
+| FOUND-04 | Phase 1 | Complete |
 | FOUND-05 | Phase 1 | Complete |
-| FOUND-06 | Phase 1 | Pending |
+| FOUND-06 | Phase 1 | Complete |
 | FOUND-07 | Phase 1 | Pending |
 | FOUND-08 | Phase 1 | Pending |
 | FLAT-01 | Phase 1 | Pending |
