@@ -5,6 +5,7 @@
 //! dispatch — no `Box<dyn>`.
 
 pub mod base64;
+pub mod bulk_rename;
 pub mod color;
 pub mod cowsay;
 pub mod du;

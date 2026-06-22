@@ -1,0 +1,820 @@
+//! The `bulk-rename` command: the phase's single DESTRUCTIVE tool. It builds a
+//! regex rename plan over a directory's files, runs an in-memory
+//! ABORT-ALL-BEFORE-ANY-RENAME pre-flight (collisions, cycles/swaps, path
+//! -separator injection), previews the plan by DEFAULT (dry-run; writes nothing),
+//! and executes only with `--force` (D-14..D-19).
+//!
+//! ⚠️ **The pre-flight check is the ENTIRE safety story.** `std::fs::rename` maps
+//! to `MoveFileExW` + `MOVEFILE_REPLACE_EXISTING` on Windows and SILENTLY
+//! OVERWRITES its destination — there is NO `create_new` analog for moves the way
+//! [`crate::core::fs::safe_copy`] has one for copies. So correctness rests
+//! entirely on detecting every clobber/cycle/injection in memory BEFORE the first
+//! `rename` and aborting the whole batch if any is found (D-18, RESEARCH Pitfall
+//! 4). A missed collision is silent, irreversible data loss.
+//!
+//! Flow (mirrors flatten's plan→preview→execute split, INVERTED — dry-run is the
+//! DEFAULT here, `--force` executes):
+//! 1. Compile the user regex (`Regex::new`); a bad pattern is a clean `anyhow`
+//!    error → exit 1, never a panic (FOUND-05).
+//! 2. Scope the candidate files: top-level files of `dir` by default,
+//!    `--recursive` opts into flatten's `WalkDir` walk; dirs/symlinks are `-`
+//!    skip rows (D-14/D-15).
+//! 3. For each file, `regex.replace(full_base_name, replacement)` — FIRST match
+//!    only over the WHOLE base name incl. extension (D-16/D-17). A byte-exact
+//!    no-op is an `(unchanged)` `-` row; a case-only change is a REAL rename.
+//! 4. Partition the plan by parent directory and run [`preflight`] per directory
+//!    (the load-bearing pure detector): any collision, cycle, or separator
+//!    -injecting target aborts the whole batch (exit 1, nothing written) in BOTH
+//!    dry-run and `--force`.
+//! 5. Dry-run prints the plan + the D-19 dry-run summary and returns; `--force`
+//!    executes `std::fs::rename` per file (`.context(...)`-wrapped) only AFTER a
+//!    clean pre-flight.
+
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+
+use anyhow::{bail, Context};
+use clap::Args;
+use regex::Regex;
+use walkdir::WalkDir;
+
+use crate::commands::RunCommand;
+use crate::core::fs::is_hidden;
+use crate::core::output::{format_row, is_color_on, terminal_width, RowStatus};
+
+/// `box bulk-rename <dir> <pattern> <replacement> [--force] [--recursive]` —
+/// regex bulk rename with a dry-run-first, abort-on-collision safety model
+/// (RENM-01).
+///
+/// The `pattern` is matched against the **full base name** of each file
+/// (including its extension) — extension protection is pattern discipline, not
+/// stem-splitting, so `(\d+)` cannot touch `.jpg` but you CAN rewrite an
+/// extension on purpose (D-16). Only the **first** match is replaced (D-17).
+///
+/// Capture groups use the regex-crate `$1` / `${1}` syntax. ⚠️ Foot-gun: an
+/// unbraced `$1abc` parses as the group named `1abc` (which does not exist → an
+/// empty string); write `${1}abc` when a literal follows a group reference. A
+/// reference to a nonexistent group expands to the empty string.
+///
+/// By DEFAULT this previews the plan and writes NOTHING; pass `--force` to apply
+/// it. A collision (two files renaming to one name, or a target clobbering an
+/// existing file), a cycle/swap (`a→b, b→a`), or a path-separator-injecting
+/// replacement ABORTS the whole batch before any rename — in both modes.
+#[derive(Debug, Args)]
+pub struct BulkRenameArgs {
+    /// Directory whose files to rename (top-level only unless `--recursive`).
+    pub dir: PathBuf,
+    /// Regex matched against each file's FULL base name (incl. extension).
+    pub pattern: String,
+    /// Replacement for the FIRST match; `$1` / `${1}` reference capture groups.
+    pub replacement: String,
+    /// Apply the renames. Without this the command only previews (dry-run).
+    #[arg(long)]
+    pub force: bool,
+    /// Recurse into subdirectories (default: only the target dir's top-level files).
+    #[arg(long)]
+    pub recursive: bool,
+}
+
+/// What the plan will do with one file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ItemKind {
+    /// A real rename (`~`): the new name differs from the old (incl. case-only).
+    Rename,
+    /// Skipped (`-`): a directory, a symlink, or an unchanged no-op.
+    Skip,
+}
+
+impl ItemKind {
+    fn status(self) -> RowStatus {
+        match self {
+            ItemKind::Rename => RowStatus::Rename,
+            ItemKind::Skip => RowStatus::Skip,
+        }
+    }
+}
+
+/// One planned action. Built once and consumed by both the preview and the
+/// executor so the dry-run can never diverge from the real run.
+#[derive(Debug)]
+struct PlanItem {
+    /// Absolute source path of the file.
+    src: PathBuf,
+    /// Parent directory (collision scope is per-directory, D-14).
+    parent: PathBuf,
+    /// Source base name (the on-disk name being renamed away).
+    old_name: String,
+    /// Label shown to the user (source-relative for `--recursive`, else the name).
+    src_label: String,
+    /// New base name (the rename target); `None` for skips.
+    new_name: Option<String>,
+    kind: ItemKind,
+    /// Trailing reason shown inline, e.g. `(unchanged)`, `(skipped: directory)`.
+    reason: Option<String>,
+}
+
+/// A detected pre-flight conflict (the load-bearing safety output). Each variant
+/// carries enough context for the locked abort message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Conflict {
+    /// Two or more sources rename to the same target, or a target clobbers a
+    /// pre-existing on-disk name not renamed away.
+    Collision {
+        /// The contested target name.
+        target: String,
+        /// The sources that all want it (or the existing occupant).
+        sources: Vec<String>,
+    },
+    /// A target equals another item's SOURCE — a cycle/swap (no two-phase pass).
+    Cycle {
+        /// The renaming source.
+        source: String,
+        /// Its target, which is some other item's source.
+        target: String,
+    },
+    /// A target contains a path separator (`/` or `\`) — refused (V5).
+    Separator {
+        /// The renaming source.
+        source: String,
+        /// The injecting target.
+        target: String,
+    },
+}
+
+/// One rename a directory wants to perform: its on-disk source name and the new
+/// name the regex produced. Both are EXACT (non-folded) — case-folding is applied
+/// only when building the collision KEY, so a case-only change is not a false
+/// self-collision (Pitfall 5).
+#[derive(Debug, Clone)]
+struct Rename {
+    /// The exact on-disk source name being renamed away.
+    old: String,
+    /// The exact new name the regex produced.
+    new: String,
+}
+
+/// The pure, I/O-free pre-flight detector for ONE directory (D-18). Given the
+/// renames a directory wants and the names already present on disk, returns every
+/// conflict that must abort the batch. An EMPTY result means the directory's plan
+/// is safe to execute.
+///
+/// The four D-18 rules, all here so the safety logic is unit-testable without a
+/// terminal or any disk:
+///
+/// 1. **Occupied set (case-folded, full-Unicode `to_lowercase` per WR-01),
+///    seeded from pre-existing on-disk names NOT being renamed away.** A target
+///    that lands on one of those clobbers it.
+/// 2. **Every target checked vs other planned targets AND the occupied set.** Two
+///    sources wanting one target, or a target hitting a still-present file, is a
+///    [`Conflict::Collision`].
+/// 3. **Cycles/swaps:** any target equal to ANOTHER item's source (compared
+///    case-folded, since the move would land on that still-present file) is a
+///    [`Conflict::Cycle`] — v1 detects and aborts (no temp-name pass).
+/// 4. **Path-separator refusal:** any target containing `/` or `\` is a
+///    [`Conflict::Separator`] (mirrors flatten's `encode_no_separator`).
+///
+/// Note: no-op renames (`new == old` byte-exact) are filtered out by the caller
+/// BEFORE this runs (they are `(unchanged)` skips), so a name folding to its own
+/// key is, by construction, a real case-only rename — never a self-collision.
+fn preflight(renames: &[Rename], existing: &[String]) -> Vec<Conflict> {
+    let mut conflicts = Vec::new();
+
+    // Rule 4 first: a separator-injecting target can never be safe, regardless of
+    // collisions. Refuse it outright.
+    for r in renames {
+        if r.new.contains('/') || r.new.contains('\\') {
+            conflicts.push(Conflict::Separator {
+                source: r.old.clone(),
+                target: r.new.clone(),
+            });
+        }
+    }
+    // The set of renames that are NOT separator-injecting; only these participate
+    // in the collision/cycle analysis (an injecting one already aborts).
+    let safe: Vec<&Rename> = renames
+        .iter()
+        .filter(|r| !r.new.contains('/') && !r.new.contains('\\'))
+        .collect();
+
+    // Rule 1: seed the occupied set from on-disk names NOT being renamed away.
+    // A name that some item renames AWAY frees its slot; everything else still
+    // occupies its slot and a target landing on it is a clobber.
+    let renamed_away: HashSet<String> = safe.iter().map(|r| fold(&r.old)).collect();
+    let mut occupied: HashSet<String> = HashSet::new();
+    for name in existing {
+        let key = fold(name);
+        if !renamed_away.contains(&key) {
+            occupied.insert(key);
+        }
+    }
+
+    // Rule 2a: two or more sources wanting the SAME target (case-folded). Group
+    // sources by their target key; any group of >= 2 is a collision.
+    let mut by_target: HashMap<String, Vec<String>> = HashMap::new();
+    for r in &safe {
+        by_target.entry(fold(&r.new)).or_default().push(r.old.clone());
+    }
+    // Deterministic order: sort the contested keys so the abort message is stable.
+    let mut contested: Vec<(&String, &Vec<String>)> =
+        by_target.iter().filter(|(_, v)| v.len() >= 2).collect();
+    contested.sort_by(|a, b| a.0.cmp(b.0));
+    for (target_key, sources) in contested {
+        // Recover an exact target name for the message (any of the colliding
+        // renames produced it; they all fold to the same key).
+        let exact_target = safe
+            .iter()
+            .find(|r| &fold(&r.new) == target_key)
+            .map(|r| r.new.clone())
+            .unwrap_or_else(|| target_key.clone());
+        let mut srcs = sources.clone();
+        srcs.sort();
+        conflicts.push(Conflict::Collision {
+            target: exact_target,
+            sources: srcs,
+        });
+    }
+
+    // Rule 2b: a target landing on a pre-existing on-disk name not renamed away
+    // (the occupied set), even if only ONE source wants it.
+    for r in &safe {
+        let key = fold(&r.new);
+        if occupied.contains(&key) {
+            conflicts.push(Conflict::Collision {
+                target: r.new.clone(),
+                sources: vec![r.old.clone()],
+            });
+        }
+    }
+
+    // Rule 3: cycles/swaps — a target equal (case-folded) to ANOTHER item's
+    // source. The other source is still present at plan time, so the move would
+    // clobber it unless that item moves first — which a single-pass rename cannot
+    // guarantee. v1 aborts. A target equal to its OWN source is a case-only
+    // rename (the no-op filter already removed byte-exact ones), NOT a cycle.
+    let sources_by_key: HashSet<String> = safe.iter().map(|r| fold(&r.old)).collect();
+    for r in &safe {
+        let target_key = fold(&r.new);
+        if fold(&r.old) == target_key {
+            continue; // case-only rename onto itself — not a cycle
+        }
+        if sources_by_key.contains(&target_key) {
+            conflicts.push(Conflict::Cycle {
+                source: r.old.clone(),
+                target: r.new.clone(),
+            });
+        }
+    }
+
+    conflicts
+}
+
+/// Full-Unicode case fold for collision keys (WR-01) — matches
+/// `flatten::rename::dedupe`, so non-ASCII case pairs (`RÉSUMÉ` vs `résumé`) also
+/// collide on the case-insensitive NTFS filesystem.
+fn fold(name: &str) -> String {
+    name.to_lowercase()
+}
+
+impl RunCommand for BulkRenameArgs {
+    fn run(self) -> anyhow::Result<()> {
+        // (1) Compile the regex; a bad pattern is a clean anyhow error (exit 1),
+        //     never a panic (FOUND-05).
+        let re = Regex::new(&self.pattern)
+            .with_context(|| format!("compiling regex pattern {:?}", self.pattern))?;
+
+        // (2)/(3) Walk the scope and build the plan.
+        let plan = build_plan(&self.dir, &re, &self.replacement, self.recursive)?;
+
+        // (4) Per-directory pre-flight (D-18 ABORT-ALL). Partition the real
+        //     renames by parent dir; collision scope is per-directory (D-14).
+        let conflicts = preflight_plan(&plan)?;
+
+        let arrow_col = arrow_col(&plan);
+        let width = terminal_width();
+
+        if !conflicts.is_empty() {
+            // Print the plan with `[collision]` inline reasons on offending rows so
+            // the user sees exactly what clashed, then the locked abort summary.
+            print_plan_with_conflicts(&plan, &conflicts, arrow_col, width);
+            println!();
+            bail!("{}", abort_summary(&conflicts));
+        }
+
+        // (5) Dry-run is the DEFAULT: preview + summary, write nothing.
+        let (to_rename, unchanged, skipped) = tally(&plan);
+        if !self.force {
+            print_plan(&plan, arrow_col, width);
+            println!();
+            println!(
+                "Dry run: {to_rename} to rename, {unchanged} unchanged, {skipped} skipped. \
+                 Re-run with --force to apply."
+            );
+            return Ok(());
+        }
+
+        // --force: execute only AFTER a clean pre-flight. A predictable collision
+        // already aborted above; here we stop on the first UNEXPECTED I/O error.
+        let mut renamed = 0usize;
+        for item in &plan.items {
+            match item.kind {
+                ItemKind::Skip => {
+                    println!(
+                        "{}",
+                        format_row(
+                            item.kind.status(),
+                            &item.src_label,
+                            None,
+                            item.reason.as_deref(),
+                            arrow_col,
+                            width,
+                        )
+                    );
+                }
+                ItemKind::Rename => {
+                    let new_name = item
+                        .new_name
+                        .as_deref()
+                        .expect("rename items always have a new name");
+                    let dst = item.parent.join(new_name);
+                    std::fs::rename(&item.src, &dst).with_context(|| {
+                        format!("renaming {} -> {}", item.src.display(), dst.display())
+                    })?;
+                    renamed += 1;
+                    println!(
+                        "{}",
+                        format_row(
+                            item.kind.status(),
+                            &item.src_label,
+                            Some(new_name),
+                            item.reason.as_deref(),
+                            arrow_col,
+                            width,
+                        )
+                    );
+                }
+            }
+        }
+
+        println!();
+        println!(
+            "Done: renamed {renamed} files, {unchanged} unchanged, {skipped} skipped."
+        );
+        let _ = is_color_on(); // color is applied inside format_row's glyph wrap
+        Ok(())
+    }
+}
+
+/// Walk the scope (top-level files, or the full `--recursive` walk) and build the
+/// plan: a `~` rename for each file whose regex-replaced name differs, a `-` skip
+/// for directories, symlinks, and byte-exact no-ops.
+fn build_plan(dir: &Path, re: &Regex, replacement: &str, recursive: bool) -> anyhow::Result<Plan> {
+    let mut plan = Plan::default();
+
+    // The walk: `--recursive` reuses flatten's hidden-pruned, symlink-no-follow
+    // walk; the default is the same walk capped at depth 1 (top-level only, D-14).
+    let mut walker = WalkDir::new(dir).follow_links(false).min_depth(1);
+    if !recursive {
+        walker = walker.max_depth(1);
+    }
+
+    for entry in walker.into_iter().filter_entry(|e| !is_hidden(e)) {
+        let entry = entry.with_context(|| format!("walking {}", dir.display()))?;
+        let path = entry.path();
+
+        let rel = path.strip_prefix(dir).unwrap_or(path);
+        let src_label = rel.to_string_lossy().to_string();
+        let parent = path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| dir.to_path_buf());
+
+        // Directories and symlinks/junctions are `-` skip rows (D-15) — never
+        // renamed (renaming a dir mid-walk under --recursive is hazardous).
+        let is_symlink = entry.path_is_symlink();
+        if is_symlink {
+            plan.items.push(PlanItem {
+                src: path.to_path_buf(),
+                parent,
+                old_name: name_of(path),
+                src_label,
+                new_name: None,
+                kind: ItemKind::Skip,
+                reason: Some("(skipped: symlink)".to_string()),
+            });
+            plan.skipped += 1;
+            continue;
+        }
+        if entry.file_type().is_dir() {
+            plan.items.push(PlanItem {
+                src: path.to_path_buf(),
+                parent,
+                old_name: name_of(path),
+                src_label,
+                new_name: None,
+                kind: ItemKind::Skip,
+                reason: Some("(skipped: directory)".to_string()),
+            });
+            plan.skipped += 1;
+            continue;
+        }
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        let old_name = name_of(path);
+        // Match against the FULL base name incl. extension (D-16); FIRST match
+        // only (`Regex::replace`, D-17).
+        let new_name = re.replace(&old_name, replacement).into_owned();
+
+        if new_name == old_name {
+            // Byte-exact no-op → `(unchanged)` skip (D-18.4). A case-only change is
+            // byte-DIFFERENT and falls through to a real rename below.
+            plan.items.push(PlanItem {
+                src: path.to_path_buf(),
+                parent,
+                old_name,
+                src_label,
+                new_name: None,
+                kind: ItemKind::Skip,
+                reason: Some("(unchanged)".to_string()),
+            });
+            plan.unchanged += 1;
+            continue;
+        }
+
+        plan.items.push(PlanItem {
+            src: path.to_path_buf(),
+            parent,
+            old_name,
+            src_label,
+            new_name: Some(new_name),
+            kind: ItemKind::Rename,
+            reason: None,
+        });
+        plan.to_rename += 1;
+    }
+
+    Ok(plan)
+}
+
+/// The full plan plus pre-tallied counts for the dry-run summary.
+#[derive(Debug, Default)]
+struct Plan {
+    items: Vec<PlanItem>,
+    to_rename: usize,
+    unchanged: usize,
+    skipped: usize,
+}
+
+/// The base name of `path` as an owned `String`.
+fn name_of(path: &Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default()
+}
+
+/// Run the pure [`preflight`] detector per parent directory (collision scope is
+/// per-directory, D-14) and collect every conflict across the plan. Reads the
+/// CURRENT on-disk names per directory to seed each occupied set.
+fn preflight_plan(plan: &Plan) -> anyhow::Result<Vec<Conflict>> {
+    // Group the real renames by parent directory.
+    let mut by_dir: HashMap<PathBuf, Vec<Rename>> = HashMap::new();
+    for item in &plan.items {
+        if item.kind != ItemKind::Rename {
+            continue;
+        }
+        let new = item
+            .new_name
+            .clone()
+            .expect("rename items always have a new name");
+        by_dir.entry(item.parent.clone()).or_default().push(Rename {
+            old: item.old_name.clone(),
+            new,
+        });
+    }
+
+    let mut conflicts = Vec::new();
+    // Deterministic directory order for a stable abort message.
+    let mut dirs: Vec<&PathBuf> = by_dir.keys().collect();
+    dirs.sort();
+    for dir in dirs {
+        let renames = &by_dir[dir];
+        // Seed the occupied set from the CURRENT on-disk names in this directory.
+        let existing = read_dir_names(dir)
+            .with_context(|| format!("reading directory {}", dir.display()))?;
+        conflicts.extend(preflight(renames, &existing));
+    }
+    Ok(conflicts)
+}
+
+/// The base names of every entry (file, dir, symlink) directly inside `dir`.
+fn read_dir_names(dir: &Path) -> anyhow::Result<Vec<String>> {
+    let mut names = Vec::new();
+    for entry in std::fs::read_dir(dir)
+        .with_context(|| format!("reading directory {}", dir.display()))?
+    {
+        let entry = entry.with_context(|| format!("reading an entry of {}", dir.display()))?;
+        names.push(entry.file_name().to_string_lossy().to_string());
+    }
+    Ok(names)
+}
+
+/// Tally `(to_rename, unchanged, skipped)`. `skipped` excludes `unchanged` so the
+/// summary distinguishes "would-be-no-op" from "not-a-file".
+fn tally(plan: &Plan) -> (usize, usize, usize) {
+    (plan.to_rename, plan.unchanged, plan.skipped)
+}
+
+/// The alignment column for the `->` arrow: the widest source label across all
+/// rename rows (so destinations line up).
+fn arrow_col(plan: &Plan) -> usize {
+    plan.items
+        .iter()
+        .filter(|i| i.new_name.is_some())
+        .map(|i| i.src_label.chars().count())
+        .max()
+        .unwrap_or(0)
+}
+
+/// Print every plan row (used by the dry-run preview and the `--force` path's
+/// skip rows). Real renames are printed as they execute.
+fn print_plan(plan: &Plan, arrow_col: usize, width: usize) {
+    for item in &plan.items {
+        println!(
+            "{}",
+            format_row(
+                item.kind.status(),
+                &item.src_label,
+                item.new_name.as_deref(),
+                item.reason.as_deref(),
+                arrow_col,
+                width,
+            )
+        );
+    }
+}
+
+/// Print the plan with `[collision]` / `[cycle]` / `[separator]` inline reasons on
+/// the rows whose target appears in a conflict, so the abort output shows exactly
+/// what clashed (CONTEXT.md § specifics).
+fn print_plan_with_conflicts(
+    plan: &Plan,
+    conflicts: &[Conflict],
+    arrow_col: usize,
+    width: usize,
+) {
+    for item in &plan.items {
+        let reason = conflict_reason(item, conflicts).or_else(|| item.reason.clone());
+        println!(
+            "{}",
+            format_row(
+                item.kind.status(),
+                &item.src_label,
+                item.new_name.as_deref(),
+                reason.as_deref(),
+                arrow_col,
+                width,
+            )
+        );
+    }
+}
+
+/// The inline reason for a row if its (old, new) pair participates in a conflict.
+fn conflict_reason(item: &PlanItem, conflicts: &[Conflict]) -> Option<String> {
+    let new = item.new_name.as_deref()?;
+    for c in conflicts {
+        match c {
+            Conflict::Collision { target, sources } => {
+                if fold(target) == fold(new) && sources.iter().any(|s| s == &item.old_name) {
+                    return Some("[collision]".to_string());
+                }
+            }
+            Conflict::Cycle { source, target } => {
+                if source == &item.old_name && fold(target) == fold(new) {
+                    return Some("[cycle]".to_string());
+                }
+            }
+            Conflict::Separator { source, target } => {
+                if source == &item.old_name && target == new {
+                    return Some("[separator]".to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// The locked abort summary (CONTEXT.md § specifics wording): a leading count of
+/// conflicts, a one-line explanation per conflict, and the `No files were
+/// renamed.` guarantee.
+fn abort_summary(conflicts: &[Conflict]) -> String {
+    let n = conflicts.len();
+    let noun = if n == 1 { "conflict" } else { "conflicts" };
+    let mut out = format!("Aborted: {n} {noun} detected.");
+    for c in conflicts {
+        out.push(' ');
+        match c {
+            Conflict::Collision { target, sources } => {
+                if sources.len() >= 2 {
+                    out.push_str(&format!(
+                        "{} both rename to {target}.",
+                        join_and(sources)
+                    ));
+                } else {
+                    let src = sources.first().cloned().unwrap_or_default();
+                    out.push_str(&format!(
+                        "{src} renames to {target}, which already exists."
+                    ));
+                }
+            }
+            Conflict::Cycle { source, target } => {
+                out.push_str(&format!(
+                    "{source} renames to {target}, but {target} is itself being renamed (a cycle)."
+                ));
+            }
+            Conflict::Separator { source, target } => {
+                out.push_str(&format!(
+                    "{source} renames to {target}, which contains a path separator (refused)."
+                ));
+            }
+        }
+    }
+    out.push_str(" No files were renamed.");
+    out
+}
+
+/// Join names as `a, b and c` for the abort message.
+fn join_and(names: &[String]) -> String {
+    match names.len() {
+        0 => String::new(),
+        1 => names[0].clone(),
+        2 => format!("{} and {}", names[0], names[1]),
+        _ => {
+            let (last, head) = names.split_last().unwrap();
+            format!("{} and {}", head.join(", "), last)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rn(old: &str, new: &str) -> Rename {
+        Rename {
+            old: old.to_string(),
+            new: new.to_string(),
+        }
+    }
+
+    /// Rule 2a: two sources renaming to ONE target is a collision.
+    #[test]
+    fn detects_two_sources_one_target() {
+        let renames = vec![rn("a.txt", "dup.txt"), rn("b.txt", "dup.txt")];
+        let conflicts = preflight(&renames, &["a.txt".into(), "b.txt".into()]);
+        assert_eq!(conflicts.len(), 1);
+        assert!(matches!(
+            &conflicts[0],
+            Conflict::Collision { target, sources }
+                if target == "dup.txt" && sources.len() == 2
+        ));
+    }
+
+    /// Rule 2b: a target landing on a pre-existing on-disk name not renamed away
+    /// is a collision even with a single source.
+    #[test]
+    fn detects_clobber_of_existing_file() {
+        // `a.txt` -> `keep.txt`, but `keep.txt` already exists and is NOT renamed.
+        let renames = vec![rn("a.txt", "keep.txt")];
+        let conflicts = preflight(&renames, &["a.txt".into(), "keep.txt".into()]);
+        assert_eq!(conflicts.len(), 1);
+        assert!(matches!(
+            &conflicts[0],
+            Conflict::Collision { target, .. } if target == "keep.txt"
+        ));
+    }
+
+    /// Rule 2b negative: a target landing on a name that IS being renamed away is
+    /// NOT a collision (the slot is freed).
+    #[test]
+    fn no_clobber_when_existing_is_renamed_away() {
+        // `a.txt` -> `b.txt` and `b.txt` -> `c.txt`: b.txt's slot is freed, so
+        // a.txt landing on b.txt is... a CYCLE (b is still a source), but NOT a
+        // plain clobber-collision. Test the simpler chain that frees cleanly:
+        // `a.txt` -> `final.txt` while `old.txt` -> `a.txt` (a.txt freed).
+        let renames = vec![rn("a.txt", "final.txt"), rn("old.txt", "a.txt")];
+        let conflicts = preflight(
+            &renames,
+            &["a.txt".into(), "old.txt".into(), "final.txt".into()],
+        );
+        // `final.txt` pre-exists and is NOT renamed away -> a.txt clobbers it.
+        // That's the only conflict; `old.txt`->`a.txt` is fine because a.txt is
+        // freed (renamed away to final.txt) — proving the renamed-away exclusion.
+        assert!(
+            conflicts
+                .iter()
+                .any(|c| matches!(c, Conflict::Collision { target, .. } if target == "final.txt")),
+            "final.txt clobber must be detected: {conflicts:?}"
+        );
+        // a.txt is renamed away, so old.txt -> a.txt is NOT a clobber-collision.
+        assert!(
+            !conflicts.iter().any(|c| matches!(
+                c,
+                Conflict::Collision { target, sources }
+                    if target == "a.txt" && sources == &vec!["old.txt".to_string()]
+            )),
+            "old.txt -> a.txt must not be a clobber (a.txt's slot is freed): {conflicts:?}"
+        );
+    }
+
+    /// Rule 3: a swap `ab.txt <-> ba.txt` (each target equals the other's source)
+    /// is a cycle.
+    #[test]
+    fn detects_swap_cycle() {
+        let renames = vec![rn("ab.txt", "ba.txt"), rn("ba.txt", "ab.txt")];
+        let conflicts = preflight(&renames, &["ab.txt".into(), "ba.txt".into()]);
+        // Both directions are cycles (each target is the other's source).
+        assert!(
+            conflicts
+                .iter()
+                .filter(|c| matches!(c, Conflict::Cycle { .. }))
+                .count()
+                >= 1,
+            "a swap must be detected as a cycle: {conflicts:?}"
+        );
+    }
+
+    /// Rule 4: a case-only rename (`foo.txt` -> `Foo.txt`) is NOT a self-collision
+    /// and NOT a cycle — it is a real, conflict-free rename (Pitfall 5).
+    #[test]
+    fn case_only_is_not_a_conflict() {
+        let renames = vec![rn("foo.txt", "Foo.txt")];
+        // The on-disk name is `foo.txt`; it is renamed away, so it does not occupy
+        // its own slot, and the target folds to the same key as its own (renamed
+        // -away) source — which must NOT be a clobber.
+        let conflicts = preflight(&renames, &["foo.txt".into()]);
+        assert!(
+            conflicts.is_empty(),
+            "a case-only rename must be conflict-free: {conflicts:?}"
+        );
+    }
+
+    /// Rule 1: a path-separator-injecting target is refused (both `/` and `\`).
+    #[test]
+    fn refuses_path_separators() {
+        let fwd = preflight(&[rn("a.txt", "sub/evil.txt")], &["a.txt".into()]);
+        assert!(
+            fwd.iter().any(|c| matches!(c, Conflict::Separator { .. })),
+            "forward slash must be refused: {fwd:?}"
+        );
+        let back = preflight(&[rn("a.txt", "sub\\evil.txt")], &["a.txt".into()]);
+        assert!(
+            back.iter().any(|c| matches!(c, Conflict::Separator { .. })),
+            "backslash must be refused: {back:?}"
+        );
+    }
+
+    /// A clean plan (distinct targets, no clobbers, no cycles, no separators)
+    /// yields ZERO conflicts — the executable path.
+    #[test]
+    fn clean_plan_has_no_conflicts() {
+        let renames = vec![
+            rn("IMG_0042.jpg", "img_0042.jpg"),
+            rn("IMG_0043.jpg", "img_0043.jpg"),
+        ];
+        let conflicts = preflight(
+            &renames,
+            &["IMG_0042.jpg".into(), "IMG_0043.jpg".into()],
+        );
+        assert!(conflicts.is_empty(), "clean plan must be conflict-free: {conflicts:?}");
+    }
+
+    /// Full-Unicode case fold (WR-01): `RÉSUMÉ.txt` and `résumé.txt` collide.
+    #[test]
+    fn collision_key_is_full_unicode_folded() {
+        // Two sources whose targets fold to the same key under full Unicode.
+        let renames = vec![rn("a", "RÉSUMÉ.txt"), rn("b", "résumé.txt")];
+        let conflicts = preflight(&renames, &["a".into(), "b".into()]);
+        assert!(
+            conflicts
+                .iter()
+                .any(|c| matches!(c, Conflict::Collision { .. })),
+            "non-ASCII case pair must collide (WR-01): {conflicts:?}"
+        );
+    }
+
+    /// The abort summary carries the locked phrasing: a conflict count and the
+    /// `No files were renamed.` guarantee.
+    #[test]
+    fn abort_summary_wording() {
+        let conflicts = vec![Conflict::Collision {
+            target: "dup.txt".into(),
+            sources: vec!["a.txt".into(), "b.txt".into()],
+        }];
+        let s = abort_summary(&conflicts);
+        assert!(s.starts_with("Aborted: 1 conflict detected."), "got: {s}");
+        assert!(s.contains("a.txt and b.txt both rename to dup.txt."), "got: {s}");
+        assert!(s.ends_with("No files were renamed."), "got: {s}");
+    }
+}
