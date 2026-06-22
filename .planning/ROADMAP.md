@@ -42,7 +42,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 01-03-PLAN.md — Anchor `flatten`: pure collision/reserved-name rename + canonicalize/guard/plan/dry-run/execute orchestration (FLAT-01,02,03,04)
+- [x] 01-03-PLAN.md — Anchor `flatten`: pure collision/reserved-name rename + canonicalize/guard/plan/dry-run/execute orchestration (FLAT-01,02,03,04)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -115,7 +115,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Flatten | 2/4 | In Progress|  |
+| 1. Foundation + Flatten | 3/4 | In Progress|  |
 | 2. Pure Transform Utilities | 0/? | Not started | - |
 | 3. Filesystem Power Tools | 0/? | Not started | - |
 | 4. Terminal Visuals | 0/? | Not started | - |

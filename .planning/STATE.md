@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 3
+current_plan: 4
 status: executing
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-06-22T13:43:27.465Z"
+stopped_at: Completed 01-03-PLAN.md
+last_updated: "2026-06-22T13:54:42.737Z"
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
-  percent: 50
+  completed_plans: 3
+  percent: 75
 ---
 
 # Project State: box — Rust CLI Toolbox
@@ -34,15 +34,15 @@ progress:
 ## Current Position
 
 **Phase:** 1 — Foundation + Flatten
-**Current Plan:** 3
+**Current Plan:** 4
 **Total Plans in Phase:** 4
-**Status:** Ready to execute
+**Status:** Executing (3/4 plans complete)
 
 **Progress:**
 
 ```
-[█████░░░░░] 50%
-Phase 1 [█████░░░░░] 2 / 4 plans
+[███████▌░░] 75%
+Phase 1 [███████▌░░] 3 / 4 plans
 Phase 2 [          ] Not started
 Phase 3 [          ] Not started
 Phase 4 [          ] Not started
@@ -57,7 +57,7 @@ Overall: 0 / 5 phases complete
 
 | Phase | Name | Requirements | Status |
 |-------|------|-------------|--------|
-| 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | In progress (2/4 plans) |
+| 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | In progress (3/4 plans) |
 | 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | Not started |
 | 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | Not started |
 | 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Not started |
@@ -67,8 +67,8 @@ Overall: 0 / 5 phases complete
 
 ## Performance Metrics
 
-**Plans executed:** 2
-**Plans succeeded:** 2
+**Plans executed:** 3
+**Plans succeeded:** 3
 **Plans failed:** 0
 **Phases completed:** 0 / 5
 
@@ -76,6 +76,7 @@ Overall: 0 / 5 phases complete
 |-------|------|----------|-------|-------|
 | 01 | P01 | 5min | 3 | 10 |
 | 01 | P02 | 6min | 2 | 7 |
+| 01 | P03 | 6min | 2 | 8 |
 
 ---
 
@@ -100,6 +101,10 @@ Overall: 0 / 5 phases complete
 | [01-02] Gate row coloring on our own `COLOR_ON` flag, not `owo_colors::set_override` | The plain `.green()` trait method is unconditional; `set_override` only affects the `if_supports_color` API. Consulting our own AtomicBool is what makes piped output byte-identical minus ANSI (D-10) |
 | [01-02] Enabled the `owo-colors` `supports-colors` feature | Required for `set_override`/`with_override` to compile; the locked default feature set excluded it |
 | [01-02] `safe_copy` preserves atime best-effort, mtime always | Some filesystems don't report `accessed()`; only mtime is mandated by FLAT-04, so a missing atime must not fail the copy (Assumption A3) |
+| [01-03] flatten `encode_relative` strips `..`/`.` traversal segments (not just leading separators) | The RESEARCH sample left `.._escape.txt`; the threat register (T-03-pathinject) requires no literal `..` survives the encoded name |
+| [01-03] flatten `sanitize_reserved` trims trailing dots/spaces BEFORE matching reserved stems | The RESEARCH order matched the untrimmed stem, so `con .txt` was not recognised as `CON`; reordering closes a hidden-collision gap |
+| [01-03] flatten is first-claim-wins, deterministic by walkdir order | The first file to take a base name keeps it (Copy); later same-named files are collision-renamed — both always land with distinct names, never lost |
+| [01-03] Removed both forward-compat `#[allow(dead_code)]` (core::output, core::fs) | flatten is now a live caller of every helper; clippy `-D warnings` stays clean, proving the reusable surface has no orphans |
 
 ### Critical Pitfalls to Remember
 
@@ -138,12 +143,12 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-22 — completed 01-02-PLAN.md (core infra: `output.rs` color gating + reusable glyph/summary helpers; `fs.rs` UNC-safe `normalize_path`, `is_hidden`, `safe_copy`; `piped_help_has_no_ansi` test green)
-**Stopped At:** Completed 01-02-PLAN.md
+**Last session:** 2026-06-22 — completed 01-03-PLAN.md (flatten anchor command: pure `rename.rs` collision encoding + reserved-name sanitization + dedupe; `flatten/mod.rs` canonicalize/containment-guard/seed-occupied/walk/plan/dry-run-or-execute; `tests/flatten.rs` 8 integration tests green; removed both forward-compat `#[allow(dead_code)]`)
+**Stopped At:** Completed 01-03-PLAN.md
 **Resume File:** None
 
-**Next action:** Execute 01-03-PLAN.md (flatten: consume `core::output` rows/summaries + `core::fs` normalize/is_hidden/safe_copy; remove the two `#[allow(dead_code)]`).
+**Next action:** Execute 01-04-PLAN.md (install.ps1: build release MSVC+crt-static, copy to `%LOCALAPPDATA%\Programs\box`, idempotent user-PATH add, current-session refresh, `box --help` / `box flatten` smoke test).
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
-*Updated: 2026-06-22 by executor — 01-02 complete*
+*Updated: 2026-06-22 by executor — 01-03 complete*

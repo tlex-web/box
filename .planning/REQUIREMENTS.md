@@ -20,10 +20,10 @@ Requirements for initial release. All 23 commands are in v1 scope. Each maps to 
 
 ### flatten (anchor)
 
-- [ ] **FLAT-01**: User can recursively copy every file from a source folder tree into one flat output folder, leaving originals untouched and creating no subdirectories in the output
-- [ ] **FLAT-02**: On filename collision, files are renamed by encoding their source path (e.g. `docs_sub_report.txt`); deep-nesting double-collisions fall back to a numeric suffix
-- [ ] **FLAT-03**: `--dry-run` previews the planned copies/renames without writing anything; a completion summary reports files copied and collisions handled
-- [ ] **FLAT-04**: flatten refuses to loop when the output dir is inside the source dir, skips symlinks safely (no infinite loops), and preserves copied file timestamps
+- [x] **FLAT-01**: User can recursively copy every file from a source folder tree into one flat output folder, leaving originals untouched and creating no subdirectories in the output
+- [x] **FLAT-02**: On filename collision, files are renamed by encoding their source path (e.g. `docs_sub_report.txt`); deep-nesting double-collisions fall back to a numeric suffix
+- [x] **FLAT-03**: `--dry-run` previews the planned copies/renames without writing anything; a completion summary reports files copied and collisions handled
+- [x] **FLAT-04**: flatten refuses to loop when the output dir is inside the source dir, skips symlinks safely (no infinite loops), and preserves copied file timestamps
 
 ### Filesystem Tools
 
@@ -114,10 +114,10 @@ Which phases cover which requirements. Populated during roadmap creation.
 | FOUND-06 | Phase 1 | Complete |
 | FOUND-07 | Phase 1 | Pending |
 | FOUND-08 | Phase 1 | Pending |
-| FLAT-01 | Phase 1 | Pending |
-| FLAT-02 | Phase 1 | Pending |
-| FLAT-03 | Phase 1 | Pending |
-| FLAT-04 | Phase 1 | Pending |
+| FLAT-01 | Phase 1 | Complete |
+| FLAT-02 | Phase 1 | Complete |
+| FLAT-03 | Phase 1 | Complete |
+| FLAT-04 | Phase 1 | Complete |
 | UUID-01 | Phase 2 | Pending |
 | B64-01 | Phase 2 | Pending |
 | EPOC-01 | Phase 2 | Pending |
