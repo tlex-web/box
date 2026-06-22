@@ -32,16 +32,44 @@ const RESERVED: &[&str] = &[
 /// The output is guaranteed to contain no `\`, no `/`, and no `..` component, so
 /// a maliciously deep or `..`-laden source path can never produce a name that
 /// escapes the output directory (T-03-pathinject).
-pub fn encode_relative(_rel: &Path) -> String {
-    unimplemented!("RED: encode_relative not yet implemented")
+pub fn encode_relative(rel: &Path) -> String {
+    // Replace every separator with `_`. After this no `\` or `/` survives, so the
+    // result is a single filename that cannot traverse out of the output dir.
+    let replaced = rel.to_string_lossy().replace(['\\', '/'], "_");
+    // A `..` or `.` parent/current-dir token left between separators (e.g.
+    // `..\escape.txt` -> `.._escape.txt`) is harmless as a filename, but the
+    // threat model (T-03-pathinject) requires no literal `..` survives. Collapse
+    // each leading `..`/`.` segment to nothing so it can never be interpreted as
+    // traversal. Segments are now `_`-delimited.
+    let cleaned: Vec<&str> = replaced
+        .split('_')
+        .filter(|seg| !seg.is_empty() && *seg != ".." && *seg != ".")
+        .collect();
+    let joined = cleaned.join("_");
+    sanitize_reserved(&joined)
 }
 
 /// Make `name` safe to write on Windows: if its stem (case-insensitive, with or
 /// without an extension) is a reserved device name, append `_` to the stem; and
 /// trim trailing dots/spaces from the stem (Windows silently trims these, which
 /// would create hidden collisions). Pitfall 7 / T-03-reserved.
-pub fn sanitize_reserved(_name: &str) -> String {
-    unimplemented!("RED: sanitize_reserved not yet implemented")
+pub fn sanitize_reserved(name: &str) -> String {
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((s, e)) => (s, Some(e)),
+        None => (name, None),
+    };
+    // Windows silently trims trailing dots/spaces from the stem (creating hidden
+    // collisions), so trim them ourselves FIRST, then test the trimmed stem for a
+    // reserved match — `"con "` must be recognised as the reserved `CON`.
+    let mut stem = stem.trim_end_matches(['.', ' ']).to_string();
+    let is_reserved = RESERVED.iter().any(|r| r.eq_ignore_ascii_case(&stem));
+    if is_reserved {
+        stem.push('_');
+    }
+    match ext {
+        Some(e) => format!("{stem}.{e}"),
+        None => stem,
+    }
 }
 
 /// Append `_1`, `_2`, … before the extension until the (lowercased) name is free
@@ -49,8 +77,22 @@ pub fn sanitize_reserved(_name: &str) -> String {
 /// `to_ascii_lowercase()` to catch `README.TXT` vs `readme.txt` (T-03-overwrite).
 ///
 /// Returns `name` unchanged when it does not collide.
-pub fn dedupe(_name: &str, _occupied: &HashSet<String>) -> String {
-    unimplemented!("RED: dedupe not yet implemented")
+pub fn dedupe(name: &str, occupied: &HashSet<String>) -> String {
+    let key = name.to_ascii_lowercase();
+    if !occupied.contains(&key) {
+        return name.to_string();
+    }
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((s, e)) => (s.to_string(), format!(".{e}")),
+        None => (name.to_string(), String::new()),
+    };
+    for n in 1.. {
+        let cand = format!("{stem}_{n}{ext}");
+        if !occupied.contains(&cand.to_ascii_lowercase()) {
+            return cand;
+        }
+    }
+    unreachable!("the numeric suffix space is unbounded")
 }
 
 #[cfg(test)]
