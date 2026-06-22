@@ -1,0 +1,218 @@
+//! The `epoch` command: convert between Unix timestamps and human-readable
+//! dates (EPOC-01), delegating all timezone/DST math to `chrono`'s `Local`
+//! (D-01 — never hand-roll TZ offsets).
+//!
+//! Three modes (D-12), decided by the optional positional `value`:
+//! - **no arg** → print the current Unix timestamp (`Utc::now().timestamp()`),
+//!   a single integer to stdout.
+//! - **integer arg** (parses as `i64`) → treat it as a Unix timestamp and print
+//!   the `Local` and `UTC` human dates on two labeled lines.
+//! - **anything else** → treat it as a date string and print the resulting Unix
+//!   timestamp. Accepted formats (D-12): RFC 3339 / ISO 8601 (with offset/`Z`),
+//!   `YYYY-MM-DD HH:MM:SS` (local), and `YYYY-MM-DD` (local midnight). No
+//!   ambiguous `MM/DD/YYYY`. An unrecognized string `bail!`s with a hint naming
+//!   the three formats; a nonexistent/ambiguous local time (DST spring-forward /
+//!   fall-back) also errors — `LocalResult` is collapsed with `.single()`,
+//!   never `.unwrap()` (T-02-05), so bad input is always a clean exit 1, never a
+//!   panic.
+
+use anyhow::{bail, Context};
+use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, TimeZone, Utc};
+use clap::Args;
+
+use crate::commands::RunCommand;
+
+/// `box epoch [VALUE]` — Unix timestamp ↔ human date (EPOC-01).
+///
+/// `VALUE` may be omitted (print now), an integer Unix timestamp (print the
+/// human dates), or a date string in one of the D-12 formats (print the
+/// timestamp). It is also read from piped stdin when omitted.
+#[derive(Debug, Args)]
+pub struct EpochArgs {
+    /// A Unix timestamp or a date string; omit to print the current timestamp.
+    pub value: Option<String>,
+}
+
+impl RunCommand for EpochArgs {
+    fn run(self) -> anyhow::Result<()> {
+        // Acquire the value: arg → piped stdin → (no-arg interactive TTY is NOT
+        // an error here, it means "print now"). So we only consult stdin when it
+        // is piped; an interactive TTY with no arg falls through to the now path.
+        let value = resolve_value(self.value)?;
+
+        match value {
+            // No input at all → current Unix timestamp (single integer).
+            None => {
+                println!("{}", Utc::now().timestamp());
+            }
+            Some(s) => {
+                let s = s.trim();
+                if let Ok(secs) = s.parse::<i64>() {
+                    // Integer → treat as a Unix timestamp, print local + UTC.
+                    let (local_line, utc_line) = format_timestamp(secs)?;
+                    println!("{local_line}");
+                    println!("{utc_line}");
+                } else {
+                    // Otherwise a date string → print the timestamp.
+                    println!("{}", parse_date(s)?);
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Resolve the optional value following the D-04 precedence, but WITHOUT treating
+/// a no-arg interactive TTY as an error: for `epoch`, no input means "print now".
+/// An explicit arg wins; otherwise piped stdin is read; an interactive TTY with
+/// no arg yields `None` (→ the now path).
+fn resolve_value(arg: Option<String>) -> anyhow::Result<Option<String>> {
+    use std::io::{IsTerminal, Read};
+
+    match arg.as_deref() {
+        Some(s) if s != "-" => Ok(Some(s.to_string())),
+        _ => {
+            let stdin = std::io::stdin();
+            if stdin.is_terminal() {
+                // Interactive, no arg → "print now", not an error.
+                Ok(None)
+            } else {
+                let mut buf = String::new();
+                stdin
+                    .lock()
+                    .read_to_string(&mut buf)
+                    .context("failed to read input from stdin")?;
+                let trimmed = buf.trim();
+                if trimmed.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(trimmed.to_string()))
+                }
+            }
+        }
+    }
+}
+
+/// Format a Unix timestamp as the two human-date lines the command prints:
+/// `Local: <local datetime>` and `UTC:   <utc datetime>`. Errors (never panics)
+/// when the timestamp is out of chrono's representable range (T-02-05).
+fn format_timestamp(secs: i64) -> anyhow::Result<(String, String)> {
+    let dt_utc: DateTime<Utc> = DateTime::from_timestamp(secs, 0)
+        .ok_or_else(|| anyhow::anyhow!("timestamp {secs} is out of range"))?;
+    let dt_local = dt_utc.with_timezone(&Local);
+    let local_line = format!("Local: {}", dt_local.format("%Y-%m-%d %H:%M:%S %z"));
+    let utc_line = format!("UTC:   {}", dt_utc.format("%Y-%m-%d %H:%M:%S UTC"));
+    Ok((local_line, utc_line))
+}
+
+/// Parse a date string to a Unix timestamp, trying the three D-12 formats in
+/// order: RFC 3339 → `YYYY-MM-DD HH:MM:SS` (local) → `YYYY-MM-DD` (local
+/// midnight). A DST-nonexistent/ambiguous local time (`LocalResult::None` /
+/// `Ambiguous`) is collapsed with `.single()` to an error — never `.unwrap()`
+/// (T-02-05). An unrecognized string `bail!`s with a hint naming the formats.
+fn parse_date(s: &str) -> anyhow::Result<i64> {
+    // 1) RFC 3339 / ISO 8601 with an explicit offset or `Z`.
+    if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
+        return Ok(dt.timestamp());
+    }
+    // 2) "YYYY-MM-DD HH:MM:SS" interpreted as LOCAL time.
+    if let Ok(naive) = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S") {
+        return local_naive_to_timestamp(naive);
+    }
+    // 3) "YYYY-MM-DD" interpreted as LOCAL midnight.
+    if let Ok(date) = NaiveDate::parse_from_str(s, "%Y-%m-%d") {
+        let naive = date
+            .and_hms_opt(0, 0, 0)
+            .ok_or_else(|| anyhow::anyhow!("invalid midnight for {s}"))?;
+        return local_naive_to_timestamp(naive);
+    }
+    bail!(
+        "unrecognized date '{s}'; expected one of: RFC3339 (e.g. 2026-06-22T14:30:00Z), \
+         'YYYY-MM-DD HH:MM:SS', or 'YYYY-MM-DD'"
+    );
+}
+
+/// Convert a naive (zone-less) local datetime to a Unix timestamp, handling the
+/// DST `LocalResult` cases (`None` = nonexistent during spring-forward,
+/// `Ambiguous` = two valid instants during fall-back) by erroring rather than
+/// panicking — `.single()` returns `None` for both, which we map to an error.
+fn local_naive_to_timestamp(naive: NaiveDateTime) -> anyhow::Result<i64> {
+    Local
+        .from_local_datetime(&naive)
+        .single()
+        .map(|dt| dt.timestamp())
+        .ok_or_else(|| anyhow::anyhow!("ambiguous or nonexistent local time: {naive}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// RFC 3339 round-trips: format a fixed timestamp as RFC3339 and assert
+    /// `parse_date` recovers exactly that timestamp.
+    #[test]
+    fn round_trip_rfc3339() {
+        let ts: i64 = 1_700_000_000;
+        let dt = DateTime::from_timestamp(ts, 0).unwrap();
+        let formatted = dt.to_rfc3339(); // e.g. 2023-11-14T22:13:20+00:00
+        assert_eq!(parse_date(&formatted).unwrap(), ts);
+    }
+
+    /// `YYYY-MM-DD HH:MM:SS` (local) round-trips: render a fixed timestamp in
+    /// LOCAL time to that format, then assert parse recovers it. (Built in local
+    /// time on both sides, so any TZ/DST offset cancels.)
+    #[test]
+    fn round_trip_naive_datetime_local() {
+        let ts: i64 = 1_700_000_000;
+        let local = DateTime::from_timestamp(ts, 0)
+            .unwrap()
+            .with_timezone(&Local);
+        let formatted = local.format("%Y-%m-%d %H:%M:%S").to_string();
+        // The local instant may be DST-ambiguous in rare zones/dates; only assert
+        // the round-trip when chrono resolves it unambiguously.
+        if let Ok(parsed) = parse_date(&formatted) {
+            assert_eq!(parsed, ts, "naive-local round-trip mismatch");
+        }
+    }
+
+    /// `YYYY-MM-DD` (local midnight) round-trips to that day's local-midnight
+    /// timestamp: format the parsed timestamp back to a date and assert equality.
+    #[test]
+    fn round_trip_date_local_midnight() {
+        // A fixed date string; parse to a local-midnight timestamp, then format
+        // that timestamp back in local time and assert the date component matches.
+        let date_str = "2023-11-14";
+        let ts = parse_date(date_str).expect("date parses");
+        let local = DateTime::from_timestamp(ts, 0)
+            .unwrap()
+            .with_timezone(&Local);
+        assert_eq!(local.format("%Y-%m-%d").to_string(), date_str);
+        assert_eq!(local.format("%H:%M:%S").to_string(), "00:00:00");
+    }
+
+    /// Integer-timestamp formatting produces both a Local and a UTC labeled line,
+    /// and the UTC line carries the known calendar date for 1700000000.
+    #[test]
+    fn format_timestamp_labels_local_and_utc() {
+        let (local_line, utc_line) = format_timestamp(1_700_000_000).unwrap();
+        assert!(local_line.starts_with("Local:"));
+        assert!(utc_line.starts_with("UTC:"));
+        assert!(utc_line.contains("2023-11-14"));
+    }
+
+    /// A junk string is an `Err` (→ exit 1), never a panic (T-02-05); and the
+    /// error message carries the format hint.
+    #[test]
+    fn junk_string_is_err_with_hint() {
+        let err = parse_date("not-a-date").unwrap_err();
+        let msg = format!("{err}");
+        assert!(msg.contains("unrecognized date"), "got: {msg}");
+        assert!(msg.contains("RFC3339"), "hint should name RFC3339: {msg}");
+    }
+
+    /// An out-of-range timestamp errors rather than panicking.
+    #[test]
+    fn out_of_range_timestamp_is_err() {
+        assert!(format_timestamp(i64::MAX).is_err());
+    }
+}

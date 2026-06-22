@@ -34,7 +34,10 @@ fn no_arg_prints_current_timestamp() {
     let stdout = String::from_utf8(out.stdout).expect("stdout is UTF-8");
     let line = stdout.trim();
     let re = predicate::str::is_match(r"^\d+$").unwrap();
-    assert!(re.eval(line), "expected a bare integer timestamp, got {line:?}");
+    assert!(
+        re.eval(line),
+        "expected a bare integer timestamp, got {line:?}"
+    );
     let printed: i64 = line.parse().expect("timestamp parses as i64");
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)

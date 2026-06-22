@@ -39,7 +39,7 @@ pub enum Commands {
     /// Encode or decode base64 text
     Base64(crate::commands::base64::Base64Args),
     /// Convert between Unix timestamps and human-readable dates
-    Epoch,
+    Epoch(crate::commands::epoch::EpochArgs),
     /// Convert colors between hex and RGB formats
     Color,
     /// Generate secure passwords and passphrases

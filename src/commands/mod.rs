@@ -5,6 +5,7 @@
 //! dispatch — no `Box<dyn>`.
 
 pub mod base64;
+pub mod epoch;
 pub mod flatten;
 pub mod stub;
 pub mod uuid;
