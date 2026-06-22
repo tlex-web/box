@@ -1,16 +1,12 @@
-//! The `flatten` anchor command: recursively copy every file from a source tree
-//! into one flat output directory, originals untouched, collisions renamed by
-//! encoding the source path — with a `--dry-run` preview that writes nothing.
-//!
-//! Orchestration (filled in Task 2) lives in [`FlattenArgs::run`]; the pure
-//! collision-encoding lives in [`rename`] so its Windows edge cases are unit
-//! tested in isolation.
+//! The `flatten` anchor command (RED stub — Task 2 implementation follows).
 
 pub mod rename;
 
 use std::path::PathBuf;
 
 use clap::Args;
+
+use crate::commands::RunCommand;
 
 /// `box flatten <src> <out> [--dry-run]` — flatten a folder tree into one
 /// directory (FLAT-01..04).
@@ -23,4 +19,10 @@ pub struct FlattenArgs {
     /// Preview the plan without writing anything.
     #[arg(long)]
     pub dry_run: bool,
+}
+
+impl RunCommand for FlattenArgs {
+    fn run(self) -> anyhow::Result<()> {
+        unimplemented!("RED: flatten orchestration not yet implemented")
+    }
 }

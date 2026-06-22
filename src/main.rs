@@ -20,6 +20,7 @@ use clap::Parser;
 
 use crate::cli::{Cli, Commands};
 use crate::commands::stub::not_implemented;
+use crate::commands::RunCommand;
 
 fn main() -> ExitCode {
     // FIRST — set ENABLE_VIRTUAL_TERMINAL_PROCESSING before any output so ANSI
@@ -54,8 +55,7 @@ fn main() -> ExitCode {
     crate::core::output::init_color(cli.no_color);
 
     let result = match cli.command {
-        // Plan 03 replaces this arm with `Commands::Flatten(args) => args.run()`.
-        Commands::Flatten => Err(not_implemented("flatten")),
+        Commands::Flatten(args) => args.run(),
         Commands::Uuid => Err(not_implemented("uuid")),
         Commands::Base64 => Err(not_implemented("base64")),
         Commands::Epoch => Err(not_implemented("epoch")),

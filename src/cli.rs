@@ -28,7 +28,7 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Flatten a folder tree into a single output directory
-    Flatten,
+    Flatten(crate::commands::flatten::FlattenArgs),
     /// Generate a random UUID
     Uuid,
     /// Encode or decode base64 text
