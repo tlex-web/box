@@ -1,0 +1,3 @@
+# The EFF wordlist is embedded verbatim via include_str! at compile time. Force
+# LF so no CR (\r) leaks into the parsed words on a CRLF checkout (autocrlf=true).
+src/data/eff_large_wordlist.txt text eol=lf
