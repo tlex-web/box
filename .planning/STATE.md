@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_plan: 5
-status: executing
-stopped_at: Phase 3 Plan 03-04 (dupes) complete — DUPE-01 shipped; next 03-05 (bulk-rename)
-last_updated: "2026-06-22T20:40:00.000Z"
+status: phase-complete
+stopped_at: Phase 3 Plan 03-05 (bulk-rename) complete — RENM-01 shipped; Phase 3 FEATURE-COMPLETE (5/5 plans), ready for verification
+last_updated: "2026-06-22T21:00:00.000Z"
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 14
-  completed_plans: 13
-  percent: 40
+  completed_plans: 14
+  percent: 60
 ---
 
 # Project State: box — Rust CLI Toolbox
@@ -33,24 +33,24 @@ progress:
 
 ## Current Position
 
-Phase: 03 (filesystem-power-tools) — EXECUTING
-Plan: 5 of 5 (Plans 03-01 hash + 03-02 tree + 03-03 du + 03-04 dupes complete)
+Phase: 03 (filesystem-power-tools) — FEATURE-COMPLETE (5/5 plans), ready for verification
+Plan: 5 of 5 complete (Plans 03-01 hash + 03-02 tree + 03-03 du + 03-04 dupes + 03-05 bulk-rename all complete)
 **Phase:** 3 (filesystem-power-tools)
-**Current Plan:** 5
+**Current Plan:** 5 (complete)
 **Total Plans in Phase:** 5
-**Status:** Executing Phase 03
+**Status:** Phase 03 feature-complete — all 5 requirements shipped, all 5 not_implemented arms gone
 
 **Progress:**
 
 ```
-[████░░░░░░] 40% (2 / 5 phases complete)
+[██████░░░░] 60% (3 / 5 phases complete)
 Phase 1 [██████████] 4 / 4 plans ✓ complete
 Phase 2 [██████████] 5 / 5 plans ✓ complete (verified, human-UAT cleared)
-Phase 3 [████████░░] 4 / 5 plans — 03-01 hash ✓ (HASH-01), 03-02 tree ✓ (TREE-01), 03-03 du ✓ (DU-01), 03-04 dupes ✓ (DUPE-01); next 03-05 bulk-rename
+Phase 3 [██████████] 5 / 5 plans ✓ feature-complete — 03-01 hash ✓ (HASH-01), 03-02 tree ✓ (TREE-01), 03-03 du ✓ (DU-01), 03-04 dupes ✓ (DUPE-01), 03-05 bulk-rename ✓ (RENM-01); ready for verification
 Phase 4 [          ] Not started
 Phase 5 [          ] Not started
 
-Overall: 2 / 5 phases complete
+Overall: 3 / 5 phases complete
 ```
 
 ---
@@ -61,7 +61,7 @@ Overall: 2 / 5 phases complete
 |-------|------|-------------|--------|
 | 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | ✓ Complete (4/4 plans) |
 | 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | ✓ Complete (5/5 plans, verified, human-UAT cleared) |
-| 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | ◆ Executing (4/5 plans — 03-01 hash ✓ HASH-01, 03-02 tree ✓ TREE-01, 03-03 du ✓ DU-01, 03-04 dupes ✓ DUPE-01) |
+| 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | ✓ Feature-complete (5/5 plans — 03-01 hash ✓ HASH-01, 03-02 tree ✓ TREE-01, 03-03 du ✓ DU-01, 03-04 dupes ✓ DUPE-01, 03-05 bulk-rename ✓ RENM-01) — ready for verification |
 | 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Not started |
 | 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | Not started |
 
@@ -69,10 +69,10 @@ Overall: 2 / 5 phases complete
 
 ## Performance Metrics
 
-**Plans executed:** 13
-**Plans succeeded:** 13
+**Plans executed:** 14
+**Plans succeeded:** 14
 **Plans failed:** 0
-**Phases completed:** 2 / 5 (Phase 3 executing — 4/5 plans)
+**Phases completed:** 3 / 5 (Phase 3 feature-complete — 5/5 plans, ready for verification)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -89,6 +89,7 @@ Overall: 2 / 5 phases complete
 | 03 | P02 | 4min | 2 (TDD-style) | 9 |
 | 03 | P03 | 7min | 2 (TDD-style) | 5 |
 | 03 | P04 | 4min | 2 (TDD-style) | 5 |
+| 03 | P05 | 6min | 2 (TDD-style) | 5 |
 
 ---
 
@@ -149,6 +150,7 @@ Overall: 2 / 5 phases complete
 | [03-03] `du` reuses `core::output::human_size` (D-12, third consumer after flatten/tree) + `core::fs::is_hidden`/`follow_links(false)` VERBATIM for the recursive descendant sum; size column right-aligned to the widest SHOWN value, only the size VALUE colored (`.cyan()`) gated on `is_color_on()` | Logical size via `metadata().len()` (RESEARCH A4 — NOT apparent/on-disk, that's DU-V2); symlinks never followed (0 contribution). Determinism by `collect → sort_by (size desc, name asc)` before printing with distinct-size test fixtures (RESEARCH Pitfall 6 / T-03-12) — the same discipline `dupes` (03-04, rayon) reuses. `--top N` is a POST-SORT truncation of shown rows; the full-scan total is captured BEFORE truncation so the summary always reflects the whole scan |
 | [03-04] `dupes` identity = size pre-filter (`HashMap<u64, Vec<PathBuf>>`) THEN content hash; only same-size buckets of `>= 2` are candidates (most files never hashed); candidates content-hashed in PARALLEL with `rayon::par_iter` (first hash error short-circuits the `collect::<anyhow::Result<Vec<_>>>()` → exit 1, no panic, T-03-17) | D-13. BLAKE3 chosen for SPEED — cryptographic-criticality is irrelevant for equality grouping. The few-line `update_reader` native streaming path was LIFTED into `dupes` (`hash_reader_blake3`) rather than widening the `hash` module's surface (the plan's `<interfaces>` note sanctioned this since `hash::hash_blake3` is private) — same algorithm/result, unit-tested against the same `b"box"` known vector |
 | [03-04] `dupes` is STRICTLY READ-ONLY (T-03-13, locked Out of Scope): NO `safe_copy`/rename/delete/`File::create` — the only fs handle is a read-only `File::open` for hashing; the `dupes_never_writes` test snapshots the fixture's file set + contents + mtimes and asserts byte-for-byte unchanged after a run | Determinism by `sort_by((hash, path))` BEFORE grouping (consecutive-equal-hash runs ≥2 → groups; RESEARCH Pitfall 6 / T-03-16) with distinct-content test fixtures making the order total. Wasted space = Σ `(group_len - 1) * file_size` via `core::output::human_size` (fourth consumer). Reuses `core::fs::is_hidden` + `follow_links(false)` + `normalize_path` VERBATIM, NO noise list / NO `ignore` crate (D-06/D-07); single `.yellow()` accent gated on `is_color_on()` |
+| [03-05] `bulk-rename`'s safety is a PURE I/O-free `preflight(&[Rename], &[existing]) -> Vec<Conflict>` implementing all four D-18 rules; a thin `preflight_plan` wrapper partitions the plan per parent dir (collision scope is per-dir, D-14) and `read_dir`-seeds each occupied set. This is the ENTIRE safety story because `std::fs::rename` SILENTLY OVERWRITES on Windows (no `create_new` analog for moves) — a missed collision is silent data loss. `Conflict` is a 3-variant enum (Collision/Cycle/Separator) so the abort summary explains each clash and the preview stamps the right inline reason. 9 unit tests cover every rule (incl. full-Unicode fold WR-01, renamed-away exclusion, swap-cycle) | Dry-run is the DEFAULT (writes nothing), `--force` executes only after a clean pre-flight (D-19) — INVERTING flatten's plan→preview→execute split while reusing `format_row`/`arrow_col`/`RowStatus::{Rename,Skip}` VERBATIM. Case-only rename (foo→Foo) is correct by construction: byte-exact no-ops are filtered to `(unchanged)` BEFORE preflight, so any rename whose target folds to its own source key is necessarily a real case-only change (Pitfall 5 closed, no special case). Regex `replace` is FIRST-match-only over the FULL base name (D-16/D-17); `${1}abc` vs `$1abc` foot-gun documented in `--help`. Every abort path snapshot-asserts the dir byte-for-byte unchanged. ⚠️ Rule-1 test-side fix: 2 tests asserted via case-EXACT `read_dir` listing not `Path::exists()` (NTFS is case-insensitive/preserving, so exists() falsely matched `IMG_*.jpg` vs `img_*.jpg`) |
 
 ### Critical Pitfalls to Remember
 
@@ -188,11 +190,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-22T20:40:00.000Z
-**Stopped At:** Phase 3 Plan 03-04 (dupes) complete — DUPE-01 shipped, full suite green (87 unit + all integration incl. dupes 4/4); dupes stub gone (1 phase-3 stub remains: bulk-rename)
-**Resume File:** .planning/phases/03-filesystem-power-tools/03-05-PLAN.md
+**Last session:** 2026-06-22T21:00:00.000Z
+**Stopped At:** Phase 3 Plan 03-05 (bulk-rename) complete — RENM-01 shipped; PHASE 3 FEATURE-COMPLETE (5/5 plans). Full suite green (96 unit + all integration incl. bulk_rename 7/7) + clippy -D warnings + fmt --check clean; ALL 5 Phase-3 not_implemented arms gone (8 stubs remain: Phase-4 lolcat/matrix/ascii/json + Phase-5 qr/clip/pomodoro/weather)
+**Resume File:** (none — Phase 3 ready for verification)
 
-**Next action:** Execute Plan 03-05 (`bulk-rename`) — Wave 5, the LAST Phase-3 plan. It shares cli.rs/main.rs, and is the ONLY mutating filesystem command in the phase: regex plan (first-match `replace`, full base name, D-16/D-17) + ABORT-ALL pre-flight collision/cycle/path-separator detection (the only backstop vs `std::fs::rename`'s silent overwrite, D-18) + dry-run-default / `--force` execute (D-19). Reuse flatten's dry-run/collision model (the exact analog) — `box` is a binary-only crate, so co-located unit tests run via `cargo test --bin box`, NOT `--lib`.
+**Next action:** Verify Phase 3 (all 5 success criteria: hash/--algo/--verify, tree/--sizes/--depth, du/--top/--depth, dupes groups + wasted space, bulk-rename dry-run/--force/collision-abort). On pass, run `/gsd-transition` to Phase 4 (Terminal Visuals — lolcat/matrix/ascii/json, crossterm group). Note for Phase 4: add `strip-ansi-escapes` to Cargo.toml for lolcat (pre-existing Todo). `box` remains a binary-only crate — co-located unit tests run via `cargo test --bin box`, NOT `--lib`.
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
@@ -205,3 +207,4 @@ None.
 *Updated: 2026-06-22 by plan-03-02 executor — `box tree` shipped (TREE-01): dir-first (D-08) Unicode box-drawing render (├── └── │   + gap), is_color_on-gated blue dir names (D-10), --sizes per-file human_size (blank dirs), --depth N cap, `N directories, M files` summary; reuses core::fs::is_hidden VERBATIM via a WalkDir depth-1 per-level walk (D-06) + follow_links(false) (T-03-05) + normalize_path (T-03-07); flatten's human_size PROMOTED into core::output (pub, test migrated, flatten re-pointed + local copy deleted — flatten 8/8 still green, D-12) ready for du; tree.trycmd backed by a tree.in/ trycmd input fixture; 3/3 TREE-01 tests + tree.trycmd + full suite (77 unit + all integration) + clippy -D warnings + fmt --check all green; tree stub gone (3 phase-3 stubs remain: du/dupes/bulk-rename)*
 *Updated: 2026-06-22 by plan-03-03 executor — `box du` shipped (DU-01): one row per immediate child, biggest-first `(size desc, name asc)` sort BEFORE printing (RESEARCH Pitfall 6 / T-03-12), dir rows = recursive non-hidden descendant sum (logical metadata().len(), RESEARCH A4) + trailing `/`, file rows = own size; --depth N caps the per-dir rollup (WalkDir::max_depth, dir's files = depth 1), --top N post-sort truncation of shown rows; right-aligned shared core::output::human_size column (D-12, third consumer), single .cyan() size-value accent gated on is_color_on() (D-11); `{X} of {Y} entries shown. {TOTAL} total.` summary reflects the FULL-scan total (captured before --top); reuses core::fs::is_hidden + follow_links(false) VERBATIM (D-06, T-03-09/10) + normalize_path (T-03-11); 3/3 DU-01 tests + 4 unit tests + full suite (81 unit + all integration) + clippy -D warnings + fmt --check all green; one Rule-1 test-side fix (du_depth_cap row-scoped); du stub gone (2 phase-3 stubs remain: dupes/bulk-rename)*
 *Updated: 2026-06-22 by plan-03-04 executor — `box dupes` shipped (DUPE-01): size pre-filter (HashMap<u64,Vec<PathBuf>>, candidates = same-size buckets ≥2, most files never hashed) → rayon par_iter BLAKE3 content hash reusing the 03-01 update_reader native streaming path (lifted as hash_reader_blake3 since hash::hash_blake3 is private; same b"box" known vector, D-13) → sort_by (hash,path) BEFORE grouping (consecutive-equal-hash runs ≥2 → groups; RESEARCH Pitfall 6 / T-03-16, first hash error short-circuits the collect → exit 1, T-03-17) → groups + wasted-space summary (Σ (group_len-1)*size) via core::output::human_size (fourth consumer); STRICTLY READ-ONLY — only fs handle is a read-only File::open, NO write/rename/delete (T-03-13), the dupes_never_writes test snapshots file set + contents + mtimes unchanged; reuses core::fs::is_hidden + follow_links(false) + normalize_path VERBATIM, NO noise list / NO ignore crate (D-06/D-07); single .yellow() accent gated on is_color_on(); 4/4 DUPE-01 tests + 6 unit tests + full suite (87 unit + all integration) + clippy -D warnings + fmt --check all green; dupes stub gone (1 phase-3 stub remains: bulk-rename)*
+*Updated: 2026-06-22 by plan-03-05 executor — `box bulk-rename` shipped (RENM-01) → PHASE 3 FEATURE-COMPLETE (5/5 plans): regex first-match `replace` over the FULL base name (D-16/D-17) → in-memory ABORT-ALL-BEFORE-ANY-RENAME pre-flight, a PURE I/O-free preflight()->Vec<Conflict> implementing all four D-18 rules (per-dir case-folded occupied set seeded from on-disk names NOT renamed away, target-vs-target + target-vs-existing collision, cycle/swap = target equals another item's source, path-separator refusal) — the ONLY backstop vs std::fs::rename's silent Windows overwrite, no create_new for moves → dry-run preview is the DEFAULT (writes nothing), --force executes only after a clean pre-flight (D-19); reuses flatten's format_row/arrow_col + case-folded occupied set + encode_no_separator invariant VERBATIM; case-only rename correct by construction (byte-exact no-ops filtered to (unchanged) before preflight, Pitfall 5); ${1}abc foot-gun + full-base-name match documented in --help; every abort path snapshot-asserts the dir byte-for-byte unchanged; one Rule-1 test-side fix (case-exact read_dir listing not Path::exists — NTFS case-insensitive/preserving); 7/7 RENM-01 tests + 9 unit tests + full suite (96 unit + all integration) + clippy -D warnings + fmt --check all green; ALL 5 Phase-3 not_implemented arms gone — phase ready for verification (8 stubs remain: Phase-4 + Phase-5)*
