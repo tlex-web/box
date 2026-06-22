@@ -41,7 +41,7 @@ pub enum Commands {
     /// Convert between Unix timestamps and human-readable dates
     Epoch(crate::commands::epoch::EpochArgs),
     /// Convert colors between hex and RGB formats
-    Color,
+    Color(crate::commands::color::ColorArgs),
     /// Generate secure passwords and passphrases
     Passgen,
     /// Wrap text in an ASCII-art speech bubble

@@ -32,15 +32,16 @@ use crate::core::errors::BoxError;
 
 /// Read UTF-8 text input for a command, following the D-04 precedence.
 ///
-/// Use for text-oriented commands (cowsay, epoch, color). Reads piped stdin as a
-/// UTF-8 `String`; an interactive TTY with no argument yields
+/// Use for text-oriented commands (cowsay, color). Reads piped stdin as a UTF-8
+/// `String`; an interactive TTY with no argument yields
 /// [`BoxError::MissingInput`] (exit 2) rather than blocking.
 //
-// Still awaits its first live caller (the Wave-2 text commands
-// cowsay/epoch/color); the byte sibling `read_input_bytes` went live with base64
-// (Plan 02-02), so the forward-compat allow on the *byte* path came off. This
-// String reader keeps a scoped allow until cowsay/epoch/color consume it.
-#[allow(dead_code)]
+// Live as of Plan 02-03: `color` is the first caller of the String reader, so
+// the forward-compat `#[allow(dead_code)]` has been removed here (and on the
+// inner `resolve`), restoring the strict dead-code gate on the String path —
+// mirroring the byte-path removal at 02-02 and the [01-03] allow-then-remove
+// precedent. (`epoch` reads input itself because no-arg means "print now", not
+// the exit-2 missing-input case, so it deliberately does not call this.)
 pub fn read_input(arg: Option<String>) -> anyhow::Result<String> {
     let stdin = std::io::stdin();
     resolve(arg, stdin.is_terminal(), stdin.lock())
@@ -64,10 +65,8 @@ pub fn read_input_bytes(arg: Option<String>) -> anyhow::Result<Vec<u8>> {
 
 /// Inner resolver for [`read_input`] — `is_tty` and the reader are injected so the
 /// three branches are unit-testable without a real terminal.
-// Reachable only from the (still caller-less) public `read_input` in the bin
-// build, and from unit tests; the scoped allow stays paired with `read_input`
-// until cowsay/epoch/color make the String path live.
-#[allow(dead_code)]
+// Live via `read_input` (color, Plan 02-03); the scoped allow has been removed
+// alongside its public caller, restoring the strict dead-code gate.
 fn resolve<R: Read>(arg: Option<String>, is_tty: bool, mut reader: R) -> anyhow::Result<String> {
     match arg.as_deref() {
         // Branch 1: an explicit argument that is not the stdin sentinel "-".

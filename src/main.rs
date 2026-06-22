@@ -62,7 +62,7 @@ fn main() -> ExitCode {
         Commands::Uuid(args) => args.run(),
         Commands::Base64(args) => args.run(),
         Commands::Epoch(args) => args.run(),
-        Commands::Color => Err(not_implemented("color")),
+        Commands::Color(args) => args.run(),
         Commands::Passgen => Err(not_implemented("passgen")),
         Commands::Cowsay => Err(not_implemented("cowsay")),
         Commands::Fortune => Err(not_implemented("fortune")),
