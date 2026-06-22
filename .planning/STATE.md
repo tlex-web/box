@@ -1,3 +1,17 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: Not started
+last_updated: "2026-06-22T12:45:55.942Z"
+progress:
+  total_phases: 5
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
+---
+
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-22
@@ -22,6 +36,7 @@
 **Status:** Not started
 
 **Progress:**
+
 ```
 Phase 1 [          ] Not started
 Phase 2 [          ] Not started
