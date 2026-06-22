@@ -27,7 +27,28 @@ findings:
   warning: 5
   info: 4
   total: 10
-status: issues_found
+status: info_remaining
+fix:
+  fixed_at: 2026-06-23
+  scope: critical_warning
+  resolved:
+    - id: CR-01
+      commit: 9f4cf08
+    - id: WR-01
+      commit: 518f5b6
+    - id: WR-02
+      commit: a147ab7
+    - id: WR-03
+      commit: 5dba60d
+    - id: WR-04
+      commit: 42da3db
+    - id: WR-05
+      commit: f4114d8
+  deferred:
+    - IN-01
+    - IN-02
+    - IN-03
+    - IN-04
 ---
 
 # Phase 3: Code Review Report
@@ -35,7 +56,14 @@ status: issues_found
 **Reviewed:** 2026-06-22T21:00:06Z
 **Depth:** standard
 **Files Reviewed:** 18
-**Status:** issues_found
+**Status:** info_remaining (all Critical + Warning findings resolved 2026-06-23; only Info items remain)
+
+> **Fix pass — 2026-06-23.** All Critical (CR-01) and Warning (WR-01..05) findings
+> have been fixed, each in its own atomic commit with a covering test, the full
+> `cargo test` suite green and `cargo clippy --all-targets -- -D warnings` clean.
+> The four Info findings (IN-01..IN-04) are intentionally deferred. See the
+> per-finding **RESOLVED** notes below and the `fix:` frontmatter block for commit
+> hashes.
 
 ## Summary
 
@@ -48,6 +76,8 @@ The remaining items are robustness and quality issues (file-vs-directory argumen
 ## Critical Issues
 
 ### CR-01: bulk-rename pre-flight does not refuse `..` / `.` targets — path escape on the destructive command
+
+**Status:** RESOLVED (commit `9f4cf08`). Added an `injects()` helper that folds `..`, `.`, and any purely dots/spaces target into the same rule-4 `Conflict::Separator` refusal as path separators, so the batch aborts in-memory before any `rename`. Covered by unit tests `refuses_dot_and_dotdot_targets` / `injects_classifies_unsafe_targets` and integration test `renm_dotdot_target_aborts`.
 
 **File:** `src/commands/bulk_rename/mod.rs:185-198` (detection) and `:342-345` (execution)
 **Issue:**
@@ -96,6 +126,8 @@ Add a unit test alongside `refuses_path_separators` asserting `rn("a.txt", "..")
 
 ### WR-01: `hash --algo sha256 --verify` silently ignores the explicit algorithm
 
+**Status:** RESOLVED (commit `518f5b6`). Changed `algo` to `Option<Algo>`; under `--verify`, length auto-detection fires only when `--algo` is `None`, and an explicit value is used verbatim. Covered by integration test `hash_verify_explicit_algo_overrides_length_autodetect`.
+
 **File:** `src/commands/hash/mod.rs:72-78` and `:144-151`
 **Issue:**
 `Algo::is_default()` is `self == Algo::Sha256`, and `--algo` uses `default_value_t = Algo::Sha256`. There is therefore no way to tell an *explicit* `--algo sha256` apart from the unset default. In the verify path:
@@ -125,6 +157,8 @@ let algo = match self.algo {
 
 ### WR-02: tree/du/dupes silently produce empty output when given a FILE path
 
+**Status:** RESOLVED (commit `a147ab7`). Each command now `bail!`s with `<path> is not a directory` after `normalize_path` when the target is not a directory. Covered by `tree_file_argument_errors`, `du_file_argument_errors`, `dupes_file_argument_errors`.
+
 **File:** `src/commands/tree/mod.rs:79-97`, `src/commands/du/mod.rs:74-125`, `src/commands/dupes/mod.rs:58-97`
 **Issue:**
 All three normalize the path and then `WalkDir::new(root).min_depth(1).max_depth(1)` (tree/du) or a full walk (dupes). `normalize_path` succeeds on a regular file, and a depth-1 walk over a file yields zero children. The result: `box tree somefile.txt` prints the filename and `0 directories, 0 files`; `box du somefile.txt` prints `0 of 0 entries shown. 0 B total.`; `box dupes somefile.txt` prints `No duplicate files found.` Each exits 0 with misleading, empty output instead of telling the user the argument is not a directory.
@@ -141,6 +175,8 @@ if !root.is_dir() {
 
 ### WR-03: `normalize_path` on a missing path yields a raw OS error, not a friendly message
 
+**Status:** RESOLVED (commit `5dba60d`). Added a `self.path.exists()` pre-check that `bail!`s `no such directory: <path>` before `normalize_path`, so the common typo path no longer surfaces dunce's raw `(os error 3)`. Covered by `tree/du/dupes_missing_path_friendly_error`.
+
 **File:** `src/commands/tree/mod.rs:83-84`, `src/commands/du/mod.rs:78-79`, `src/commands/dupes/mod.rs:62-63`
 **Issue:**
 `normalize_path` is `dunce::canonicalize`, which fails on a non-existent path. The call sites wrap it with `.with_context(|| format!("resolving {}", self.path.display()))`, so the user sees `error: resolving ./nope: The system cannot find the path specified. (os error 3)`. That is acceptable but inconsistent with the project's stated convention of clear, path-naming errors (FOUND-05/06) — "resolving X" is less clear than "no such directory: X". Lower severity because it does not misbehave, only reads poorly.
@@ -148,6 +184,8 @@ if !root.is_dir() {
 **Fix:** Special-case `NotFound` to a friendlier message, or change the context to `format!("no such directory: {}", self.path.display())` after a pre-check (`self.path.exists()`), so the common typo path is self-explanatory.
 
 ### WR-04: `du --depth 0` and `--top 0` are silently degenerate rather than rejected
+
+**Status:** RESOLVED (commit `42da3db`). Attached `RangedU64ValueParser::<usize>::new().range(1..)` to du's `--depth`/`--top` and tree's `--depth`, so `0` is rejected at parse time (exit 2) with a clear clap usage error. Covered by `du_zero_depth_and_top_rejected` and `tree_zero_depth_rejected`.
 
 **File:** `src/commands/du/mod.rs:97-99` (`--top`) and `:162-168` (`--depth`)
 **Issue:**
@@ -157,6 +195,8 @@ if !root.is_dir() {
 
 ### WR-05: `--recursive` bulk-rename can rename a file into a directory it has already descended
 
+**Status:** RESOLVED (commit `f4114d8`). Test-coverage gap only (no source change). Added integration test `renm_recursive_cross_directory_independent`: two sibling subdirs each with `a.txt` → `b.txt` under `--recursive`, asserting both renames succeed independently and each `b.txt` keeps its own directory's payload — locking the per-directory pre-flight scoping (D-14).
+
 **File:** `src/commands/bulk_rename/mod.rs:372-457`
 **Issue:**
 Under `--recursive`, `build_plan` walks with `WalkDir` and renames files in place per parent directory. Directories themselves are skipped (`:409-421`), and the per-directory pre-flight catches in-directory clobbers/cycles. However, the pre-flight only seeds its occupied set from `read_dir_names(dir)` of that one parent (`:504-507`) and only considers renames whose `parent` equals that dir. A rename target is validated solely as a base name within its own parent. That is correct for the documented model, but the walk order under `--recursive` combined with renaming files *as the executor iterates* means the executor's `plan.items` ordering (walk order) is relied upon to be safe. Since pre-flight already aborts on any chain/cycle/collision, executed renames are mutually independent and order-insensitive — so this is not a data-loss bug — but there is no test exercising `--recursive` across *multiple* directories with same-named targets in sibling dirs, leaving the cross-directory scoping unverified by the suite. Treat as a test-coverage gap on the destructive command.
@@ -164,6 +204,10 @@ Under `--recursive`, `build_plan` walks with `WalkDir` and renames files in plac
 **Fix:** Add an integration test: two sibling subdirectories each containing `a.txt`, a pattern renaming `a.txt`→`b.txt` in both, asserting both succeed independently and neither directory's pre-flight bleeds into the other. This locks the per-directory scoping that the safety argument depends on.
 
 ## Info
+
+> **Deferred (2026-06-23).** The four Info findings below were intentionally left
+> unfixed in this pass (out of scope for the critical+warning fix). They remain
+> recorded here for a future quality pass.
 
 ### IN-01: Magic exit codes use bare `ExitCode::from(2)` / `from(1)` without named constants
 
