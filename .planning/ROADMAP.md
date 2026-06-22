@@ -46,7 +46,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [~] 01-04-PLAN.md — install.ps1: build → copy → idempotent REG_EXPAND_SZ-safe PATH → session refresh → smoke test + human-verify (FOUND-07,08) — *authored & committed; human-verify gate OPEN*
+- [x] 01-04-PLAN.md — install.ps1: build → copy → idempotent REG_EXPAND_SZ-safe PATH → session refresh → smoke test + human-verify (FOUND-07,08) — *human-verify gate CLEARED 2026-06-22 (install + same-session flatten verified in PS7)*
 
 ### Phase 2: Pure Transform Utilities
 
