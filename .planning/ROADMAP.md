@@ -27,7 +27,12 @@
   3. User pipes `box flatten --help` output to a file and gets clean text (no ANSI escape sequences), then runs the same command in a terminal and sees colored output
   4. User runs `box flatten ./src ./out --dry-run` on a deeply nested folder tree containing duplicate filenames and sees a plan of collision-renamed paths without any files being copied
   5. User runs `box flatten ./src ./out` (no dry-run) and all source files appear flat in `./out` with original timestamps preserved, originals untouched, and no files silently lost or overwritten
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 01-01-PLAN.md — Crate scaffold: clap registry (23 commands), RunCommand trait, BoxError, exit-code mapping, Wave-0 cli tests (FOUND-01,02,03,05)
+- [ ] 01-02-PLAN.md — Core infra: color gating (output.rs) + UNC-safe path/hidden/timestamp helpers (fs.rs); piped-no-ANSI test (FOUND-04,06)
+- [ ] 01-03-PLAN.md — Anchor `flatten`: pure collision/reserved-name rename + canonicalize/guard/plan/dry-run/execute orchestration (FLAT-01,02,03,04)
+- [ ] 01-04-PLAN.md — install.ps1: build → copy → idempotent REG_EXPAND_SZ-safe PATH → session refresh → smoke test + human-verify (FOUND-07,08)
 
 ### Phase 2: Pure Transform Utilities
 **Goal**: Users can run nine lightweight utility commands — uuid, base64, epoch, color, passgen, cowsay, fortune, 8ball, roast — each with correct output conventions and integration-tested behavior
@@ -84,7 +89,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Flatten | 0/? | Not started | - |
+| 1. Foundation + Flatten | 0/4 | Not started | - |
 | 2. Pure Transform Utilities | 0/? | Not started | - |
 | 3. Filesystem Power Tools | 0/? | Not started | - |
 | 4. Terminal Visuals | 0/? | Not started | - |
@@ -106,4 +111,4 @@
 
 ---
 *Roadmap created: 2026-06-22*
-*Last updated: 2026-06-22 after initial creation*
+*Last updated: 2026-06-22 after Phase 1 planning — 4 plans created*
