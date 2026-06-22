@@ -1,0 +1,120 @@
+# box — A Rust CLI Toolbox
+
+## What This Is
+
+`box` is a single Rust binary that bundles ~23 command-line tools — a mix of genuinely useful utilities and fun toys — exposed as subcommands (`box flatten`, `box qr`, `box cowsay`, …). It's built for a developer running Windows PowerShell 7, installed globally so any tool is one short command away.
+
+## Core Value
+
+The toolbox must be **globally available and instantly usable from PowerShell 7** — type `box <command>` from anywhere and the tool just works. If the breadth of commands is impressive but they aren't reachable on PATH, the project has failed at its one job.
+
+## Requirements
+
+### Validated
+
+<!-- Shipped and confirmed valuable. -->
+
+(None yet — ship to validate)
+
+### Active
+
+<!-- Current scope. Building toward these. All are hypotheses until shipped. -->
+
+**Foundation**
+- [ ] Single binary `box` with discoverable subcommands (`box --help`, `box <cmd> --help`)
+- [ ] `install.ps1` builds the release binary, copies it to a dedicated bin dir, and adds that dir to the user PATH so `box` works globally in PowerShell 7
+
+**Anchor command**
+- [ ] `flatten` — recursively copy every file from a folder tree into one flat output folder (originals untouched, folders dropped); on filename collision, rename by encoding the source path (e.g. `docs_sub_report.txt`)
+
+**Useful staples**
+- [ ] `qr` — render QR codes for text/URLs in the terminal
+- [ ] `passgen` — generate secure passwords / passphrases
+- [ ] `hash` — compute and verify file hashes / checksums
+
+**File power tools**
+- [ ] `dupes` — find duplicate files by content
+- [ ] `bulk-rename` — regex-based bulk rename with a dry-run preview
+- [ ] `tree` — pretty directory tree with file sizes
+
+**Dev utilities**
+- [ ] `clip` — read from / write to the clipboard
+- [ ] `uuid` — generate UUIDs
+- [ ] `json` — pretty-print and validate JSON
+
+**Converters**
+- [ ] `base64` — encode / decode base64
+- [ ] `epoch` — convert between Unix timestamps and human-readable dates
+- [ ] `color` — convert between hex and RGB color formats
+
+**Disk & art**
+- [ ] `du` — analyze disk usage ("what's eating my space")
+- [ ] `ascii` — render an image as ASCII art
+
+**Fun**
+- [ ] `cowsay` — ASCII-character speech bubbles
+- [ ] `lolcat` — rainbow-colorize piped text
+- [ ] `matrix` — Matrix digital-rain screensaver effect
+- [ ] `roast` — random programmer-roast generator
+- [ ] `fortune` — random fortune / quote
+- [ ] `8ball` — magic 8-ball oracle
+
+**Whimsy with utility**
+- [ ] `pomodoro` — focus timer with Windows toast notifications
+- [ ] `weather` — quick weather fetch for a location
+
+### Out of Scope
+
+<!-- Explicit boundaries. Includes reasoning to prevent re-adding. -->
+
+- Cross-platform support (macOS / Linux) — target is Windows PowerShell 7; portability can come later if wanted
+- Package-manager distribution (Scoop / winget) — `install.ps1` is the chosen install path for v1; packaging adds overhead without changing the core experience
+- GUI / TUI dashboard — these are discrete one-shot terminal commands, not an interactive app
+- Per-tool standalone binaries — deliberately one binary with subcommands for a single, discoverable PATH entry
+
+## Context
+
+- **Environment:** Windows 11, PowerShell 7 terminal. Several commands are inherently Windows-flavored (clipboard access, toast notifications, terminal color/Unicode rendering) and will rely on Windows-appropriate crates/APIs.
+- **Language:** Rust — chosen for a single fast, dependency-free distributable binary.
+- **Network-dependent commands:** `weather` (and potentially others) require an external web API; the research phase should identify a suitable no-/low-friction API and the right HTTP/QR/clipboard/image crates.
+- **Greenfield:** brand-new project, no existing code. Repo initialized fresh.
+
+## Constraints
+
+- **Tech stack**: Rust, single binary with a subcommand CLI (e.g. `clap`) — keep the surface consistent across all 23 tools.
+- **Platform**: Must run in Windows PowerShell 7. Windows-specific integrations (clipboard, toast, ANSI color) must work in that terminal.
+- **Distribution**: Global availability achieved via `install.ps1` (build → copy to bin dir → add to user PATH). No assumption that `~/.cargo/bin` is already on PATH.
+- **Consistency**: All subcommands share a coherent UX — `--help` everywhere, predictable flag conventions, sensible exit codes.
+
+## Key Decisions
+
+<!-- Decisions that constrain future work. Add throughout project lifecycle. -->
+
+| Decision | Rationale | Outcome |
+|----------|-----------|---------|
+| Single binary `box` with subcommands | One discoverable PATH entry; avoids name clashes and PATH clutter from many small binaries | — Pending |
+| Binary named `box` | Short, neutral, fast to type, no common Windows clash | — Pending |
+| `install.ps1` for global install | Doesn't assume cargo bin is on PATH; copies exe to a dedicated bin dir and updates user PATH | — Pending |
+| `flatten` collisions → prefix with source path | Predictable, traceable to origin, nothing silently lost or overwritten | — Pending |
+| All 23 commands targeted for v1 | User wants the full toolbox to land together | — Pending |
+| Rust as implementation language | Single fast native binary, easy global distribution | — Pending |
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
+---
+*Last updated: 2026-06-22 after initialization*
