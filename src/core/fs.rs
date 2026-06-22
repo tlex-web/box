@@ -36,8 +36,8 @@ const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
 /// Wraps `dunce::canonicalize` — **never** `std::fs::canonicalize`, which always
 /// prefixes `\\?\` on Windows (rust-lang/rust#42869) and would corrupt
 /// containment guards and collision-encoding (FOUND-06, Pitfall 1).
-pub fn normalize_path(_p: &Path) -> std::io::Result<PathBuf> {
-    unimplemented!("RED: implemented in GREEN")
+pub fn normalize_path(p: &Path) -> std::io::Result<PathBuf> {
+    dunce::canonicalize(p)
 }
 
 /// `walkdir` `filter_entry` predicate: is this entry hidden and therefore prunable
@@ -48,8 +48,21 @@ pub fn normalize_path(_p: &Path) -> std::io::Result<PathBuf> {
 /// (walkdir#142, Pitfall 8). Any deeper entry is hidden when its base name starts
 /// with `.` **or** (on Windows) it carries `FILE_ATTRIBUTE_HIDDEN`. Applied in
 /// `filter_entry`, a hidden *directory* prunes its whole subtree cheaply.
-pub fn is_hidden(_entry: &DirEntry) -> bool {
-    unimplemented!("RED: implemented in GREEN")
+pub fn is_hidden(entry: &DirEntry) -> bool {
+    if entry.depth() == 0 {
+        return false; // never prune the root (walkdir#142)
+    }
+    let dot = entry
+        .file_name()
+        .to_str()
+        .is_some_and(|s| s.starts_with('.'));
+    #[cfg(windows)]
+    let attr = entry
+        .metadata()
+        .is_ok_and(|m| m.file_attributes() & FILE_ATTRIBUTE_HIDDEN != 0);
+    #[cfg(not(windows))]
+    let attr = false;
+    dot || attr
 }
 
 /// Copy `src` to `dst`, preserving the source's modified and accessed times,
@@ -60,8 +73,33 @@ pub fn is_hidden(_entry: &DirEntry) -> bool {
 /// I/O call carries `.context(...)` so a deep-path (>260 char) `NotFound`-style
 /// failure surfaces loudly per-file rather than being silently dropped (FOUND-06,
 /// Pitfall 5).
-pub fn safe_copy(_src: &Path, _dst: &Path) -> anyhow::Result<u64> {
-    unimplemented!("RED: implemented in GREEN")
+pub fn safe_copy(src: &Path, dst: &Path) -> anyhow::Result<u64> {
+    let bytes = std::fs::copy(src, dst)
+        .with_context(|| format!("copying {} -> {}", src.display(), dst.display()))?;
+
+    let meta = std::fs::metadata(src)
+        .with_context(|| format!("reading source metadata for {}", src.display()))?;
+    let modified = meta
+        .modified()
+        .with_context(|| format!("reading modified time for {}", src.display()))?;
+    let times = std::fs::FileTimes::new().set_modified(modified);
+    // Accessed time is best-effort: some filesystems don't report it. Only add it
+    // when available so the copy still succeeds (and mtime is still preserved)
+    // where atime is missing (Assumption A3).
+    let times = match meta.accessed() {
+        Ok(accessed) => times.set_accessed(accessed),
+        Err(_) => times,
+    };
+
+    let dst_file = std::fs::File::options()
+        .write(true)
+        .open(dst)
+        .with_context(|| format!("opening {} to set timestamps", dst.display()))?;
+    dst_file
+        .set_times(times)
+        .with_context(|| format!("setting timestamps on {}", dst.display()))?;
+
+    Ok(bytes)
 }
 
 #[cfg(test)]
