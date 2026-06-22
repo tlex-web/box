@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 2
+current_plan: 3
 status: executing
-stopped_at: Phase 3 Plan 03-01 (hash) complete — HASH-01 shipped; next 03-02 (tree)
-last_updated: "2026-06-22T20:14:01.000Z"
+stopped_at: Phase 3 Plan 03-02 (tree) complete — TREE-01 shipped; next 03-03 (du)
+last_updated: "2026-06-22T20:23:29.000Z"
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 14
-  completed_plans: 10
+  completed_plans: 11
   percent: 40
 ---
 
@@ -34,9 +34,9 @@ progress:
 ## Current Position
 
 Phase: 03 (filesystem-power-tools) — EXECUTING
-Plan: 2 of 5 (Plan 03-01 hash complete)
+Plan: 3 of 5 (Plans 03-01 hash + 03-02 tree complete)
 **Phase:** 3 (filesystem-power-tools)
-**Current Plan:** 2
+**Current Plan:** 3
 **Total Plans in Phase:** 5
 **Status:** Executing Phase 03
 
@@ -46,7 +46,7 @@ Plan: 2 of 5 (Plan 03-01 hash complete)
 [████░░░░░░] 40% (2 / 5 phases complete)
 Phase 1 [██████████] 4 / 4 plans ✓ complete
 Phase 2 [██████████] 5 / 5 plans ✓ complete (verified, human-UAT cleared)
-Phase 3 [██░░░░░░░░] 1 / 5 plans — 03-01 hash ✓ (HASH-01); next 03-02 tree
+Phase 3 [████░░░░░░] 2 / 5 plans — 03-01 hash ✓ (HASH-01), 03-02 tree ✓ (TREE-01); next 03-03 du
 Phase 4 [          ] Not started
 Phase 5 [          ] Not started
 
@@ -61,7 +61,7 @@ Overall: 2 / 5 phases complete
 |-------|------|-------------|--------|
 | 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | ✓ Complete (4/4 plans) |
 | 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | ✓ Complete (5/5 plans, verified, human-UAT cleared) |
-| 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | ◆ Executing (1/5 plans — 03-01 hash ✓ HASH-01) |
+| 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | ◆ Executing (2/5 plans — 03-01 hash ✓ HASH-01, 03-02 tree ✓ TREE-01) |
 | 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Not started |
 | 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | Not started |
 
@@ -69,10 +69,10 @@ Overall: 2 / 5 phases complete
 
 ## Performance Metrics
 
-**Plans executed:** 10
-**Plans succeeded:** 10
+**Plans executed:** 11
+**Plans succeeded:** 11
 **Plans failed:** 0
-**Phases completed:** 2 / 5 (Phase 3 executing — 1/5 plans)
+**Phases completed:** 2 / 5 (Phase 3 executing — 2/5 plans)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -86,6 +86,7 @@ Overall: 2 / 5 phases complete
 | 02 | P04 | 11min | 3 (2 TDD) | 11 |
 | 02 | P05 | 6min | 2 (2 TDD) | 12 |
 | 03 | P01 | 6min | 2 (1 TDD) | 7 |
+| 03 | P02 | 4min | 2 (TDD-style) | 9 |
 
 ---
 
@@ -138,6 +139,10 @@ Overall: 2 / 5 phases complete
 | [03-01] `core::input::read_file_or_stdin` returns a streaming `ResolvedInput { reader: Box<dyn Read>, label }`, NOT bytes; `--file` branch sits AHEAD of stdin | hash must stream a multi-GB payload, so the new layer carries an open handle + a coreutils label (path, or `-` for stdin) rather than a `Vec` — distinct from the byte/String resolvers. `-` sentinel + `MissingInput`→exit-2 inherited. `ResolvedInput` needed a manual `Debug` impl (Box<dyn Read> isn't Debug) for test `.unwrap_err()` |
 | [03-01] hash `--verify`: only an UNSUPPORTED length is the typed exit-2 `UnsupportedHashLength`; a well-formed-but-mismatched hash is a plain `bail!` (exit 1) | D-04 / Pitfall 1. Length auto-detect maps 32→md5, 64→sha256 (wins the sha256/blake3 64-tie — `--algo blake3` is the only way to verify a 64-hex blake3), 128→sha512; `--algo` is the explicit override. Compare is plain `eq_ignore_ascii_case` (a checksum is PUBLIC, NOT constant-time — T-03-01) |
 | [03-01] `box` is a binary-only crate, so `cargo test --lib` does NOT work | The plan's `cargo test --lib core::input` verify command errors (`no library targets`); the in-module unit tests run via `cargo test --bin box <filter>` (or the default `cargo test`). Note for all future Phase-3 plans that verify with `--lib` |
+| [03-02] `human_size` PROMOTED verbatim to `core::output` (made `pub`, test migrated); flatten re-pointed, local copy + test deleted | D-12. The 1024-based B/KB/MB/GB/TB formatter is now the single shared size helper — tree consumes it now, du (03-03) next. Zero Cargo.toml change (no `humansize` crate). Flatten's 8 integration tests verified still green after the move (behavior-preserving) |
+| [03-02] tree renders children via `WalkDir::new(dir).min_depth(1).max_depth(1).follow_links(false).filter_entry(!is_hidden)` per level — NOT `std::fs::read_dir` | `core::fs::is_hidden` takes a `walkdir::DirEntry`, so a WalkDir depth-1 per-directory walk reuses the shared hidden predicate VERBATIM (root exemption walkdir#142 + Windows hidden-attr + symlink no-follow all inherited, D-06/T-03-05) while still giving the per-level is-last control the box-drawing prefixes need. Never re-implement `is_hidden` |
+| [03-02] tree's box-drawing glyphs are Unicode STRUCTURE (`├── └── │   ` + gap), distinct from flatten's ASCII `+`/`~`/`-` STATUS glyphs; only dir names are colored (`.blue().bold()`) gated on `is_color_on()` | D-09/D-10. Prefix is accumulated down the recursion (`│   ` for a non-last ancestor, `    ` gap for a last one); branch is `└── ` (last) vs `├── ` (non-last). The single styled token (dir name) is gated so piped output is byte-identical minus ANSI — proven by `tree_piped_no_ansi` |
+| [03-02] `tree.trycmd` is backed by a `tree.in/` per-case input fixture (trycmd 1.2 sandbox) | trycmd copies `<name>.in/` into a sandbox and runs the case there, giving `box tree project` a stable, checked-in input tree across machines. Fixture files written with explicit byte content and NO trailing newline so on-disk sizes are CRLF-independent. Root label printed as the passed path (`self.path`), not the dunce-canonical absolute, for a natural render + stable snapshot |
 
 ### Critical Pitfalls to Remember
 
@@ -177,11 +182,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-22T20:14:01.000Z
-**Stopped At:** Phase 3 Plan 03-01 (hash) complete — HASH-01 shipped, full suite green
-**Resume File:** .planning/phases/03-filesystem-power-tools/03-02-PLAN.md
+**Last session:** 2026-06-22T20:23:29.000Z
+**Stopped At:** Phase 3 Plan 03-02 (tree) complete — TREE-01 shipped, full suite green (77 unit + all integration incl. tree 3/3 + tree.trycmd)
+**Resume File:** .planning/phases/03-filesystem-power-tools/03-03-PLAN.md
 
-**Next action:** Execute Plan 03-02 (`tree`) — Wave 2. It shares cli.rs/main.rs and promotes flatten's `human_size` into `core::output` (D-12). Reuse the 03-01 `core::input::read_file_or_stdin` pattern if a streaming input is needed.
+**Next action:** Execute Plan 03-03 (`du`) — Wave 3. It shares cli.rs/main.rs and REUSES the now-promoted `core::output::human_size` (D-12) for its size column. Follow the same WalkDir + `is_hidden` read-only-walker pattern tree established; sort by `(size desc, name asc)` before printing (RESEARCH Pitfall 6 — never rely on walk order).
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
@@ -191,3 +196,4 @@ None.
 *Updated: 2026-06-22 by plan-02-04 executor — passgen + cowsay shipped (PASS-01, COW-01); OsRng CSPRNG + unbiased choose (no % len, T-V6 grep gate); EFF 7776 list embedded + CC-BY 3.0 US attributed; A1 closed (rand::TryRngCore resolves, no rand_core); cowsay fixed-40 wrap + hard-break + bubble locked by units + 2 trycmd snapshots*
 *Updated: 2026-06-22 by plan-02-05 executor — fortune + 8ball + roast shipped (FORT-01, 8BAL-01, ROST-01); whimsy RNG = rand::rng() + unbiased IndexedRandom::choose, non-determinism tested by membership + N=10-runs-differ properties; 70 CC0 fortunes + 42 self-authored roasts embedded (include_str! + eol=lf); 8ball canonical-20 const in the eight_ball module with 8ball CLI name preserved; ALL 9 Phase-2 stubs gone — Phase 2 plans complete (9/9), ready for verification; full cargo test + clippy -D warnings + fmt --check clean*
 *Updated: 2026-06-22 by plan-03-01 executor — `box hash` shipped (HASH-01): streaming enum-dispatch Hasher (SHA-256 default; --algo blake3/sha512/md5; RustCrypto digest 0.11 + native blake3 update_reader, no traits-preview/no dyn Digest), const-hex hex (no base16ct alloc change), --verify length-autodetect (32/64/128, sha256 wins the 64-tie) with the 0/1/2 exit contract; core::input grew read_file_or_stdin + ResolvedInput (streaming --file ahead of stdin); BoxError::UnsupportedHashLength exit-2 variant added; 7/7 HASH-01 tests + full suite + clippy -D warnings + fmt --check all green; hash stub gone (4 phase-3 stubs remain: tree/du/dupes/bulk-rename)*
+*Updated: 2026-06-22 by plan-03-02 executor — `box tree` shipped (TREE-01): dir-first (D-08) Unicode box-drawing render (├── └── │   + gap), is_color_on-gated blue dir names (D-10), --sizes per-file human_size (blank dirs), --depth N cap, `N directories, M files` summary; reuses core::fs::is_hidden VERBATIM via a WalkDir depth-1 per-level walk (D-06) + follow_links(false) (T-03-05) + normalize_path (T-03-07); flatten's human_size PROMOTED into core::output (pub, test migrated, flatten re-pointed + local copy deleted — flatten 8/8 still green, D-12) ready for du; tree.trycmd backed by a tree.in/ trycmd input fixture; 3/3 TREE-01 tests + tree.trycmd + full suite (77 unit + all integration) + clippy -D warnings + fmt --check all green; tree stub gone (3 phase-3 stubs remain: du/dupes/bulk-rename)*

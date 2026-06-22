@@ -106,7 +106,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 — shares cli.rs/main.rs registry)*
 
-- [ ] 03-02-PLAN.md — `tree`: dir-first Unicode box-drawing render + colored dir names + `--sizes`/`--depth` + `N directories, M files` summary (D-08/09/10); promotes flatten's `human_size` into `core::output` for shared use (D-12) (TREE-01)
+- [x] 03-02-PLAN.md — `tree`: dir-first Unicode box-drawing render + colored dir names + `--sizes`/`--depth` + `N directories, M files` summary (D-08/09/10); promotes flatten's `human_size` into `core::output` for shared use (D-12) (TREE-01) ✓ (2/2 tasks; 3/3 TREE-01 tests + tree.trycmd green; human_size promoted, flatten unbroken)
 
 **Wave 3** *(blocked on Wave 2 — shares cli.rs/main.rs registry)*
 
@@ -157,7 +157,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation + Flatten | 4/4 | Complete    | 2026-06-22 |
 | 2. Pure Transform Utilities | 5/5 | Complete   | 2026-06-22 |
-| 3. Filesystem Power Tools | 0/5 | Planned | - |
+| 3. Filesystem Power Tools | 2/5 | In progress | - |
 | 4. Terminal Visuals | 0/? | Not started | - |
 | 5. Windows Platform Integration | 0/? | Not started | - |
 
@@ -181,3 +181,4 @@ Plans:
 *Last updated: 2026-06-22 — Phase 2 PLANNED: 5 plans across 5 waves (uuid/base64/epoch/color/passgen/cowsay/fortune/8ball/roast on a shared core::input foundation)*
 *Last updated: 2026-06-22 — Phase 3 PLANNED: 5 plans across 5 waves (hash → tree → du → dupes → bulk-rename), one vertical slice per command; shared-core changes folded into first consumer (--file→hash, human_size→tree); all 19 CONTEXT decisions covered*
 *Last updated: 2026-06-22 — Phase 3 Plan 03-01 (hash) COMPLETE: live `box hash` (SHA-256 default, --algo blake3/sha512/md5, --verify 0/1/2 exit contract); streaming enum-dispatch Hasher + core::input --file layer shipped; HASH-01 satisfied; 7/7 HASH-01 tests + full suite green*
+*Last updated: 2026-06-22 — Phase 3 Plan 03-02 (tree) COMPLETE: live `box tree` (dir-first Unicode box-drawing render, is_color_on-gated blue dir names, --sizes/--depth, `N directories, M files` summary); flatten's `human_size` promoted into `core::output` (shared, D-12) with flatten left unbroken; TREE-01 satisfied; 3/3 TREE-01 tests + tree.trycmd + full suite (77 unit + all integration) green*
