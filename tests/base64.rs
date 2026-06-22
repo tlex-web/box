@@ -29,7 +29,10 @@ fn encode_via_stdin(input: &[u8], url_safe: bool) -> String {
     if url_safe {
         cmd.arg("--url-safe");
     }
-    let out = cmd.write_stdin(input.to_vec()).output().expect("run encode");
+    let out = cmd
+        .write_stdin(input.to_vec())
+        .output()
+        .expect("run encode");
     assert!(out.status.success(), "encode should exit 0");
     String::from_utf8(out.stdout)
         .expect("encoded output is UTF-8")
@@ -113,7 +116,10 @@ fn url_safe_alphabet_no_padding() {
         !url_enc.contains('+') && !url_enc.contains('/'),
         "url-safe must not contain +/ (got {url_enc})"
     );
-    assert!(!url_enc.contains('='), "url-safe (NO_PAD) must have no '=' (got {url_enc})");
+    assert!(
+        !url_enc.contains('='),
+        "url-safe (NO_PAD) must have no '=' (got {url_enc})"
+    );
 }
 
 /// Decoding non-alphabet input → exit 1, clean error on stderr, stdout empty

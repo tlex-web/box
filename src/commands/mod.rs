@@ -4,6 +4,7 @@
 //! the parsed [`crate::cli::Commands`] variant and calls `.run()`. Static
 //! dispatch — no `Box<dyn>`.
 
+pub mod base64;
 pub mod flatten;
 pub mod stub;
 pub mod uuid;

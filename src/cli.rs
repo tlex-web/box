@@ -37,7 +37,7 @@ pub enum Commands {
     /// Generate a random UUID
     Uuid(crate::commands::uuid::UuidArgs),
     /// Encode or decode base64 text
-    Base64,
+    Base64(crate::commands::base64::Base64Args),
     /// Convert between Unix timestamps and human-readable dates
     Epoch,
     /// Convert colors between hex and RGB formats

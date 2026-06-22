@@ -60,7 +60,7 @@ fn main() -> ExitCode {
     let result = match cli.command {
         Commands::Flatten(args) => args.run(),
         Commands::Uuid(args) => args.run(),
-        Commands::Base64 => Err(not_implemented("base64")),
+        Commands::Base64(args) => args.run(),
         Commands::Epoch => Err(not_implemented("epoch")),
         Commands::Color => Err(not_implemented("color")),
         Commands::Passgen => Err(not_implemented("passgen")),

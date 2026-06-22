@@ -75,11 +75,17 @@ fn count_five_distinct_v4() {
 /// `box uuid --upper` → the uppercase form of a valid v4 UUID.
 #[test]
 fn upper_is_uppercase_v4() {
-    uuid(&["--upper"]).success().stderr(predicate::str::is_empty());
+    uuid(&["--upper"])
+        .success()
+        .stderr(predicate::str::is_empty());
     let re = regex_lite_match(V4_RE_UPPER);
     let lines = uuid_lines(&["--upper"]);
     assert_eq!(lines.len(), 1, "expected one line, got {lines:?}");
-    assert!(re(&lines[0]), "line is not an uppercase v4 UUID: {}", lines[0]);
+    assert!(
+        re(&lines[0]),
+        "line is not an uppercase v4 UUID: {}",
+        lines[0]
+    );
 }
 
 /// `box uuid -n 100` → 100 distinct lines (uniqueness via HashSet).

@@ -35,10 +35,11 @@ use crate::core::errors::BoxError;
 /// Use for text-oriented commands (cowsay, epoch, color). Reads piped stdin as a
 /// UTF-8 `String`; an interactive TTY with no argument yields
 /// [`BoxError::MissingInput`] (exit 2) rather than blocking.
-// Forward-compat surface: no live caller until the Wave-2 command plans
-// (base64/cowsay/epoch/color) consume it. The allow comes off then — mirrors the
-// Phase-1 pattern where `#[allow(dead_code)]` on core helpers was removed once
-// `flatten` became a live caller (STATE.md [01-03]).
+//
+// Still awaits its first live caller (the Wave-2 text commands
+// cowsay/epoch/color); the byte sibling `read_input_bytes` went live with base64
+// (Plan 02-02), so the forward-compat allow on the *byte* path came off. This
+// String reader keeps a scoped allow until cowsay/epoch/color consume it.
 #[allow(dead_code)]
 pub fn read_input(arg: Option<String>) -> anyhow::Result<String> {
     let stdin = std::io::stdin();
@@ -51,9 +52,11 @@ pub fn read_input(arg: Option<String>) -> anyhow::Result<String> {
 /// into a `Vec<u8>` with no UTF-8 validation, so arbitrary bytes round-trip
 /// unchanged (D-05/D-06). An interactive TTY with no argument yields
 /// [`BoxError::MissingInput`] (exit 2) rather than blocking.
-// Forward-compat surface — see `read_input` above; first consumed by the Wave-2
-// base64 command. Allow comes off then.
-#[allow(dead_code)]
+//
+// Live as of Plan 02-02: `base64` is the first caller, so the Phase-1-style
+// forward-compat `#[allow(dead_code)]` has been removed here (and on
+// `resolve_bytes` + `BoxError::MissingInput`), restoring the strict dead-code
+// gate on the byte path (mirrors STATE.md [01-03] allow-then-remove).
 pub fn read_input_bytes(arg: Option<String>) -> anyhow::Result<Vec<u8>> {
     let stdin = std::io::stdin();
     resolve_bytes(arg, stdin.is_terminal(), stdin.lock())
@@ -61,9 +64,9 @@ pub fn read_input_bytes(arg: Option<String>) -> anyhow::Result<Vec<u8>> {
 
 /// Inner resolver for [`read_input`] — `is_tty` and the reader are injected so the
 /// three branches are unit-testable without a real terminal.
-// Reachable only from the (currently caller-less) public `read_input` in the bin
-// build, and from unit tests; forward-compat allow until a Wave-2 command calls
-// the public wrapper.
+// Reachable only from the (still caller-less) public `read_input` in the bin
+// build, and from unit tests; the scoped allow stays paired with `read_input`
+// until cowsay/epoch/color make the String path live.
 #[allow(dead_code)]
 fn resolve<R: Read>(arg: Option<String>, is_tty: bool, mut reader: R) -> anyhow::Result<String> {
     match arg.as_deref() {
@@ -87,8 +90,7 @@ fn resolve<R: Read>(arg: Option<String>, is_tty: bool, mut reader: R) -> anyhow:
 
 /// Inner resolver for [`read_input_bytes`] — mirrors [`resolve`] but reads bytes
 /// via `read_to_end` (no UTF-8 validation) so binary input is byte-exact.
-// Forward-compat allow — see `resolve` above.
-#[allow(dead_code)]
+// Live via `read_input_bytes` (base64, Plan 02-02); allow removed.
 fn resolve_bytes<R: Read>(
     arg: Option<String>,
     is_tty: bool,
