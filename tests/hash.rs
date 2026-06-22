@@ -147,7 +147,5 @@ fn hash_verify_bad_len_exit2() {
     let path = f.path().to_str().unwrap();
     // 40 hex chars (a sha1 digest length) — no supported algorithm → exit 2.
     let sha1_len = "a".repeat(40);
-    hash_cmd(&["--verify", &sha1_len, path])
-        .failure()
-        .code(2);
+    hash_cmd(&["--verify", &sha1_len, path]).failure().code(2);
 }

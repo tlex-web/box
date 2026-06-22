@@ -298,8 +298,7 @@ mod tests {
     /// `--file` Branch 2: no path / `-` when piped streams stdin, labelled `-`.
     #[test]
     fn file_branch_dash_streams_stdin_labelled_dash() {
-        let resolved =
-            resolve_reader(Some("-"), false, || Box::new(&b"piped-stdin"[..])).unwrap();
+        let resolved = resolve_reader(Some("-"), false, || Box::new(&b"piped-stdin"[..])).unwrap();
         let (bytes, label) = drain(resolved);
         assert_eq!(bytes, b"piped-stdin");
         assert_eq!(label, "-");

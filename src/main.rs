@@ -68,7 +68,7 @@ fn main() -> ExitCode {
         Commands::Fortune(args) => args.run(),
         Commands::EightBall(args) => args.run(),
         Commands::Roast(args) => args.run(),
-        Commands::Hash => Err(not_implemented("hash")),
+        Commands::Hash(args) => args.run(),
         Commands::Tree => Err(not_implemented("tree")),
         Commands::Du => Err(not_implemented("du")),
         Commands::Dupes => Err(not_implemented("dupes")),

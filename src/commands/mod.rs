@@ -11,6 +11,7 @@ pub mod eight_ball;
 pub mod epoch;
 pub mod flatten;
 pub mod fortune;
+pub mod hash;
 pub mod passgen;
 pub mod roast;
 pub mod stub;

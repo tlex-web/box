@@ -54,7 +54,7 @@ pub enum Commands {
     /// Deliver a random programmer roast
     Roast(crate::commands::roast::RoastArgs),
     /// Compute and verify file hashes
-    Hash,
+    Hash(crate::commands::hash::HashArgs),
     /// Print a directory tree with file sizes
     Tree,
     /// Analyze disk usage for a directory
