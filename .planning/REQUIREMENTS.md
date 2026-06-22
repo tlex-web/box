@@ -106,13 +106,46 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (to be filled by roadmapper) | — | Pending |
+| FOUND-01 | Phase 1 | Pending |
+| FOUND-02 | Phase 1 | Pending |
+| FOUND-03 | Phase 1 | Pending |
+| FOUND-04 | Phase 1 | Pending |
+| FOUND-05 | Phase 1 | Pending |
+| FOUND-06 | Phase 1 | Pending |
+| FOUND-07 | Phase 1 | Pending |
+| FOUND-08 | Phase 1 | Pending |
+| FLAT-01 | Phase 1 | Pending |
+| FLAT-02 | Phase 1 | Pending |
+| FLAT-03 | Phase 1 | Pending |
+| FLAT-04 | Phase 1 | Pending |
+| UUID-01 | Phase 2 | Pending |
+| B64-01 | Phase 2 | Pending |
+| EPOC-01 | Phase 2 | Pending |
+| COLR-01 | Phase 2 | Pending |
+| PASS-01 | Phase 2 | Pending |
+| COW-01 | Phase 2 | Pending |
+| FORT-01 | Phase 2 | Pending |
+| 8BAL-01 | Phase 2 | Pending |
+| ROST-01 | Phase 2 | Pending |
+| HASH-01 | Phase 3 | Pending |
+| TREE-01 | Phase 3 | Pending |
+| DU-01 | Phase 3 | Pending |
+| DUPE-01 | Phase 3 | Pending |
+| RENM-01 | Phase 3 | Pending |
+| LOL-01 | Phase 4 | Pending |
+| MTRX-01 | Phase 4 | Pending |
+| ASCI-01 | Phase 4 | Pending |
+| JSON-01 | Phase 4 | Pending |
+| QR-01 | Phase 5 | Pending |
+| CLIP-01 | Phase 5 | Pending |
+| POMO-01 | Phase 5 | Pending |
+| WTHR-01 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements: 29 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 29 ⚠️
+- v1 requirements: 34 total
+- Mapped to phases: 34
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-22*
-*Last updated: 2026-06-22 after initial definition*
+*Last updated: 2026-06-22 after roadmap creation — traceability table populated*
