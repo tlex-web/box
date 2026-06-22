@@ -291,6 +291,55 @@ fn renm_separator_refused() {
     }
 }
 
+/// RENM-01 / CR-01 — a replacement that yields exactly `..` (a directory-escaping
+/// target: `parent.join("..")` resolves to the GRANDPARENT) is refused in
+/// pre-flight and aborts the whole batch (exit 1, nothing renamed) in BOTH dry-run
+/// and `--force`. The escape never reaches the `rename` call: the source file is
+/// untouched and no entry appears in the parent or grandparent directory.
+#[test]
+fn renm_dotdot_target_aborts() {
+    for force in [false, true] {
+        // A nested layout so we can prove the grandparent is untouched too: the
+        // rename runs inside <root>/work, whose parent is <root>.
+        let root = assert_fs::TempDir::new().unwrap();
+        let work = root.child("work");
+        work.create_dir_all().unwrap();
+        work.child("a.txt").write_str("payload").unwrap();
+        // A pre-existing file in the grandparent (<root>) must be left alone — a
+        // `..` escape could otherwise clobber it.
+        root.child("grandparent.txt").write_str("keep").unwrap();
+
+        let before_work = snapshot_names(work.path());
+        let before_root = snapshot_names(root.path());
+
+        // `.+` matches the whole base name, replacing it with the constant `..`.
+        let args: &[&str] = if force { &["--force"] } else { &[] };
+        bulk_rename(work.path(), r".+", "..", args)
+            .failure()
+            .code(1)
+            .stderr(predicate::str::contains("Aborted").and(
+                predicate::str::contains("separator").or(predicate::str::contains("refused")),
+            ));
+
+        // The escaping target never reached `rename`: the work dir AND the
+        // grandparent are byte-for-byte unchanged, and `a.txt` still exists.
+        assert_eq!(
+            before_work,
+            snapshot_names(work.path()),
+            "a `..` target must leave the work dir byte-for-byte unchanged (force={force})"
+        );
+        assert_eq!(
+            before_root,
+            snapshot_names(root.path()),
+            "a `..` target must NOT touch the grandparent dir (force={force})"
+        );
+        assert!(
+            work.path().join("a.txt").exists(),
+            "the source file must survive the refused `..` rename (force={force})"
+        );
+    }
+}
+
 /// RENM-01 — directories and symlinks become `-` rows, and the replacement is
 /// FIRST-match only (D-17): `2024_2024.log` with pattern `2024` -> `x` yields
 /// `x_2024.log`, not `x_x.log`.

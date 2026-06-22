@@ -171,8 +171,13 @@ struct Rename {
 /// 3. **Cycles/swaps:** any target equal to ANOTHER item's source (compared
 ///    case-folded, since the move would land on that still-present file) is a
 ///    [`Conflict::Cycle`] — v1 detects and aborts (no temp-name pass).
-/// 4. **Path-separator refusal:** any target containing `/` or `\` is a
-///    [`Conflict::Separator`] (mirrors flatten's `encode_no_separator`).
+/// 4. **Path-separator / traversal refusal:** any target containing `/` or `\`,
+///    OR a target that escapes its directory (`..`, `.`, or any name that is
+///    purely dots/spaces — which Windows trims to a degenerate target) is a
+///    [`Conflict::Separator`] (mirrors flatten's `encode_no_separator`). Such a
+///    name cannot be a base name inside the parent directory, so it can never be
+///    "safe": `PathBuf::join("..")` resolves to the GRANDPARENT and `join(".")`
+///    to the parent itself, escaping the intended target dir (CR-01).
 ///
 /// Note: no-op renames (`new == old` byte-exact) are filtered out by the caller
 /// BEFORE this runs (they are `(unchanged)` skips), so a name folding to its own
@@ -180,22 +185,19 @@ struct Rename {
 fn preflight(renames: &[Rename], existing: &[String]) -> Vec<Conflict> {
     let mut conflicts = Vec::new();
 
-    // Rule 4 first: a separator-injecting target can never be safe, regardless of
-    // collisions. Refuse it outright.
+    // Rule 4 first: a separator-injecting or directory-escaping target can never
+    // be safe, regardless of collisions. Refuse it outright.
     for r in renames {
-        if r.new.contains('/') || r.new.contains('\\') {
+        if injects(&r.new) {
             conflicts.push(Conflict::Separator {
                 source: r.old.clone(),
                 target: r.new.clone(),
             });
         }
     }
-    // The set of renames that are NOT separator-injecting; only these participate
-    // in the collision/cycle analysis (an injecting one already aborts).
-    let safe: Vec<&Rename> = renames
-        .iter()
-        .filter(|r| !r.new.contains('/') && !r.new.contains('\\'))
-        .collect();
+    // The set of renames that are NOT separator-injecting/escaping; only these
+    // participate in the collision/cycle analysis (a refused one already aborts).
+    let safe: Vec<&Rename> = renames.iter().filter(|r| !injects(&r.new)).collect();
 
     // Rule 1: seed the occupied set from on-disk names NOT being renamed away.
     // A name that some item renames AWAY frees its slot; everything else still
@@ -270,6 +272,22 @@ fn preflight(renames: &[Rename], existing: &[String]) -> Vec<Conflict> {
     }
 
     conflicts
+}
+
+/// Whether a rename target is a path-separator injection OR a directory-escaping
+/// / degenerate name that can never be a safe base name inside the parent dir
+/// (CR-01). Refused in pre-flight as a [`Conflict::Separator`], mirroring
+/// `flatten::rename`'s `..`/`.`/empty handling:
+/// - contains `/` or `\` — a path separator that would write outside the dir;
+/// - is exactly `..` (`join` -> the GRANDPARENT) or `.` (`join` -> the parent);
+/// - is purely dots and/or spaces (e.g. `...`, `  `) — Windows trims trailing
+///   dots/spaces, so such a name collapses to ``/`.`/`..`, a degenerate target.
+fn injects(name: &str) -> bool {
+    name.contains('/')
+        || name.contains('\\')
+        || name == ".."
+        || name == "."
+        || name.trim_matches(['.', ' ']).is_empty()
 }
 
 /// Full-Unicode case fold for collision keys (WR-01) — matches
@@ -764,6 +782,38 @@ mod tests {
             back.iter().any(|c| matches!(c, Conflict::Separator { .. })),
             "backslash must be refused: {back:?}"
         );
+    }
+
+    /// Rule 4 (CR-01): a target of exactly `..` or `.` — or any purely
+    /// dots/spaces name — escapes the parent directory (`join("..")` -> the
+    /// grandparent, `join(".")` -> the parent) and must be refused as a
+    /// [`Conflict::Separator`] in the same pure pre-flight pass, just like a path
+    /// separator. It must never reach the executor's `rename` call.
+    #[test]
+    fn refuses_dot_and_dotdot_targets() {
+        for target in ["..", ".", "...", "  ", " . "] {
+            let conflicts = preflight(&[rn("a.txt", target)], &["a.txt".into()]);
+            assert!(
+                conflicts
+                    .iter()
+                    .any(|c| matches!(c, Conflict::Separator { target: t, .. } if t == target)),
+                "a directory-escaping/degenerate target {target:?} must be refused: {conflicts:?}"
+            );
+        }
+    }
+
+    /// `injects` recognizes separators and directory-escaping/degenerate names but
+    /// passes ordinary base names (incl. ones that merely CONTAIN dots).
+    #[test]
+    fn injects_classifies_unsafe_targets() {
+        // Unsafe: separators, exact dot/dot-dot, purely dots/spaces.
+        for bad in ["a/b", "a\\b", "..", ".", "...", "  ", " .. "] {
+            assert!(injects(bad), "{bad:?} must be classified as unsafe");
+        }
+        // Safe: ordinary names, including dotfiles and names with extensions.
+        for ok in ["a.txt", ".gitignore", "..a", "a..b", "report.final.txt"] {
+            assert!(!injects(ok), "{ok:?} must be classified as safe");
+        }
     }
 
     /// A clean plan (distinct targets, no clobbers, no cycles, no separators)
