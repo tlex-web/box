@@ -48,9 +48,10 @@ fn main() -> ExitCode {
         }
     };
 
-    // TODO(plan 02): wire color gating — `core::output::init_color(cli.no_color)`.
-    // `init_color` does not exist yet; touch `no_color` so the flag is "used".
-    let _ = cli.no_color;
+    // Decide color once, before dispatch, from --no-color ∧ NO_COLOR ∧ TTY
+    // (FOUND-04, D-10). Installs a global owo-colors override so all decorations
+    // no-op when piped — plain output is byte-identical minus ANSI.
+    crate::core::output::init_color(cli.no_color);
 
     let result = match cli.command {
         // Plan 03 replaces this arm with `Commands::Flatten(args) => args.run()`.
