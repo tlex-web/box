@@ -213,7 +213,10 @@ fn preflight(renames: &[Rename], existing: &[String]) -> Vec<Conflict> {
     // sources by their target key; any group of >= 2 is a collision.
     let mut by_target: HashMap<String, Vec<String>> = HashMap::new();
     for r in &safe {
-        by_target.entry(fold(&r.new)).or_default().push(r.old.clone());
+        by_target
+            .entry(fold(&r.new))
+            .or_default()
+            .push(r.old.clone());
     }
     // Deterministic order: sort the contested keys so the abort message is stable.
     let mut contested: Vec<(&String, &Vec<String>)> =
@@ -357,9 +360,7 @@ impl RunCommand for BulkRenameArgs {
         }
 
         println!();
-        println!(
-            "Done: renamed {renamed} files, {unchanged} unchanged, {skipped} skipped."
-        );
+        println!("Done: renamed {renamed} files, {unchanged} unchanged, {skipped} skipped.");
         let _ = is_color_on(); // color is applied inside format_row's glyph wrap
         Ok(())
     }
@@ -501,8 +502,8 @@ fn preflight_plan(plan: &Plan) -> anyhow::Result<Vec<Conflict>> {
     for dir in dirs {
         let renames = &by_dir[dir];
         // Seed the occupied set from the CURRENT on-disk names in this directory.
-        let existing = read_dir_names(dir)
-            .with_context(|| format!("reading directory {}", dir.display()))?;
+        let existing =
+            read_dir_names(dir).with_context(|| format!("reading directory {}", dir.display()))?;
         conflicts.extend(preflight(renames, &existing));
     }
     Ok(conflicts)
@@ -511,8 +512,8 @@ fn preflight_plan(plan: &Plan) -> anyhow::Result<Vec<Conflict>> {
 /// The base names of every entry (file, dir, symlink) directly inside `dir`.
 fn read_dir_names(dir: &Path) -> anyhow::Result<Vec<String>> {
     let mut names = Vec::new();
-    for entry in std::fs::read_dir(dir)
-        .with_context(|| format!("reading directory {}", dir.display()))?
+    for entry in
+        std::fs::read_dir(dir).with_context(|| format!("reading directory {}", dir.display()))?
     {
         let entry = entry.with_context(|| format!("reading an entry of {}", dir.display()))?;
         names.push(entry.file_name().to_string_lossy().to_string());
@@ -558,12 +559,7 @@ fn print_plan(plan: &Plan, arrow_col: usize, width: usize) {
 /// Print the plan with `[collision]` / `[cycle]` / `[separator]` inline reasons on
 /// the rows whose target appears in a conflict, so the abort output shows exactly
 /// what clashed (CONTEXT.md § specifics).
-fn print_plan_with_conflicts(
-    plan: &Plan,
-    conflicts: &[Conflict],
-    arrow_col: usize,
-    width: usize,
-) {
+fn print_plan_with_conflicts(plan: &Plan, conflicts: &[Conflict], arrow_col: usize, width: usize) {
     for item in &plan.items {
         let reason = conflict_reason(item, conflicts).or_else(|| item.reason.clone());
         println!(
@@ -617,15 +613,10 @@ fn abort_summary(conflicts: &[Conflict]) -> String {
         match c {
             Conflict::Collision { target, sources } => {
                 if sources.len() >= 2 {
-                    out.push_str(&format!(
-                        "{} both rename to {target}.",
-                        join_and(sources)
-                    ));
+                    out.push_str(&format!("{} both rename to {target}.", join_and(sources)));
                 } else {
                     let src = sources.first().cloned().unwrap_or_default();
-                    out.push_str(&format!(
-                        "{src} renames to {target}, which already exists."
-                    ));
+                    out.push_str(&format!("{src} renames to {target}, which already exists."));
                 }
             }
             Conflict::Cycle { source, target } => {
@@ -783,11 +774,11 @@ mod tests {
             rn("IMG_0042.jpg", "img_0042.jpg"),
             rn("IMG_0043.jpg", "img_0043.jpg"),
         ];
-        let conflicts = preflight(
-            &renames,
-            &["IMG_0042.jpg".into(), "IMG_0043.jpg".into()],
+        let conflicts = preflight(&renames, &["IMG_0042.jpg".into(), "IMG_0043.jpg".into()]);
+        assert!(
+            conflicts.is_empty(),
+            "clean plan must be conflict-free: {conflicts:?}"
         );
-        assert!(conflicts.is_empty(), "clean plan must be conflict-free: {conflicts:?}");
     }
 
     /// Full-Unicode case fold (WR-01): `RÉSUMÉ.txt` and `résumé.txt` collide.
@@ -814,7 +805,10 @@ mod tests {
         }];
         let s = abort_summary(&conflicts);
         assert!(s.starts_with("Aborted: 1 conflict detected."), "got: {s}");
-        assert!(s.contains("a.txt and b.txt both rename to dup.txt."), "got: {s}");
+        assert!(
+            s.contains("a.txt and b.txt both rename to dup.txt."),
+            "got: {s}"
+        );
         assert!(s.ends_with("No files were renamed."), "got: {s}");
     }
 }

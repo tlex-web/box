@@ -38,9 +38,17 @@ use predicates::prelude::*;
 /// output forced and return the assert handle. Mirrors the `tests/flatten.rs` /
 /// `tests/dupes.rs` runner shape (`Command::cargo_bin`, positional args,
 /// `NO_COLOR=1`).
-fn bulk_rename(dir: &Path, pattern: &str, replacement: &str, args: &[&str]) -> assert_cmd::assert::Assert {
+fn bulk_rename(
+    dir: &Path,
+    pattern: &str,
+    replacement: &str,
+    args: &[&str],
+) -> assert_cmd::assert::Assert {
     let mut cmd = Command::cargo_bin("box").unwrap();
-    cmd.arg("bulk-rename").arg(dir).arg(pattern).arg(replacement);
+    cmd.arg("bulk-rename")
+        .arg(dir)
+        .arg(pattern)
+        .arg(replacement);
     for a in args {
         cmd.arg(a);
     }
@@ -65,6 +73,20 @@ fn snapshot_names(dir: &Path) -> BTreeMap<String, Vec<u8>> {
     map
 }
 
+/// The EXACT (case-preserving) file names directly inside `dir`. NTFS is
+/// case-insensitive but case-PRESERVING, and `Path::exists()` matches
+/// case-insensitively — so a rename `IMG_0042.jpg` -> `img_0042.jpg` leaves
+/// `Path::new("IMG_0042.jpg").exists()` TRUE. To observe the stored casing (and
+/// to assert a name is truly absent vs. present-under-different-case) we must read
+/// the directory and compare the listed names byte-exactly.
+fn listed_names(dir: &Path) -> Vec<String> {
+    fs::read_dir(dir)
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .collect()
+}
+
 /// RENM-01 — the DEFAULT run is a dry-run preview: it prints the `~ old -> new`
 /// plan plus the dry-run summary (with the `Re-run with --force` hint) and writes
 /// NOTHING.
@@ -86,8 +108,17 @@ fn renm_dryrun_default_no_write() {
     // Default run is a dry-run — the directory is byte-for-byte unchanged.
     let after = snapshot_names(dir.path());
     assert_eq!(before, after, "default (dry-run) must write nothing");
-    assert!(dir.path().join("IMG_0042.jpg").exists());
-    assert!(!dir.path().join("img_0042.jpg").exists());
+    // The stored casing is still the ORIGINAL (case-preserving check — NTFS is
+    // case-insensitive, so `Path::exists` would falsely match the lowercased name).
+    let names = listed_names(dir.path());
+    assert!(
+        names.iter().any(|n| n == "IMG_0042.jpg"),
+        "original casing must be preserved by a dry-run, got {names:?}"
+    );
+    assert!(
+        !names.iter().any(|n| n == "img_0042.jpg"),
+        "dry-run must not produce the lowercased name, got {names:?}"
+    );
 }
 
 /// RENM-01 — `--force` applies the FIRST-match capture-group replacement to the
@@ -100,9 +131,18 @@ fn renm_force_capture_group() {
 
     bulk_rename(dir.path(), r"IMG_(\d+)", "img_$1", &["--force"]).success();
 
-    // Old names gone, new names present, contents preserved.
-    assert!(!dir.path().join("IMG_0042.jpg").exists());
-    assert!(!dir.path().join("IMG_0043.jpg").exists());
+    // The STORED casing is now lowercase (case-exact listing — `Path::exists` on
+    // NTFS would falsely match the old uppercase name against the new lowercase
+    // file). Old casing gone, new casing present, contents preserved.
+    let names = listed_names(dir.path());
+    assert!(
+        names.iter().any(|n| n == "img_0042.jpg") && names.iter().any(|n| n == "img_0043.jpg"),
+        "--force must store the lowercased names, got {names:?}"
+    );
+    assert!(
+        !names.iter().any(|n| n == "IMG_0042.jpg") && !names.iter().any(|n| n == "IMG_0043.jpg"),
+        "old uppercase casing must be gone, got {names:?}"
+    );
     assert_eq!(fs::read(dir.path().join("img_0042.jpg")).unwrap(), b"a");
     assert_eq!(fs::read(dir.path().join("img_0043.jpg")).unwrap(), b"b");
 }

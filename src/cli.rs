@@ -63,7 +63,7 @@ pub enum Commands {
     Dupes(crate::commands::dupes::DupesArgs),
     /// Bulk-rename files with a regex and dry-run preview
     #[command(name = "bulk-rename")]
-    BulkRename,
+    BulkRename(crate::commands::bulk_rename::BulkRenameArgs),
     /// Rainbow-colorize piped text
     Lolcat,
     /// Run the Matrix digital-rain screensaver effect

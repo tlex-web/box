@@ -72,7 +72,7 @@ fn main() -> ExitCode {
         Commands::Tree(args) => args.run(),
         Commands::Du(args) => args.run(),
         Commands::Dupes(args) => args.run(),
-        Commands::BulkRename => Err(not_implemented("bulk-rename")),
+        Commands::BulkRename(args) => args.run(),
         Commands::Lolcat => Err(not_implemented("lolcat")),
         Commands::Matrix => Err(not_implemented("matrix")),
         Commands::Ascii => Err(not_implemented("ascii")),
