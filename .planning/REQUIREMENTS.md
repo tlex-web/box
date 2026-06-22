@@ -30,7 +30,7 @@ Requirements for initial release. All 23 commands are in v1 scope. Each maps to 
 - [x] **HASH-01**: User can hash a file (default SHA-256), choose an algorithm, hash stdin, and verify against a known hash (exit 0 match / 1 mismatch), output in `HASH  filename` format
 - [x] **TREE-01**: User can print a directory tree with box-drawing characters, optional file sizes, depth limit, colored dirs vs files, and a file/dir count summary
 - [x] **DU-01**: User can analyze disk usage as a size-sorted view (biggest first) with human-readable sizes, a depth limit, and top-N truncation
-- [ ] **DUPE-01**: User can find duplicate files by content (size pre-filter then hash), displayed as groups of identical files with a summary of wasted space
+- [x] **DUPE-01**: User can find duplicate files by content (size pre-filter then hash), displayed as groups of identical files with a summary of wasted space
 - [ ] **RENM-01**: User can bulk-rename files with a regex pattern and capture-group replacement; dry-run preview is the default and `--force` is required to execute, with collision detection aborting before any rename
 
 ### Dev Utilities
@@ -130,7 +130,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | HASH-01 | Phase 3 | Complete |
 | TREE-01 | Phase 3 | Complete |
 | DU-01 | Phase 3 | Complete |
-| DUPE-01 | Phase 3 | Pending |
+| DUPE-01 | Phase 3 | Complete |
 | RENM-01 | Phase 3 | Pending |
 | LOL-01 | Phase 4 | Pending |
 | MTRX-01 | Phase 4 | Pending |

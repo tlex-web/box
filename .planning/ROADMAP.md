@@ -114,7 +114,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 — shares cli.rs/main.rs registry; reuses 03-01 BLAKE3 infra)*
 
-- [ ] 03-04-PLAN.md — `dupes`: size pre-filter then rayon-parallel BLAKE3 content hash, deterministic sorted groups + wasted-space summary, strictly read-only (D-13, D-06/D-07) (DUPE-01)
+- [x] 03-04-PLAN.md — `dupes`: size pre-filter then rayon-parallel BLAKE3 content hash, deterministic sorted groups + wasted-space summary, strictly read-only (D-13, D-06/D-07) (DUPE-01) ✓ (2/2 tasks, TDD-style; 4/4 DUPE-01 tests + 6 unit tests green; reuses the 03-01 BLAKE3 update_reader path + human_size + is_hidden read-only walker; no write/rename/delete path)
 
 **Wave 5** *(blocked on Wave 4 — shares cli.rs/main.rs registry)*
 
@@ -157,7 +157,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation + Flatten | 4/4 | Complete    | 2026-06-22 |
 | 2. Pure Transform Utilities | 5/5 | Complete   | 2026-06-22 |
-| 3. Filesystem Power Tools | 2/5 | In progress | - |
+| 3. Filesystem Power Tools | 4/5 | In progress | - |
 | 4. Terminal Visuals | 0/? | Not started | - |
 | 5. Windows Platform Integration | 0/? | Not started | - |
 
@@ -182,3 +182,4 @@ Plans:
 *Last updated: 2026-06-22 — Phase 3 PLANNED: 5 plans across 5 waves (hash → tree → du → dupes → bulk-rename), one vertical slice per command; shared-core changes folded into first consumer (--file→hash, human_size→tree); all 19 CONTEXT decisions covered*
 *Last updated: 2026-06-22 — Phase 3 Plan 03-01 (hash) COMPLETE: live `box hash` (SHA-256 default, --algo blake3/sha512/md5, --verify 0/1/2 exit contract); streaming enum-dispatch Hasher + core::input --file layer shipped; HASH-01 satisfied; 7/7 HASH-01 tests + full suite green*
 *Last updated: 2026-06-22 — Phase 3 Plan 03-02 (tree) COMPLETE: live `box tree` (dir-first Unicode box-drawing render, is_color_on-gated blue dir names, --sizes/--depth, `N directories, M files` summary); flatten's `human_size` promoted into `core::output` (shared, D-12) with flatten left unbroken; TREE-01 satisfied; 3/3 TREE-01 tests + tree.trycmd + full suite (77 unit + all integration) green*
+*Last updated: 2026-06-22 — Phase 3 Plan 03-04 (dupes) COMPLETE: live `box dupes` (size pre-filter HashMap<u64,Vec<PathBuf>> → rayon par_iter BLAKE3 content hash reusing the 03-01 update_reader path, D-13 → sort (hash,path) before grouping for determinism, RESEARCH Pitfall 6 → groups ≥2 + wasted-space summary via human_size); strictly read-only, NO write/rename/delete path (T-03-13), reuses is_hidden + follow_links(false), no noise list / no ignore crate (D-06/D-07); DUPE-01 satisfied; 4/4 DUPE-01 tests + 6 unit tests + full suite (87 unit + all integration) + clippy -D warnings + fmt --check green; dupes stub gone (1 phase-3 stub remains: bulk-rename)*
