@@ -74,7 +74,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 — shares cli.rs/main.rs registry)*
 
-- [ ] 02-03-PLAN.md — epoch (3-mode timestamp<->date, D-12) + color (hex/RGB<->HSL bidirectional + gated truecolor swatch, D-10/D-13) (EPOC-01, COLR-01)
+- [x] 02-03-PLAN.md — epoch (3-mode timestamp<->date, D-12) + color (hex/RGB<->HSL bidirectional + gated truecolor swatch, D-10/D-13) (EPOC-01, COLR-01)
 
 **Wave 4** *(blocked on Wave 3 — shares cli.rs/main.rs registry)*
 
@@ -136,7 +136,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation + Flatten | 4/4 | Complete    | 2026-06-22 |
-| 2. Pure Transform Utilities | 2/5 | In Progress|  |
+| 2. Pure Transform Utilities | 3/5 | In Progress|  |
 | 3. Filesystem Power Tools | 0/? | Not started | - |
 | 4. Terminal Visuals | 0/? | Not started | - |
 | 5. Windows Platform Integration | 0/? | Not started | - |

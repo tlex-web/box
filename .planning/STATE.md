@@ -2,22 +2,22 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 3
+current_plan: 4
 status: executing
-stopped_at: "Completed 02-01-PLAN.md (core::input foundation slice)"
-last_updated: "2026-06-22T16:11:13.442Z"
+stopped_at: Completed 02-03-PLAN.md (epoch + color commands; EPOC-01, COLR-01)
+last_updated: "2026-06-22T16:22:21.591Z"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 9
-  completed_plans: 6
-  percent: 67
+  completed_plans: 7
+  percent: 78
 ---
 
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-22
-**Updated by:** plan-02-02 executor
+**Updated by:** plan-02-03 executor
 
 ---
 
@@ -34,23 +34,23 @@ progress:
 ## Current Position
 
 Phase: 02 (pure-transform-utilities) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 **Phase:** 2
-**Current Plan:** 3
+**Current Plan:** 4
 **Total Plans in Phase:** 5
-**Status:** Executing Phase 02 (plans 02-01, 02-02 complete)
+**Status:** Executing Phase 02 (plans 02-01, 02-02, 02-03 complete)
 
 **Progress:**
 
 ```
-[███████░░░] 67%
+[████████░░] 78%
 Phase 1 [██████████] 4 / 4 plans ✓ complete
-Phase 2 [████░░░░░░] 2 / 5 plans — executing
+Phase 2 [██████░░░░] 3 / 5 plans — executing
 Phase 3 [          ] Not started
 Phase 4 [          ] Not started
 Phase 5 [          ] Not started
 
-Overall: 1 / 5 phases complete (6 / 9 plans)
+Overall: 1 / 5 phases complete (7 / 9 plans)
 ```
 
 ---
@@ -60,7 +60,7 @@ Overall: 1 / 5 phases complete (6 / 9 plans)
 | Phase | Name | Requirements | Status |
 |-------|------|-------------|--------|
 | 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | ✓ Complete (4/4 plans) |
-| 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | In Progress (2/5 plans) |
+| 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | In Progress (3/5 plans) |
 | 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | Not started |
 | 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Not started |
 | 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | Not started |
@@ -69,8 +69,8 @@ Overall: 1 / 5 phases complete (6 / 9 plans)
 
 ## Performance Metrics
 
-**Plans executed:** 6
-**Plans succeeded:** 6
+**Plans executed:** 7
+**Plans succeeded:** 7
 **Plans failed:** 0
 **Phases completed:** 1 / 5
 
@@ -82,6 +82,7 @@ Overall: 1 / 5 phases complete (6 / 9 plans)
 | 01 | P04 | 2min | 2 (human-verify cleared) | 2 |
 | 02 | P01 | 5min | 3 | 6 |
 | 02 | P02 | 5min | 2 | 9 |
+| 02 | P03 | 6min | 2 (TDD) | 9 |
 
 ---
 
@@ -120,6 +121,8 @@ Overall: 1 / 5 phases complete (6 / 9 plans)
 | [02-02] base64 is the first live `core::input::read_input_bytes` consumer; removed the forward-compat `#[allow(dead_code)]` from the byte path | base64 calls `read_input_bytes` and constructs `BoxError::MissingInput` (no-arg interactive TTY → exit 2), so the byte-path allow (read_input_bytes/resolve_bytes/MissingInput) came off, restoring the strict dead-code gate. The String readers (`read_input`/`resolve`) keep their scoped allow until cowsay/epoch/color go live — allow-then-remove is per-item by call-graph reachability, not per-module (STATE.md [01-03] pattern) |
 | [02-02] uuid/base64 anchored v4-regex assertions match the single trimmed line, not raw stdout | Captured stdout carries a trailing newline, so `predicate::str::is_match("^…$")` against the whole buffer never matches a correct UUID; the tests split to lines and match the trimmed line (caught during GREEN, test-side fix only) |
 | [02-02] base64 decode uses `from_utf8_lossy + .trim()` then `engine.decode`, and writes raw bytes via `stdout().write_all` | Trimming tolerates the piped trailing newline (Pitfall 3); writing bytes (not a String) keeps decoded output byte-exact incl. non-UTF-8 (T-02-04); a malformed alphabet maps to an `anyhow` Err → exit 1 with no panic (T-02-03) |
+| [02-03] epoch self-resolves input (no-arg = "print now", NOT exit-2 missing-input) so it does NOT call `core::input::read_input`; color requires input so it delegates to `read_input` | For epoch a no-arg interactive TTY means "print the current timestamp" (a feature), not the missing-input/exit-2 case — so epoch has its own `resolve_value`. color requires input and inherits the exit-2-on-no-arg-TTY contract via `read_input`. This makes color, NOT epoch, the first live String-path caller |
+| [02-03] color is the first live `core::input::read_input` (String) consumer; removed the forward-compat `#[allow(dead_code)]` from `read_input` + `resolve` | Mirrors the 02-02 byte-path removal and the [01-03] allow-then-remove precedent: the byte path went live with base64, the String path now lives with color, so `core::input` carries no forward-compat allows. The color swatch is the ONLY color path — gated solely on `is_color_on()` (no `set_override`, no background-SGR fill) so piped output is byte-identical minus ANSI (D-10) |
 
 ### Critical Pitfalls to Remember
 
@@ -159,13 +162,14 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-22T16:11:13.442Z
-**Stopped At:** Completed 02-02-PLAN.md (uuid + base64 commands; UUID-01, B64-01)
+**Last session:** 2026-06-22T16:22:21.591Z
+**Stopped At:** Completed 02-03-PLAN.md (epoch + color commands; EPOC-01, COLR-01)
 **Resume File:** None
 
-**Next action:** Continue Phase 2 — execute plan 02-03 (next Wave-2 command slice).
+**Next action:** Continue Phase 2 — execute plan 02-04 (next Wave-2 command slice).
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
 *Updated: 2026-06-22 by execute-phase orchestrator — Phase 1 COMPLETE (human-verify cleared, verification passed 5/5, flatten review findings CR-01/WR-01/WR-02 fixed)*
 *Updated: 2026-06-22 by plan-02-02 executor — uuid + base64 shipped (UUID-01, B64-01); strict dead-code gate restored on the core::input byte path*
+*Updated: 2026-06-22 by plan-02-03 executor — epoch + color shipped (EPOC-01, COLR-01); strict dead-code gate restored on the core::input String path (color is the first live read_input caller); first reuse of the core::output is_color_on() gate by a new styled command*
