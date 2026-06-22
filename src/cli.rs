@@ -56,7 +56,7 @@ pub enum Commands {
     /// Compute and verify file hashes
     Hash(crate::commands::hash::HashArgs),
     /// Print a directory tree with file sizes
-    Tree,
+    Tree(crate::commands::tree::TreeArgs),
     /// Analyze disk usage for a directory
     Du,
     /// Find duplicate files by content

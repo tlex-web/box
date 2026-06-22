@@ -59,21 +59,19 @@ fn tree_sizes_and_depth() {
 
     // With --sizes, each file shows its human_size; the 2048-byte file is "2.0 KB",
     // the 10-byte file is "10 B".
-    tree(root, &["--sizes"])
-        .success()
-        .stdout(
-            predicate::str::contains("alpha.txt")
-                .and(predicate::str::contains("beta.txt"))
-                .and(predicate::str::contains("deep.txt"))
-                .and(predicate::str::contains("2.0 KB"))
-                .and(predicate::str::contains("10 B")),
-        );
+    tree(root, &["--sizes"]).success().stdout(
+        predicate::str::contains("alpha.txt")
+            .and(predicate::str::contains("beta.txt"))
+            .and(predicate::str::contains("deep.txt"))
+            .and(predicate::str::contains("2.0 KB"))
+            .and(predicate::str::contains("10 B")),
+    );
 
     // --depth 1 caps the tree at the immediate children: `sub` (the directory) is
     // shown, but its child `deep.txt` (depth 2) is NOT.
-    tree(root, &["--depth", "1"])
-        .success()
-        .stdout(predicate::str::contains("alpha.txt").and(predicate::str::contains("deep.txt").not()));
+    tree(root, &["--depth", "1"]).success().stdout(
+        predicate::str::contains("alpha.txt").and(predicate::str::contains("deep.txt").not()),
+    );
 
     // Without a depth cap, the nested file IS shown.
     tree(root, &[])

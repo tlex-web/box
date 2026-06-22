@@ -15,6 +15,7 @@ pub mod hash;
 pub mod passgen;
 pub mod roast;
 pub mod stub;
+pub mod tree;
 pub mod uuid;
 
 /// Implemented by each command's argument struct. `main()` calls `.run()` after
