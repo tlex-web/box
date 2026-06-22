@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_plan: Not started
-status: planning
-stopped_at: Phase 3 context gathered
-last_updated: "2026-06-22T17:47:04.216Z"
+status: executing
+stopped_at: Phase 3 planned
+last_updated: "2026-06-22T18:55:28.000Z"
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 9
+  total_plans: 14
   completed_plans: 9
   percent: 40
 ---
@@ -17,7 +17,7 @@ progress:
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-22
-**Updated by:** execute-phase orchestrator (Phase 2 complete)
+**Updated by:** plan-phase orchestrator (Phase 3 planned — 5 plans)
 
 ---
 
@@ -35,8 +35,8 @@ progress:
 
 **Phase:** 3 (filesystem-power-tools)
 **Current Plan:** Not started
-**Total Plans in Phase:** TBD (not yet planned)
-**Status:** Ready to plan
+**Total Plans in Phase:** 5
+**Status:** Ready to execute
 
 **Progress:**
 
@@ -44,7 +44,7 @@ progress:
 [████░░░░░░] 40% (2 / 5 phases complete)
 Phase 1 [██████████] 4 / 4 plans ✓ complete
 Phase 2 [██████████] 5 / 5 plans ✓ complete (verified, human-UAT cleared)
-Phase 3 [          ] Not started
+Phase 3 [          ] Planned — 5 / 5 plans, ready to execute
 Phase 4 [          ] Not started
 Phase 5 [          ] Not started
 
@@ -59,7 +59,7 @@ Overall: 2 / 5 phases complete
 |-------|------|-------------|--------|
 | 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | ✓ Complete (4/4 plans) |
 | 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | ✓ Complete (5/5 plans, verified, human-UAT cleared) |
-| 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | Not started |
+| 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | ◆ Planned (5 plans, ready to execute) |
 | 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Not started |
 | 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | Not started |
 
@@ -97,7 +97,7 @@ Overall: 2 / 5 phases complete
 | Filesystem tools in Phase 3 (after Phase 1 anchor) | All 5 share walkdir infrastructure already established by flatten; collision-rename and dry-run patterns are proven before being reused |
 | Terminal visuals in Phase 4 (parallel-eligible with Phase 3) | crossterm dependency group is independent of walkdir group; lolcat teaches frame-buffered output before matrix |
 | Platform commands in Phase 5 (last) | arboard, winrt-notification, and Open-Meteo carry the highest Windows API / external service risk; building them last means 21 other commands are working before the riskiest integrations are attempted |
-| BLAKE3 as default hash in `hash` command | Faster than SHA-256 on modern CPUs; SHA-256 available via --algo flag for interoperability |
+| BLAKE3 as default hash in `hash` command ⚠️ SUPERSEDED by Phase 3 D-01 | Default is now **SHA-256** (the REQUIREMENTS.md HASH-01 / ROADMAP success-criterion #1 binding contract); BLAKE3 is available via `--algo blake3`. The faster-on-modern-CPUs rationale still justifies the opt-in, but BLAKE3-as-default is deferred to HASH-V2-01. Read this row as "BLAKE3 via `--algo blake3`" |
 | `x86_64-pc-windows-msvc` target with crt-static | MinGW demoted to Tier 2 in Rust 1.88; MSVC required for arboard and winrt-notification; static CRT makes exe portable |
 | winrt-notification needs Phase 1 compile spike | Maintenance status uncertain; validate it compiles before Phase 5 planning to avoid late-phase blocker |
 | [01-01] Bare `box` prints help to stderr and exits 2 | Resolves OQ-1 toward strict "messages -> stderr" while satisfying D-08 (clap's `arg_required_else_help` default is exit 0) |
@@ -170,8 +170,8 @@ None.
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
 **Last session:** 2026-06-22T17:47:04.205Z
-**Stopped At:** Phase 3 context gathered
-**Resume File:** .planning/phases/03-filesystem-power-tools/03-CONTEXT.md
+**Stopped At:** Phase 3 planned (5 plans, verified — ready to execute)
+**Resume File:** .planning/phases/03-filesystem-power-tools/03-01-PLAN.md
 
 **Next action:** Phase 3 context captured (03-CONTEXT.md — hash/tree/du/dupes/bulk-rename decisions locked). Next: `/gsd:plan-phase 3` to create the phase plans.
 
