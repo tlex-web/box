@@ -80,7 +80,11 @@ fn dupes_groups_identical() {
     fs::write(root.join("copy_one.txt"), dup_payload).unwrap();
     fs::write(root.join("copy_two.txt"), dup_payload).unwrap();
     // ... and a unique file (must never be grouped).
-    fs::write(root.join("unique.txt"), b"a one-of-a-kind payload, no twin\n").unwrap();
+    fs::write(
+        root.join("unique.txt"),
+        b"a one-of-a-kind payload, no twin\n",
+    )
+    .unwrap();
 
     let out = dupes(root, &[]).success().get_output().stdout.clone();
     let stdout = String::from_utf8(out).unwrap();
@@ -204,6 +208,9 @@ fn dupes_never_writes() {
     for (rel, (bytes, mtime)) in &before {
         let (abytes, amtime) = after.get(rel).expect("file must still exist");
         assert_eq!(bytes, abytes, "contents of {rel} must be unchanged");
-        assert_eq!(mtime, amtime, "mtime of {rel} must be unchanged (read-only)");
+        assert_eq!(
+            mtime, amtime,
+            "mtime of {rel} must be unchanged (read-only)"
+        );
     }
 }

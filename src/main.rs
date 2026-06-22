@@ -71,7 +71,7 @@ fn main() -> ExitCode {
         Commands::Hash(args) => args.run(),
         Commands::Tree(args) => args.run(),
         Commands::Du(args) => args.run(),
-        Commands::Dupes => Err(not_implemented("dupes")),
+        Commands::Dupes(args) => args.run(),
         Commands::BulkRename => Err(not_implemented("bulk-rename")),
         Commands::Lolcat => Err(not_implemented("lolcat")),
         Commands::Matrix => Err(not_implemented("matrix")),

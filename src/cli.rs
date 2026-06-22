@@ -60,7 +60,7 @@ pub enum Commands {
     /// Analyze disk usage for a directory
     Du(crate::commands::du::DuArgs),
     /// Find duplicate files by content
-    Dupes,
+    Dupes(crate::commands::dupes::DupesArgs),
     /// Bulk-rename files with a regex and dry-run preview
     #[command(name = "bulk-rename")]
     BulkRename,
