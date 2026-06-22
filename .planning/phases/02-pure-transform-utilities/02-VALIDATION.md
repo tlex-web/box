@@ -1,10 +1,11 @@
 ---
 phase: 2
 slug: pure-transform-utilities
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: approved
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-06-22
+approved: 2026-06-22
 ---
 
 # Phase 2 — Validation Strategy
@@ -93,12 +94,12 @@ Each `box` run is a fresh OS-seeded process (D-08, no fixed seed). Tests assert 
 
 ## Validation Sign-Off
 
-- [ ] All requirements have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 30s
-- [ ] passgen crypto split documented (automated structural + code-review bias/CSPRNG gate)
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All requirements have `<automated>` verify or Wave 0 dependencies — every plan task carries a `cargo test`/`cargo build` automated verify; all 9 REQ-IDs mapped above.
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify — every task is automated-verified.
+- [x] Wave 0 covers all MISSING references — framework (`assert_cmd`/`predicates`/`trycmd`) is already in `[dev-dependencies]`; there is no separate Wave-0 stub plan (tests are written co-located with each implementation task), so no MISSING references remain to gate execution.
+- [x] No watch-mode flags — all commands are one-shot `cargo test`/`clippy`/`fmt`.
+- [x] Feedback latency < 30s — full suite ~30s; per-module quick run is seconds.
+- [x] passgen crypto split documented (automated structural + code-review bias/CSPRNG gate) — see § Crypto-sampling split (T-V6).
+- [x] `nyquist_compliant: true` set in frontmatter.
 
-**Approval:** pending
+**Approval:** approved 2026-06-22

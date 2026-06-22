@@ -600,18 +600,23 @@ Each `box` run is a fresh OS-seeded process (D-08, no fixed seed), so the discip
 
 **If a planner/discuss step wants zero ambiguity:** confirm A1 (one build check) and the passgen RNG choice (option 1 vs 2 in Pattern 4) before the passgen slice.
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three resolved during Phase 2 planning (2026-06-22). Resolutions are reflected in the committed plans and recorded inline below.
 
 1. **Exit-2 mechanism for the TTY-no-input case (D-04 branch 3).**
    - What we know: D-04 mandates exit 2; `main.rs` currently maps all `Err`→1.
    - What's unclear: typed `BoxError::MissingInput` variant (recommended) vs another mechanism.
    - Recommendation: add a typed variant mapped to 2 in `main.rs` (mirrors `NotImplemented`→1). Decide in the `core::input` foundation slice.
+   - **RESOLVED:** typed `BoxError::MissingInput` → exit 2, wired in the `core::input` foundation slice (Plan 02-01); proven by base64's no-input path (Plan 02-02).
 2. **passgen RNG construction: `OsRng.unwrap_err()` vs `StdRng::from_os_rng()`.**
    - What we know: both are CSPRNG-grade; D-08 names `OsRng`.
    - Recommendation: option 1 (`OsRng.unwrap_err()`) — most literal D-08 reading; note it in the plan.
+   - **RESOLVED:** `OsRng.unwrap_err()` (the literal D-08 reading), in the passgen slice (Plan 02-04). Assumption A1 (whether `TryRngCore` re-exports via `rand` 0.9 vs needing direct `rand_core`) is verified in that plan before use.
 3. **fortune "fits the terminal" (FORT-01).**
    - What we know: D-11 fixes cowsay at 40, but fortune's "sized to fit" is unspecified.
    - Recommendation: if a fortune line exceeds `terminal_width()`, wrap it (reuse a word-wrap helper, possibly shared with cowsay); otherwise print as-is. Low risk; planner's call within discretion.
+   - **RESOLVED:** soft-wrap at `terminal_width()` when a line exceeds it, else print as-is (Plan 02-05).
 
 ## Environment Availability
 
