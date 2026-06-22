@@ -52,13 +52,13 @@ pub struct DuArgs {
     pub path: PathBuf,
 
     /// Show only the N biggest entries (post-sort truncation of the shown rows;
-    /// the summary total still reflects the full scan).
-    #[arg(long)]
+    /// the summary total still reflects the full scan). Must be >= 1 (WR-04).
+    #[arg(long, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
     pub top: Option<usize>,
 
     /// Cap how deep a directory's recursive total is rolled up (the directory's
-    /// own files are depth 1).
-    #[arg(long)]
+    /// own files are depth 1). Must be >= 1 (WR-04).
+    #[arg(long, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
     pub depth: Option<usize>,
 }
 

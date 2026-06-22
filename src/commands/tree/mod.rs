@@ -55,8 +55,9 @@ pub struct TreeArgs {
     #[arg(long)]
     pub sizes: bool,
 
-    /// Limit the displayed tree to this depth (the root is depth 0).
-    #[arg(long)]
+    /// Limit the displayed tree to this depth (the root is depth 0). Must be >= 1
+    /// (WR-04) — `--depth 0` would show only the root, almost certainly a typo.
+    #[arg(long, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
     pub depth: Option<usize>,
 }
 

@@ -236,3 +236,24 @@ fn du_missing_path_friendly_error() {
         .stderr(predicate::str::contains("no such directory"))
         .stderr(predicate::str::contains("does-not-exist"));
 }
+
+/// DU-01 / WR-04 — the degenerate `--depth 0` and `--top 0` inputs are rejected at
+/// parse time (exit 2, a clap usage error) rather than silently producing
+/// confusing empty/degenerate output. A valid `--depth 1` / `--top 1` still works.
+#[test]
+fn du_zero_depth_and_top_rejected() {
+    let fixture = build_fixture();
+    let root = fixture.path();
+
+    // `--depth 0` is rejected by clap's range(1..) parser → exit 2.
+    du(root, &["--depth", "0"])
+        .failure()
+        .code(2)
+        .stderr(predicate::str::contains("0").and(predicate::str::contains("not in")));
+    // `--top 0` is likewise rejected → exit 2.
+    du(root, &["--top", "0"]).failure().code(2);
+
+    // The boundary value 1 is accepted (proving we only reject 0, not all values).
+    du(root, &["--depth", "1"]).success();
+    du(root, &["--top", "1"]).success();
+}

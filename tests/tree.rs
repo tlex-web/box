@@ -140,3 +140,20 @@ fn tree_missing_path_friendly_error() {
         .stderr(predicate::str::contains("no such directory"))
         .stderr(predicate::str::contains("does-not-exist"));
 }
+
+/// TREE-01 / WR-04 — the degenerate `--depth 0` input is rejected at parse time
+/// (exit 2, a clap usage error) rather than silently rendering only the root. A
+/// valid `--depth 1` still works.
+#[test]
+fn tree_zero_depth_rejected() {
+    let fixture = build_fixture();
+    let root = fixture.path();
+
+    tree(root, &["--depth", "0"])
+        .failure()
+        .code(2)
+        .stderr(predicate::str::contains("0").and(predicate::str::contains("not in")));
+
+    // The boundary value 1 is accepted (proving we only reject 0).
+    tree(root, &["--depth", "1"]).success();
+}
