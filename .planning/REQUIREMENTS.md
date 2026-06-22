@@ -35,9 +35,9 @@ Requirements for initial release. All 23 commands are in v1 scope. Each maps to 
 
 ### Dev Utilities
 
-- [ ] **UUID-01**: User can generate one or more UUIDs (v4 default), lowercase by default, one per line
+- [x] **UUID-01**: User can generate one or more UUIDs (v4 default), lowercase by default, one per line
 - [ ] **JSON-01**: User can pretty-print JSON from stdin or a file with color, validate it (exit 0 valid / 1 invalid with line/column on error), and minify with `--compact`
-- [ ] **B64-01**: User can base64-encode and `--decode` data from a file or stdin, no line-wrapping by default, with a URL-safe option
+- [x] **B64-01**: User can base64-encode and `--decode` data from a file or stdin, no line-wrapping by default, with a URL-safe option
 - [ ] **EPOC-01**: User can convert a Unix timestamp to a human date (local + UTC) and a date string back to a timestamp; running with no args prints the current timestamp
 - [ ] **COLR-01**: User can convert colors between hex and RGB, see all representations at once, and view an in-terminal swatch of the color
 - [ ] **CLIP-01**: User can pipe stdin to the clipboard and read the clipboard to stdout, with correct Unicode handling on Windows (bypassing clip.exe limitations)
@@ -118,8 +118,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | FLAT-02 | Phase 1 | Complete |
 | FLAT-03 | Phase 1 | Complete |
 | FLAT-04 | Phase 1 | Complete |
-| UUID-01 | Phase 2 | Pending |
-| B64-01 | Phase 2 | Pending |
+| UUID-01 | Phase 2 | Complete |
+| B64-01 | Phase 2 | Complete |
 | EPOC-01 | Phase 2 | Pending |
 | COLR-01 | Phase 2 | Pending |
 | PASS-01 | Phase 2 | Pending |

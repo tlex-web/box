@@ -70,7 +70,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 02-02-PLAN.md — uuid (v4, `-n`, `--upper`) + base64 (encode/decode round-trip, `--url-safe`, first read_input_bytes consumer) (UUID-01, B64-01)
+- [x] 02-02-PLAN.md — uuid (v4, `-n`, `--upper`) + base64 (encode/decode round-trip, `--url-safe`, first read_input_bytes consumer) (UUID-01, B64-01)
 
 **Wave 3** *(blocked on Wave 2 — shares cli.rs/main.rs registry)*
 
@@ -136,7 +136,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation + Flatten | 4/4 | Complete    | 2026-06-22 |
-| 2. Pure Transform Utilities | 1/5 | In Progress|  |
+| 2. Pure Transform Utilities | 2/5 | In Progress|  |
 | 3. Filesystem Power Tools | 0/? | Not started | - |
 | 4. Terminal Visuals | 0/? | Not started | - |
 | 5. Windows Platform Integration | 0/? | Not started | - |
