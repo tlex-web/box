@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 3
+current_plan: 4
 status: executing
-stopped_at: Phase 3 Plan 03-02 (tree) complete — TREE-01 shipped; next 03-03 (du)
-last_updated: "2026-06-22T20:23:29.000Z"
+stopped_at: Phase 3 Plan 03-03 (du) complete — DU-01 shipped; next 03-04 (dupes)
+last_updated: "2026-06-22T20:30:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 12
   percent: 40
 ---
 
@@ -34,9 +34,9 @@ progress:
 ## Current Position
 
 Phase: 03 (filesystem-power-tools) — EXECUTING
-Plan: 3 of 5 (Plans 03-01 hash + 03-02 tree complete)
+Plan: 4 of 5 (Plans 03-01 hash + 03-02 tree + 03-03 du complete)
 **Phase:** 3 (filesystem-power-tools)
-**Current Plan:** 3
+**Current Plan:** 4
 **Total Plans in Phase:** 5
 **Status:** Executing Phase 03
 
@@ -46,7 +46,7 @@ Plan: 3 of 5 (Plans 03-01 hash + 03-02 tree complete)
 [████░░░░░░] 40% (2 / 5 phases complete)
 Phase 1 [██████████] 4 / 4 plans ✓ complete
 Phase 2 [██████████] 5 / 5 plans ✓ complete (verified, human-UAT cleared)
-Phase 3 [████░░░░░░] 2 / 5 plans — 03-01 hash ✓ (HASH-01), 03-02 tree ✓ (TREE-01); next 03-03 du
+Phase 3 [██████░░░░] 3 / 5 plans — 03-01 hash ✓ (HASH-01), 03-02 tree ✓ (TREE-01), 03-03 du ✓ (DU-01); next 03-04 dupes
 Phase 4 [          ] Not started
 Phase 5 [          ] Not started
 
@@ -61,7 +61,7 @@ Overall: 2 / 5 phases complete
 |-------|------|-------------|--------|
 | 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | ✓ Complete (4/4 plans) |
 | 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | ✓ Complete (5/5 plans, verified, human-UAT cleared) |
-| 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | ◆ Executing (2/5 plans — 03-01 hash ✓ HASH-01, 03-02 tree ✓ TREE-01) |
+| 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | ◆ Executing (3/5 plans — 03-01 hash ✓ HASH-01, 03-02 tree ✓ TREE-01, 03-03 du ✓ DU-01) |
 | 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Not started |
 | 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | Not started |
 
@@ -69,10 +69,10 @@ Overall: 2 / 5 phases complete
 
 ## Performance Metrics
 
-**Plans executed:** 11
-**Plans succeeded:** 11
+**Plans executed:** 12
+**Plans succeeded:** 12
 **Plans failed:** 0
-**Phases completed:** 2 / 5 (Phase 3 executing — 2/5 plans)
+**Phases completed:** 2 / 5 (Phase 3 executing — 3/5 plans)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -87,6 +87,7 @@ Overall: 2 / 5 phases complete
 | 02 | P05 | 6min | 2 (2 TDD) | 12 |
 | 03 | P01 | 6min | 2 (1 TDD) | 7 |
 | 03 | P02 | 4min | 2 (TDD-style) | 9 |
+| 03 | P03 | 7min | 2 (TDD-style) | 5 |
 
 ---
 
@@ -143,6 +144,8 @@ Overall: 2 / 5 phases complete
 | [03-02] tree renders children via `WalkDir::new(dir).min_depth(1).max_depth(1).follow_links(false).filter_entry(!is_hidden)` per level — NOT `std::fs::read_dir` | `core::fs::is_hidden` takes a `walkdir::DirEntry`, so a WalkDir depth-1 per-directory walk reuses the shared hidden predicate VERBATIM (root exemption walkdir#142 + Windows hidden-attr + symlink no-follow all inherited, D-06/T-03-05) while still giving the per-level is-last control the box-drawing prefixes need. Never re-implement `is_hidden` |
 | [03-02] tree's box-drawing glyphs are Unicode STRUCTURE (`├── └── │   ` + gap), distinct from flatten's ASCII `+`/`~`/`-` STATUS glyphs; only dir names are colored (`.blue().bold()`) gated on `is_color_on()` | D-09/D-10. Prefix is accumulated down the recursion (`│   ` for a non-last ancestor, `    ` gap for a last one); branch is `└── ` (last) vs `├── ` (non-last). The single styled token (dir name) is gated so piped output is byte-identical minus ANSI — proven by `tree_piped_no_ansi` |
 | [03-02] `tree.trycmd` is backed by a `tree.in/` per-case input fixture (trycmd 1.2 sandbox) | trycmd copies `<name>.in/` into a sandbox and runs the case there, giving `box tree project` a stable, checked-in input tree across machines. Fixture files written with explicit byte content and NO trailing newline so on-disk sizes are CRLF-independent. Root label printed as the passed path (`self.path`), not the dunce-canonical absolute, for a natural render + stable snapshot |
+| [03-03] `du --depth N` caps the per-directory recursive ROLLUP (dir's own files = depth 1, via `WalkDir::max_depth(N)`); the summary `{TOTAL}` then sums the CAPPED row totals | D-11. Internally consistent: under `--depth 1`, every immediate-child total is the capped sum, so the grand total is the capped sum too (the summary always equals the sum of the shown-vs-all rows' totals). "Full scan" in D-11 means "all immediate children," NOT "ignore the depth cap" — the cap applies uniformly to rows and total. A Wave-0 test that asserted `4.9 KB` absent from the WHOLE output was corrected to assert the `big/` ROW line (the summary legitimately shows the capped grand total); impl was already correct (Rule-1 test-side fix) |
+| [03-03] `du` reuses `core::output::human_size` (D-12, third consumer after flatten/tree) + `core::fs::is_hidden`/`follow_links(false)` VERBATIM for the recursive descendant sum; size column right-aligned to the widest SHOWN value, only the size VALUE colored (`.cyan()`) gated on `is_color_on()` | Logical size via `metadata().len()` (RESEARCH A4 — NOT apparent/on-disk, that's DU-V2); symlinks never followed (0 contribution). Determinism by `collect → sort_by (size desc, name asc)` before printing with distinct-size test fixtures (RESEARCH Pitfall 6 / T-03-12) — the same discipline `dupes` (03-04, rayon) reuses. `--top N` is a POST-SORT truncation of shown rows; the full-scan total is captured BEFORE truncation so the summary always reflects the whole scan |
 
 ### Critical Pitfalls to Remember
 
@@ -182,11 +185,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-22T20:23:29.000Z
-**Stopped At:** Phase 3 Plan 03-02 (tree) complete — TREE-01 shipped, full suite green (77 unit + all integration incl. tree 3/3 + tree.trycmd)
-**Resume File:** .planning/phases/03-filesystem-power-tools/03-03-PLAN.md
+**Last session:** 2026-06-22T20:30:00.000Z
+**Stopped At:** Phase 3 Plan 03-03 (du) complete — DU-01 shipped, full suite green (81 unit + all integration incl. du 3/3); du stub gone (2 phase-3 stubs remain: dupes, bulk-rename)
+**Resume File:** .planning/phases/03-filesystem-power-tools/03-04-PLAN.md
 
-**Next action:** Execute Plan 03-03 (`du`) — Wave 3. It shares cli.rs/main.rs and REUSES the now-promoted `core::output::human_size` (D-12) for its size column. Follow the same WalkDir + `is_hidden` read-only-walker pattern tree established; sort by `(size desc, name asc)` before printing (RESEARCH Pitfall 6 — never rely on walk order).
+**Next action:** Execute Plan 03-04 (`dupes`) — Wave 4. It shares cli.rs/main.rs, reuses the 03-01 BLAKE3 hashing infra for content equality (D-13), and the same deterministic `collect → sort` discipline du established (RESEARCH Pitfall 6 — rayon order is arbitrary, sort `(hash, path)` before emitting groups). Strictly read-only (no `safe_copy`/rename); skip hidden (D-06), no noise list (D-07); wasted-space summary via `human_size`.
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
@@ -197,3 +200,4 @@ None.
 *Updated: 2026-06-22 by plan-02-05 executor — fortune + 8ball + roast shipped (FORT-01, 8BAL-01, ROST-01); whimsy RNG = rand::rng() + unbiased IndexedRandom::choose, non-determinism tested by membership + N=10-runs-differ properties; 70 CC0 fortunes + 42 self-authored roasts embedded (include_str! + eol=lf); 8ball canonical-20 const in the eight_ball module with 8ball CLI name preserved; ALL 9 Phase-2 stubs gone — Phase 2 plans complete (9/9), ready for verification; full cargo test + clippy -D warnings + fmt --check clean*
 *Updated: 2026-06-22 by plan-03-01 executor — `box hash` shipped (HASH-01): streaming enum-dispatch Hasher (SHA-256 default; --algo blake3/sha512/md5; RustCrypto digest 0.11 + native blake3 update_reader, no traits-preview/no dyn Digest), const-hex hex (no base16ct alloc change), --verify length-autodetect (32/64/128, sha256 wins the 64-tie) with the 0/1/2 exit contract; core::input grew read_file_or_stdin + ResolvedInput (streaming --file ahead of stdin); BoxError::UnsupportedHashLength exit-2 variant added; 7/7 HASH-01 tests + full suite + clippy -D warnings + fmt --check all green; hash stub gone (4 phase-3 stubs remain: tree/du/dupes/bulk-rename)*
 *Updated: 2026-06-22 by plan-03-02 executor — `box tree` shipped (TREE-01): dir-first (D-08) Unicode box-drawing render (├── └── │   + gap), is_color_on-gated blue dir names (D-10), --sizes per-file human_size (blank dirs), --depth N cap, `N directories, M files` summary; reuses core::fs::is_hidden VERBATIM via a WalkDir depth-1 per-level walk (D-06) + follow_links(false) (T-03-05) + normalize_path (T-03-07); flatten's human_size PROMOTED into core::output (pub, test migrated, flatten re-pointed + local copy deleted — flatten 8/8 still green, D-12) ready for du; tree.trycmd backed by a tree.in/ trycmd input fixture; 3/3 TREE-01 tests + tree.trycmd + full suite (77 unit + all integration) + clippy -D warnings + fmt --check all green; tree stub gone (3 phase-3 stubs remain: du/dupes/bulk-rename)*
+*Updated: 2026-06-22 by plan-03-03 executor — `box du` shipped (DU-01): one row per immediate child, biggest-first `(size desc, name asc)` sort BEFORE printing (RESEARCH Pitfall 6 / T-03-12), dir rows = recursive non-hidden descendant sum (logical metadata().len(), RESEARCH A4) + trailing `/`, file rows = own size; --depth N caps the per-dir rollup (WalkDir::max_depth, dir's files = depth 1), --top N post-sort truncation of shown rows; right-aligned shared core::output::human_size column (D-12, third consumer), single .cyan() size-value accent gated on is_color_on() (D-11); `{X} of {Y} entries shown. {TOTAL} total.` summary reflects the FULL-scan total (captured before --top); reuses core::fs::is_hidden + follow_links(false) VERBATIM (D-06, T-03-09/10) + normalize_path (T-03-11); 3/3 DU-01 tests + 4 unit tests + full suite (81 unit + all integration) + clippy -D warnings + fmt --check all green; one Rule-1 test-side fix (du_depth_cap row-scoped); du stub gone (2 phase-3 stubs remain: dupes/bulk-rename)*

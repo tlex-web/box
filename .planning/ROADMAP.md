@@ -110,7 +110,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 — shares cli.rs/main.rs registry)*
 
-- [ ] 03-03-PLAN.md — `du`: per-immediate-child recursive totals, biggest-first deterministic sort, `--top`/`--depth`, full-scan total summary, trailing-`/` dir marker (D-11/D-12); reuses the promoted `human_size` (DU-01)
+- [x] 03-03-PLAN.md — `du`: per-immediate-child recursive totals, biggest-first deterministic sort, `--top`/`--depth`, full-scan total summary, trailing-`/` dir marker (D-11/D-12); reuses the promoted `human_size` (DU-01) ✓ (2/2 tasks, TDD-style; 3/3 DU-01 tests + 4 unit tests green; reuses human_size + is_hidden read-only walker)
 
 **Wave 4** *(blocked on Wave 3 — shares cli.rs/main.rs registry; reuses 03-01 BLAKE3 infra)*
 
