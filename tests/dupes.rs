@@ -231,3 +231,18 @@ fn dupes_file_argument_errors() {
         "a file argument must produce a clear 'is not a directory' error, got: {stderr:?}"
     );
 }
+
+/// DUPE-01 / WR-03 — a non-existent path yields a clear "no such directory: X"
+/// message naming the path, not dunce's raw `(os error 3)`.
+#[test]
+fn dupes_missing_path_friendly_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("does-not-exist");
+
+    let output = dupes(&missing, &[]).failure().get_output().clone();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("no such directory") && stderr.contains("does-not-exist"),
+        "a missing path must produce a clear 'no such directory' error naming the path, got: {stderr:?}"
+    );
+}

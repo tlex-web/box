@@ -223,3 +223,16 @@ fn du_file_argument_errors() {
         .failure()
         .stderr(predicate::str::contains("is not a directory"));
 }
+
+/// DU-01 / WR-03 — a non-existent path yields a clear "no such directory: X"
+/// message naming the path, not dunce's raw `(os error 3)`.
+#[test]
+fn du_missing_path_friendly_error() {
+    let fixture = build_fixture();
+    let missing = fixture.path().join("does-not-exist");
+
+    du(&missing, &[])
+        .failure()
+        .stderr(predicate::str::contains("no such directory"))
+        .stderr(predicate::str::contains("does-not-exist"));
+}

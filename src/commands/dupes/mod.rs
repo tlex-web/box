@@ -57,6 +57,12 @@ struct DupeGroup {
 
 impl RunCommand for DupesArgs {
     fn run(self) -> anyhow::Result<()> {
+        // Pre-check the common typo path: a non-existent target gives a clear
+        // "no such directory: X" instead of dunce's raw `(os error 3)` (WR-03).
+        if !self.path.exists() {
+            anyhow::bail!("no such directory: {}", self.path.display());
+        }
+
         // Normalize via dunce so we never leak a `\\?\` UNC prefix (FOUND-06,
         // T-03-11).
         let root = normalize_path(&self.path)
