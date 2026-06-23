@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 5
-status: ready_to_plan
-stopped_at: Phase 03 complete (5/5) — ready to discuss Phase 4
-last_updated: 2026-06-22T23:51:36.678Z
+current_plan: Not started
+status: planning
+stopped_at: Phase 4 context gathered
+last_updated: "2026-06-23T15:27:43.054Z"
 progress:
   total_phases: 5
   completed_phases: 3
@@ -190,11 +190,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-23 — Phase 3 verified + completed
-**Stopped At:** PHASE 3 COMPLETE & VERIFIED (5/5 plans, 24/24 must-haves, human-UAT cleared). Post-execution code review found 1 BLOCKER + 5 warnings — ALL fixed with covering tests (CR-01 bulk-rename path-escape; WR-01..05); 4 INFO findings deferred in 03-REVIEW.md. Full suite 98 green + clippy -D warnings + fmt clean. 8 stubs remain (Phase-4 lolcat/matrix/ascii/json + Phase-5 qr/clip/pomodoro/weather).
-**Resume File:** (none — Phase 3 closed)
+**Last session:** 2026-06-23T15:27:43.044Z
+**Stopped At:** Phase 4 context gathered
+**Resume File:** .planning/phases/04-terminal-visuals/04-CONTEXT.md
 
-**Next action:** Phase 4 (Terminal Visuals — LOL-01/MTRX-01/ASCI-01/JSON-01, crossterm group). Start with `/gsd-discuss-phase 4` (or `/gsd-plan-phase 4` to skip discuss). Note for Phase 4: add `strip-ansi-escapes` to Cargo.toml for lolcat (pre-existing Todo). `box` remains a binary-only crate — co-located unit tests run via `cargo test --bin box`, NOT `--lib`.
+**Next action:** Phase 4 context gathered (04-CONTEXT.md, 14 decisions across lolcat/matrix/ascii/json). Next: `/gsd-plan-phase 4`. Phase-4 new Cargo deps decided: `image` 0.25.10 (ascii, hand-roll — artem rejected), `serde_json` 1.0.150 + `preserve_order` (json), `unicode-width` 0.2 + `strip-ansi-escapes` 0.2 (lolcat — actions the pre-existing strip-ansi todo); crossterm/owo-colors already present (matrix katakana + colors). `box` remains binary-only — unit tests via `cargo test --bin box`, NOT `--lib`.
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
