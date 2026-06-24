@@ -81,3 +81,24 @@ fn incoming_ansi_is_stripped() {
         "incoming ANSI must be stripped — no \\x1b byte: {text:?}"
     );
 }
+
+/// (4) WR-06 — a lone/embedded carriage return is stripped end-to-end, so no
+/// stray `\r` reaches the terminal to move the cursor to column 0 and overwrite
+/// the already-printed colored prefix. Feeding `"a\rb\n"` yields `"ab\n"` with
+/// NO `\r` (0x0d) byte anywhere. Only `\n` line breaks are supported (D-11/D-12);
+/// the `\r` is removed by the unconditional D-13 strip before any emit.
+#[test]
+fn lone_carriage_return_is_stripped() {
+    let out = lolcat_piped("a\rb\n");
+    assert!(out.status.success(), "box lolcat should exit 0");
+    assert!(
+        !out.stdout.contains(&0x0d),
+        "no carriage-return (\\r) byte must survive: {:?}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    let text = String::from_utf8(out.stdout).expect("stdout is UTF-8");
+    assert_eq!(
+        text, "ab\n",
+        "lone CR is dropped, leaving the visible chars and the \\n: {text:?}"
+    );
+}

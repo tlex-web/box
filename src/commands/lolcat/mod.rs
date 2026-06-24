@@ -23,6 +23,13 @@
 //! combining marks = 0 so they inherit the base char's color), so multi-byte
 //! UTF-8 is never split. Whitespace advances the phase but is emitted uncolored
 //! (a colored space is invisible); newlines are emitted raw.
+//!
+//! Line breaks (WR-06): only `\n` is a supported line break. A lone/embedded
+//! carriage return (`\r` — old-Mac line endings, the `\r` of a `\r\n`, or a
+//! mid-line `\r`) is a C0 control and is REMOVED by the unconditional D-13
+//! `strip_str` above, BEFORE any coloring or emit. So a stray `\r` can never
+//! reach the terminal to move the cursor to column 0 and overwrite the colored
+//! prefix of the line — the per-line diagonal seeding stays correct.
 
 use std::io::{BufWriter, Write};
 
@@ -186,5 +193,23 @@ mod tests {
         assert_eq!(strip_ansi_escapes::strip_str("\x1b[31mx\x1b[0m"), "x");
         // Multi-byte content is preserved while the escapes around it vanish.
         assert_eq!(strip_ansi_escapes::strip_str("\x1b[32m世\x1b[0m"), "世");
+    }
+
+    /// WR-06 — a lone/embedded carriage return (old-Mac line ending, mid-line
+    /// `\r`, or the `\r` of a `\r\n`) is REMOVED by the same unconditional
+    /// `strip_str` that runs before any coloring/emit. So a stray `\r` never
+    /// reaches the terminal to move the cursor to column 0 and overwrite the
+    /// already-printed colored prefix — the concern WR-06 raised cannot occur.
+    /// Only `\n` line breaks survive (the supported line-break, D-11/D-12). This
+    /// test LOCKS that behavior so a future `strip_str` swap can't silently
+    /// reintroduce the cursor-overwrite glitch.
+    #[test]
+    fn strip_str_removes_lone_carriage_returns() {
+        // Old-Mac/CRLF lone CR before a newline: dropped, the `\n` stays.
+        assert_eq!(strip_ansi_escapes::strip_str("a\rb\n"), "ab\n");
+        // Mid-line CR with no following newline: dropped, no column-0 jump left.
+        assert_eq!(strip_ansi_escapes::strip_str("mid\rline"), "midline");
+        // The CR of a CRLF pair is removed; the LF survives as the line break.
+        assert_eq!(strip_ansi_escapes::strip_str("crlf\r\n"), "crlf\n");
     }
 }
