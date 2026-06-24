@@ -22,7 +22,15 @@ findings:
   warning: 6
   info: 4
   total: 11
-status: issues_found
+status: resolved
+resolution:
+  resolved_at: 2026-06-24
+  in_scope: 7
+  fixed: 7
+  wontfix: 0
+  deferred: 4
+  deferred_ids: [IN-01, IN-02, IN-03, IN-04]
+  test_status: "125 unit + all integration green; clippy -D warnings clean; fmt clean"
 ---
 
 # Phase 4: Code Review Report
@@ -30,7 +38,25 @@ status: issues_found
 **Reviewed:** 2026-06-24
 **Depth:** standard
 **Files Reviewed:** 13
-**Status:** issues_found
+**Status:** resolved (2026-06-24) — 1 BLOCKER + 6 WARNINGs all fixed; 4 INFO deferred
+
+## Resolution
+
+All 7 in-scope findings (1 BLOCKER + 6 WARNINGs) fixed and committed atomically
+on `master`; full suite stayed green after each (final: **125 unit + all
+integration tests**, `clippy --all-targets -D warnings` clean, `cargo fmt --check`
+clean). The 4 INFO findings are deferred (non-blocking polish).
+
+| Finding | Resolution | Commit |
+|---------|-----------|--------|
+| CR-01 | Fixed — RawGuard armed before the alternate-screen `execute!` | `9720149` |
+| WR-01 | Fixed (documented carve-out, no behavior change) — exit-1 on invalid JSON is intentional (data error ≠ usage error) | `faa3e52` |
+| WR-02 | Fixed — `compute_rows` math widened to u64 + clamp; index in usize; overflow regression test | `123bc3d` |
+| WR-03 | Fixed — `erase_band` clears the full vacated band; 3 unit tests | `9c0c32d` |
+| WR-04 | Fixed — buffered `BufWriter`, single flush; byte-identical output | `5704f48` |
+| WR-05 | Fixed (test added) — colorize-stripped == `to_string_pretty` battery test (no colorizer rewrite needed) | `a430d35` |
+| WR-06 | Fixed (test + docs) — lone `\r` already stripped by D-13 `strip_str`; locked with tests; reviewer premise corrected | `a1d22d1` |
+| IN-01..04 | Deferred — non-blocking polish (dead fallback, ramp precondition, large-JSON streaming, stale doc-comment) | — |
 
 ## Summary
 
@@ -54,6 +80,16 @@ in `lolcat` that emits unbuffered. Details below.
 ## Critical Issues
 
 ### CR-01: `matrix` leaves the terminal in raw mode if alternate-screen setup fails
+
+> **RESOLVED (commit `9720149`):** `let _guard = RawGuard;` is now armed the
+> instant `enable_raw_mode()?` returns, BEFORE the fallible
+> `execute!(EnterAlternateScreen, cursor::Hide)?`. A failure of that `execute!`
+> now early-returns with the guard already live, so `Drop` runs
+> `disable_raw_mode()` and the terminal is restored. The ordering is structurally
+> guaranteed by source position; module + guard doc-comments updated. 119 unit
+> tests still green (the terminal-bound `run()` path is covered by the existing
+> non-hanging smoke test + the human-verify gate; the reorder is a no-op for the
+> happy path).
 
 **File:** `src/commands/matrix/mod.rs:116-121`
 **Issue:** `enable_raw_mode()?` runs FIRST, but the `RawGuard` (whose `Drop` calls
@@ -94,6 +130,16 @@ crossterm::execute!(out, EnterAlternateScreen, cursor::Hide)?;
 
 ### WR-01: `json` parse error returns exit 1 but is a *usage* (bad-input) error — and the doc-comment contradicts the policy
 
+> **RESOLVED via option (a) — documented carve-out, commit `faa3e52`:** Exit 1 on
+> invalid JSON is KEPT (it is the locked JSON-01 / D-06 acceptance criterion,
+> pinned by `tests/json.rs::invalid_json_exits_1_with_line_and_column`). The
+> divergence is now spelled out explicitly: `main.rs`'s exit-code policy comment
+> documents that the 2-vs-1 boundary is "USAGE error vs RUNTIME/DATA error" (NOT
+> "any bad input") — malformed JSON is bad *data* the command processed and
+> rejected (runtime, exit 1), not a usage mistake (exit 2, reserved for
+> MissingInput / bad flags / UnsupportedHashLength). A matching note sits at the
+> json `bail!` site. Comment-only — no behavior change; all json tests unchanged.
+
 **File:** `src/commands/json/mod.rs:55`; policy in `src/main.rs:6-8,92-106`
 **Issue:** A JSON parse failure is surfaced with `anyhow::bail!`, which `main()`
 maps to exit **1** (runtime error). The project's exit-code policy is
@@ -117,6 +163,14 @@ alignment with the usage-error convention is desired, introduce a typed
 other two usage variants. Do not leave the rule and the behavior silently at odds.
 
 ### WR-02: `ascii` does unchecked `u32` arithmetic on attacker-controlled image dimensions
+
+> **RESOLVED (commit `123bc3d`):** `compute_rows` now computes `cols * src_h` in
+> `u64` and clamps the result to `u16::MAX` rows; the render-loop buffer index is
+> computed in `usize` (`y as usize * cols as usize + x as usize`). A new
+> regression unit test (`compute_rows_no_overflow_on_large_dimensions`) feeds
+> dimensions that overflow `u32` (65535×100000 and `u32::MAX` cubed) and asserts
+> no panic + a clamped result — the old plain-`u32` math would have panicked here
+> under the debug/test overflow checks.
 
 **File:** `src/commands/ascii/mod.rs:65-66,78,108-109`
 **Issue:** `src_w`/`src_h` come from an untrusted, user-supplied image. The row
@@ -158,6 +212,14 @@ the existing zero-dimension guard) that `bail!`s cleanly for absurd dimensions.
 
 ### WR-03: `matrix` trail-erase clears only one cell per frame but the head advances up to two — leaves artifacts
 
+> **RESOLVED (commit `9c0c32d`):** Extracted a pure
+> `erase_band(head, trail_len, speed, rows)` helper that returns every on-screen
+> row in `(head-trail_len-speed)..=(head-trail_len-1)`, and the frame loop now
+> blanks all of them instead of the single cell `head-trail_len-1`. Three unit
+> tests lock it: `speed==1` still yields exactly the single cell (backward
+> compat), `speed==2` covers BOTH vacated rows (the gap row the old code missed),
+> and off-screen rows are clamped out so `MoveTo` stays in bounds.
+
 **File:** `src/commands/matrix/mod.rs:74-76,172-175,231-232`
 **Issue:** Per-column speed is `SPEED_MIN..=SPEED_MAX` = `1..=2`, so a head can
 advance **2** rows in a single `step`. But the per-frame cleanup erases exactly
@@ -192,6 +254,14 @@ for k in 1..=d.speed {
 
 ### WR-04: `lolcat` emits one unbuffered `print!`/`println!` per character — stdout lock + flush per scalar
 
+> **RESOLVED (commit `5704f48`):** The emit loop now writes into a
+> `BufWriter<StdoutLock>` (single locked handle) and flushes ONCE at the end,
+> replacing the per-scalar `print!`/`println!`. The bytes written are identical to
+> the old per-scalar sequence (`write!("{c}")`, `write_all(b"\n")`,
+> `write!("{}", c.truecolor(..))`), so the D-14 byte-identical-minus-ANSI contract
+> is unchanged — proven by `tests/lolcat.rs::piped_output_is_plain_text_no_ansi`
+> (byte-for-byte round-trip) which still passes.
+
 **File:** `src/commands/lolcat/mod.rs:63-89`
 **Issue:** The emit loop calls `print!`/`println!` once per Unicode scalar. Each
 macro re-acquires the stdout lock and `print!` line-buffering means frequent
@@ -214,6 +284,15 @@ let mut w = std::io::BufWriter::new(stdout.lock());
 ```
 
 ### WR-05: `json` colorizes `bool` via `b.magenta()` on the `&&bool` — relies on Display passthrough, brittle vs. documented "delegate to serde"
+
+> **RESOLVED via the test route (commit `a430d35`):** Added
+> `colorize_stripped_equals_pretty`, which strips ANSI from `colorize(&v, 0)` and
+> asserts it equals `serde_json::to_string_pretty(&v)` across a battery of values
+> (floats, large ints, negatives, escaped strings, nested containers). The test
+> PASSES as written, confirming the per-type Display rendering already matches
+> serde's serializer for every case — so no colorizer rewrite was needed; the
+> D-05 invariant holds and is now pinned. Reuses the already-present
+> `strip-ansi-escapes` crate (no Cargo.toml change).
 
 **File:** `src/commands/json/mod.rs:101-104`
 **Issue:** Two of the leaf renderers format the value through owo-colors on a
@@ -244,6 +323,19 @@ scalars by formatting the `Value` through serde rather than per-type Display.
 
 ### WR-06: `lolcat` per-line phase seeding ignores `\r` and treats `split_inclusive` segments as visual lines — diagonal can desync on `\r\n` / no-final-newline input
 
+> **RESOLVED — premise corrected + behavior locked (commit `a1d22d1`):** Probing
+> the actual crate behavior disproved the finding's premise that
+> `strip_ansi_escapes` "does NOT remove" lone `\r`. It DOES: the unconditional
+> D-13 `strip_str` that runs BEFORE any coloring/emit removes lone/embedded `\r`
+> as a C0 control — `"a\rb\n"→"ab\n"`, `"mid\rline"→"midline"`,
+> `"crlf\r\n"→"crlf\n"`. So a stray `\r` can never reach the terminal to overwrite
+> the colored prefix; only `\n` line breaks survive. No behavior change was
+> needed (and stripping/normalizing `\r` ourselves would have BROKEN the D-14
+> byte-identical contract for `\r`-bearing input). Locked the safe behavior: a
+> unit test on the `strip_str` invariant, an integration test feeding `"a\rb\n"`
+> asserting no `0x0d` byte survives (the reviewer's requested minimum test), and a
+> module doc note that only `\n` is a supported line break.
+
 **File:** `src/commands/lolcat/mod.rs:63-64`
 **Issue:** `for (line_idx, line) in clean.split_inclusive('\n').enumerate()` seeds
 `phase = line_idx * SPREAD`. On Windows-origin text a line is `"...\r\n"`; the `\r`
@@ -263,6 +355,12 @@ supported. At minimum add a test feeding `"a\rb\n"` to confirm the intended
 behavior is locked.
 
 ## Info
+
+> **DEFERRED (all 4):** IN-01..IN-04 are non-blocking polish (a dead `unwrap_or`
+> fallback, an empty-ramp precondition, large-JSON streaming, and a stale
+> `cli.rs` doc-comment). They were OUT of scope for this `--fix` pass (BLOCKER +
+> WARNINGs only) and carry no behavioral or correctness impact. Left for a future
+> cleanup pass.
 
 ### IN-01: `matrix` head/trail re-pick a random glyph every frame for every cell — flicker is intentional but undocumented per-cell, and `unwrap_or('ﾝ')` dead fallback
 
