@@ -45,7 +45,7 @@ Each maps to exactly one roadmap phase. REQ-IDs continue the per-command mnemoni
 
 ### Hashing depth
 
-- [ ] **HASH-V2-01**: BLAKE3 is the default `hash` algorithm (**breaking change**; `--algo sha256` and the `hash.default_algo` config key preserve old behavior; the `--verify` 64-hex tie now maps to BLAKE3 with a transitional mismatch hint).
+- [ ] **HASH-V2-01**: BLAKE3 is the default `hash` algorithm — **breaking change to the COMPUTE default only** (`box hash file` now emits BLAKE3; `--algo sha256` and the `hash.default_algo` config key preserve old behavior). **Verify resolution is unchanged**: a bare `--verify <64-hex>` still maps to SHA-256 (the length table 32→md5 / 64→sha256 / 128→sha512 is untouched), so stored SHA-256 baselines never silently break; `--algo blake3 --verify` is the explicit BLAKE3 verify path, and a 64-hex mismatch emits a BLAKE3-fallback diagnostic hint. *(Amended 2026-06-25 per Phase-6 discuss decision D-04/D-05 — the original "64-hex tie now maps to BLAKE3" wording would have silently broken the SHA-256 install base.)*
 - [ ] **HASH-V2-02**: `hash` accepts multiple file arguments and prints coreutils `digest␣␣filename` (double-space) per line, with a stderr progress indicator for large inputs.
 
 ### Filesystem depth
@@ -166,3 +166,4 @@ Each requirement maps to exactly one roadmap phase (finalized 2026-06-25 by road
 ---
 *Requirements defined: 2026-06-25 (v2.0 milestone kickoff)*
 *Last updated: 2026-06-25 after roadmap creation — traceability finalized, all 34 requirements mapped to Phases 6–11 (coverage 34/34, 0 unmapped); D-7 note updated to reflect the depth-phase split (8–10) and the meta-command phase renumber to 11.*
+*Amended 2026-06-25 (Phase-6 discuss-phase, decision D-06): HASH-V2-01 verify-resolution wording corrected — the BLAKE3 breaking change is the COMPUTE default only; a bare `--verify <64-hex>` stays SHA-256 (length table untouched) with a BLAKE3 diagnostic probe on mismatch, so stored SHA-256 baselines are not silently broken.*
