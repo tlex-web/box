@@ -180,9 +180,15 @@ impl RunCommand for MatrixArgs {
                     )?;
                 }
 
-                // Erase the cell just past the tail so the trail has a clean edge.
-                let erase_y = d.head - d.trail_len - 1;
-                if erase_y >= 0 && erase_y < rows {
+                // Erase the WHOLE band the tail swept this frame so the trail has
+                // a clean edge (WR-03). The head advanced by `speed` (up to
+                // SPEED_MAX = 2) since the last frame, so the tail moved down
+                // `speed` rows too; erasing only the single cell at
+                // `head - trail_len - 1` would leave the `speed - 1` rows above it
+                // (former trail glyphs now past the tail) un-erased, smearing a
+                // faint trail of stale glyphs on fast columns. `erase_band`
+                // returns every vacated row that falls on-screen.
+                for erase_y in erase_band(d.head, d.trail_len, d.speed, rows) {
                     queue!(out, MoveTo(x, erase_y as u16), Print(' '))?;
                 }
             }
@@ -262,6 +268,27 @@ fn fade(distance: i32, trail_len: i32) -> u8 {
     // Linear: bright at distance 0, dark at distance == trail_len.
     let g = FADE_BRIGHT as i32 - (span * distance) / trail_len;
     g.clamp(FADE_DARK as i32, FADE_BRIGHT as i32) as u8
+}
+
+/// The rows a column's tail vacated this frame and that must be blanked so the
+/// trail keeps a clean edge (WR-03). The head advanced `speed` rows since the
+/// last frame, so the tail did too; the cells now just past the tail are
+/// `(head - trail_len - speed)..=(head - trail_len - 1)`. Returns only the rows
+/// that fall on-screen (`0..rows`), in top-to-bottom order. Pure and
+/// terminal-free → unit-testable: for `speed == 1` it yields the single cell
+/// `head - trail_len - 1` (the old behavior); for `speed >= 2` it yields the
+/// full band so no gap row is left un-erased.
+fn erase_band(head: i32, trail_len: i32, speed: i32, rows: i32) -> Vec<i32> {
+    let mut band = Vec::new();
+    // k = speed (topmost vacated row) down to 1 (cell just past the tail);
+    // pushing in descending k gives ascending y (top-to-bottom).
+    for k in (1..=speed.max(1)).rev() {
+        let y = head - trail_len - k;
+        if y >= 0 && y < rows {
+            band.push(y);
+        }
+    }
+    band
 }
 
 /// The pure katakana glyph table: every halfwidth katakana scalar in
@@ -364,6 +391,48 @@ mod tests {
             FADE_BRIGHT,
             "zero trail does not divide by zero"
         );
+    }
+
+    /// WR-03 — at `speed == 1` the erase band is exactly the single cell just
+    /// past the tail (`head - trail_len - 1`), preserving the original behavior.
+    #[test]
+    fn erase_band_speed_one_is_single_cell() {
+        // head=30, trail_len=8 → tail at row 22, the cell past it is row 21.
+        assert_eq!(erase_band(30, 8, 1, 100), vec![21]);
+    }
+
+    /// WR-03 — at `speed == 2` the head jumped 2 rows this frame, so TWO rows
+    /// were vacated. The band must cover BOTH (`head-trail_len-2` and
+    /// `head-trail_len-1`) so no stale glyph is left in the gap. The old
+    /// single-cell erase missed the upper row (`head-trail_len-2`).
+    #[test]
+    fn erase_band_speed_two_covers_the_gap() {
+        // head=30, trail_len=8, speed=2 → rows 20 and 21 (top-to-bottom).
+        let band = erase_band(30, 8, 2, 100);
+        assert_eq!(band, vec![20, 21], "both vacated rows must be erased");
+        // The cell the old code would NOT have erased (head-trail_len-speed).
+        assert!(
+            band.contains(&(30 - 8 - 2)),
+            "the gap row {} must be in the erase set: {band:?}",
+            30 - 8 - 2
+        );
+        // For any speed, the band size never exceeds `speed` rows.
+        assert!(band.len() <= 2, "band must not exceed speed rows: {band:?}");
+    }
+
+    /// WR-03 — rows that fall off-screen (negative, or `>= rows`) are dropped:
+    /// the band only ever contains on-screen rows, so the `MoveTo` is always in
+    /// bounds. A band whose every row is off-screen yields an empty set.
+    #[test]
+    fn erase_band_clamps_off_screen_rows() {
+        // head=9, trail_len=8, speed=2 → candidates rows 0 and -1; only 0 is
+        // on-screen, the negative row is dropped.
+        assert_eq!(erase_band(9, 8, 2, 100), vec![0]);
+        // Head still above the top edge → nothing on-screen yet → empty band.
+        assert_eq!(erase_band(0, 8, 2, 100), Vec::<i32>::new());
+        // A row at exactly `rows` is off the bottom edge (valid rows are 0..rows):
+        // head=109, trail_len=8, speed=1 → candidate row 100, which is dropped.
+        assert_eq!(erase_band(109, 8, 1, 100), Vec::<i32>::new());
     }
 
     /// Every glyph is within the inclusive halfwidth-katakana range AND is a
