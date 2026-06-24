@@ -76,7 +76,7 @@ fn main() -> ExitCode {
         Commands::Lolcat => Err(not_implemented("lolcat")),
         Commands::Matrix => Err(not_implemented("matrix")),
         Commands::Ascii => Err(not_implemented("ascii")),
-        Commands::Json => Err(not_implemented("json")),
+        Commands::Json(args) => args.run(),
         Commands::Qr => Err(not_implemented("qr")),
         Commands::Clip => Err(not_implemented("clip")),
         Commands::Pomodoro => Err(not_implemented("pomodoro")),

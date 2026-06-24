@@ -71,7 +71,7 @@ pub enum Commands {
     /// Render an image as ASCII art
     Ascii,
     /// Pretty-print and validate JSON
-    Json,
+    Json(crate::commands::json::JsonArgs),
     /// Render a QR code for text or a URL in the terminal
     Qr,
     /// Read from or write to the system clipboard

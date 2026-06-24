@@ -41,6 +41,12 @@ sha2 = "0.11.0"
 regex = "1.12.4"
 base16ct = "1.0.0"
 const-hex = "1.19.1"
+# json (JSON-01 / D-04). `preserve_order` keeps input key order (`{"b":1,"a":2}`
+# stays b-before-a, NOT alphabetized) — it pulls indexmap→hashbrown. serde comes
+# transitively (Value needs no derive, so NO direct `serde` dep). `arbitrary_precision`
+# is deliberately OFF: it breaks Value round-tripping / Display for numbers and is a
+# known D-04 landmine (serde-rs/json #505/#721/#845).
+serde_json = { version = "1.0.150", features = ["preserve_order"] }
 # NOTE: no `rand_core` yet — verify `use rand::TryRngCore` resolves through rand
 # 0.9 re-exports during the passgen plan (RESEARCH A1); not needed here.
 # NOTE: no `filetime` — use std::fs::FileTimes (Rust 1.75+).

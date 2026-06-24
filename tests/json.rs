@@ -53,9 +53,7 @@ fn invalid_json_exits_1_with_line_and_column() {
         .failure()
         .code(1)
         .stdout(predicate::str::is_empty())
-        .stderr(
-            predicate::str::contains("line").and(predicate::str::contains("column")),
-        );
+        .stderr(predicate::str::contains("line").and(predicate::str::contains("column")));
 }
 
 /// (2) D-06 — a valid object pretty-prints with a 2-space indent: `{"a":1}`
