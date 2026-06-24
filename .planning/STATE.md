@@ -3,8 +3,9 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
 status: planning
+stopped_at: Phase 6 context gathered
 last_updated: "2026-06-25T00:00:00.000Z"
-last_activity: 2026-06-25
+last_activity: 2026-06-25 — Phase 6 context gathered (discuss-phase: 4 spine-template decisions locked)
 progress:
   total_phases: 6
   completed_phases: 0
@@ -16,7 +17,7 @@ progress:
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-25
-**Updated by:** roadmapper (v2.0 ROADMAP.md created — Phases 6–11 mapped, 34/34 requirements covered; next: `/gsd:plan-phase 6`)
+**Updated by:** discuss-phase (Phase 6 context gathered — JSON shape, verify-tie, --clip, --json errors locked; next: `/gsd:plan-phase 6`)
 
 ---
 
@@ -34,10 +35,10 @@ See: .planning/PROJECT.md · .planning/ROADMAP.md · .planning/REQUIREMENTS.md (
 
 ## Current Position
 
-Phase: 6 of 11 (Scriptable-Core Foundation) — Ready to plan
+Phase: 6 of 11 (Scriptable-Core Foundation) — Context gathered, ready to plan
 Plan: — (none yet)
-Status: Ready to plan Phase 6
-Last activity: 2026-06-25 — v2.0 ROADMAP.md created (Phases 6–11, 34/34 requirements mapped)
+Status: Ready to plan Phase 6 (06-CONTEXT.md committed)
+Last activity: 2026-06-25 — Phase 6 context gathered (4 spine-template decisions locked via discuss-phase)
 
 Progress: [░░░░░░░░░░] 0% (0/18 v2.0 plans)
 
@@ -119,9 +120,9 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then this file for position/context.
 
-**Last session:** 2026-06-25 — roadmapper
-**Stopped at:** v2.0 ROADMAP.md created — Phases 6–11 defined, 34/34 requirements mapped, REQUIREMENTS.md traceability finalized, STATE.md switched to the v2.0 phase map.
-**Resume file:** None (no active phase)
+**Last session:** 2026-06-25 — discuss-phase (Phase 6)
+**Stopped at:** Phase 6 context gathered
+**Resume file:** .planning/phases/06-scriptable-core-foundation/06-CONTEXT.md
 
 **Next action:** `/gsd:plan-phase 6` — plan the Scriptable-Core Foundation (build the shared `--json`/`--clip`/config spine + flip `hash` to BLAKE3-default on the uuid+hash pilots). v1.0 context archived in `.planning/MILESTONES.md` + `.planning/milestones/v1.0-ROADMAP.md`.
 
