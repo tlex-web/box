@@ -1,9 +1,9 @@
 ---
 phase: 5
 slug: windows-platform-integration
-status: draft
+status: planned
 nyquist_compliant: false
-wave_0_complete: false
+wave_0_complete: false   # Wave 0 scaffolding is folded into each plan's Task 1 (test-first)
 created: 2026-06-24
 ---
 

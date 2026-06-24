@@ -165,7 +165,23 @@ Plans:
   3. User runs `box pomodoro` and sees a live countdown in the terminal; when the timer completes a Windows 11 toast notification appears; Ctrl+C cancels cleanly; `--break` and `--long-break` modes work
   4. User runs `box weather "London"` and sees current temperature, conditions, wind, and humidity from Open-Meteo with no API key; `--units imperial` switches to Fahrenheit; a graceful error appears when offline
 
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+**Wave 1**
+
+- [ ] 05-01-PLAN.md — `qr`: qrcode Dense1x2 Unicode half-block render (no ANSI), read_input arg/stdin, EcLevel::M + quiet_zone, phone-scan human-verify (QR-01 / D-01/D-02/D-03)
+
+**Wave 2** *(blocked on Wave 1 — shares cli.rs/main.rs/commands/mod.rs/Cargo.toml registry)*
+
+- [ ] 05-02-PLAN.md — `clip`: arboard copy (raw stdin, single-trailing-newline trim, NOT core::input) / `--paste` (byte-exact), main-thread single-shot, copy→paste human-verify (CLIP-01 / D-04/D-05/D-06)
+
+**Wave 3** *(blocked on Wave 2 — shares the registry)*
+
+- [ ] 05-03-PLAN.md — `pomodoro`: matrix-family RawGuard + poll-as-timer countdown (default 25 / `--break` 5 / `--long-break` 15 / `[MINUTES]`) + tauri-winrt-notification completion toast; cancel→exit-1-no-toast; live human-verify (POMO-01 / D-07/D-08/D-09)
+
+**Wave 4** *(blocked on Wave 3 — shares the registry; LAST plan → removes the dead stub import)*
+
+- [ ] 05-04-PLAN.md — `weather`: Open-Meteo geocode+forecast via ureq (non-2xx=Err(StatusCode) split), parse-shape lat/lon vs city, server-side units + authoritative current_units label, WMO match, graceful offline; checked-in JSON fixtures (WTHR-01 / D-10/D-11/D-12/D-13)
 
 ## Progress
 
@@ -175,7 +191,7 @@ Plans:
 | 2. Pure Transform Utilities | 5/5 | Complete   | 2026-06-22 |
 | 3. Filesystem Power Tools | 5/5 | Complete    | 2026-06-22 |
 | 4. Terminal Visuals | 4/4 | Complete   | 2026-06-24 |
-| 5. Windows Platform Integration | 0/? | Not started | - |
+| 5. Windows Platform Integration | 0/4 | Planned | - |
 
 ## Coverage
 
@@ -203,3 +219,4 @@ Plans:
 *Last updated: 2026-06-22 — Phase 3 Plan 03-05 (bulk-rename) COMPLETE → PHASE 3 FEATURE-COMPLETE (5/5 plans): live `box bulk-rename` (regex first-match `replace` over the FULL base name, D-16/D-17 → in-memory ABORT-ALL-BEFORE-ANY-RENAME pre-flight detecting collisions/cycles/path-separator injection, the ONLY backstop vs std::fs::rename's silent overwrite, D-18 → dry-run preview is the DEFAULT, --force executes, D-19); the pre-flight is a PURE I/O-free preflight()->Vec<Conflict> unit-tested for every rule; reuses flatten's format_row/arrow_col + case-folded occupied set + encode_no_separator invariant VERBATIM; every abort path snapshot-asserts the directory byte-for-byte unchanged; RENM-01 satisfied; 7/7 RENM-01 tests + 9 unit tests + full suite (96 unit + all integration) + clippy -D warnings + fmt --check green; ALL 5 Phase-3 not_implemented arms gone — phase ready for verification (8 stubs remain: Phase-4 lolcat/matrix/ascii/json + Phase-5 qr/clip/pomodoro/weather)*
 *Last updated: 2026-06-24 — Phase 4 Plan 04-01 (json) COMPLETE: live `box json` (JSON-01) — serde_json::from_str::<Value> with preserve_order (input key order kept, arbitrary_precision OFF) → invalid `bail!`s with 1-based line/column (exit 1) → `--compact` minify (to_string) / plain 2-space pretty (to_string_pretty) / colored TTY via a pure hand-rolled colorize(&Value) walker gated SOLELY on is_color_on() so piped output is byte-identical minus ANSI (D-04/05/06); 6-variant walker + 4 unit tests; 5/5 JSON-01 integration + json.trycmd green; full suite 102 unit + all integration + clippy -D warnings + fmt --check clean; serde_json 1.0.150 transitively pulls dtolnay's `zmij` (verified-legitimate ryu-successor float crate); json stub gone (3 phase-4 stubs remain: lolcat/matrix/ascii)*
 *Last updated: 2026-06-24 — Phase 4 Plan 04-03 (ascii) COMPLETE: live `box ascii` (ASCI-01) — hand-rolled on image 0.25.10 (the single sanctioned image-decoding exception, D-01; artem rejected): image::open(path) [extension-based, Pitfall 2] → resize_exact(cols,rows,Triangle) → to_luma8 → as_raw row-major luma → pure luma_to_char(byte, b" .:-=+*#%@") dark→light ramp loop → println! per row; cols=core::output::terminal_width() (80 piped, INTENTIONALLY diverging from cowsay's fixed width — a visual render fills the terminal, D-02), rows=(cols*h/w/2).max(1) aspect-corrected (the /2 fixes the ~2:1 cell, .max(1) no zero-height); monochrome v1 no color path (D-03) — the ramp emit is the VIS-V2-01 seam; 0-dim image guarded with bail! (no divide-by-zero); decode error → .with_context → exit-1 no-panic (FOUND-05/T-04A-02); image added default-features=false features=["png","jpeg"] (RESEARCH A2 trim, verified to resolve the full path); 5 unit + 4/4 ASCI-01 integration vs tiny 8x8 grayscale-gradient PNG/JPEG fixtures (140B/340B, committed binary); one Rule-3 fix (cargo fmt reflow of two long assert! lines for the fmt --check gate); full suite 111 unit + all integration + clippy -D warnings + fmt --check clean (no regression); ascii stub gone — 1 Phase-4 stub remains (matrix)*
+*Last updated: 2026-06-24 — Phase 5 PLANNED: 4 plans across 4 waves (qr → clip → pomodoro → weather), one vertical MVP slice per command; the four are independent but share the cli.rs/main.rs/commands/mod.rs/Cargo.toml registry so they sequence by wave (zero same-wave file overlap, as in Phases 3/4); all 14 CONTEXT decisions D-00..D-13 traceable (D-01..D-13 cited in must_haves); each plan is test-first (Wave-0 scaffold folded into its Task 1); qr + clip + pomodoro carry human-verify checkpoints, weather is fully auto-tested with checked-in Open-Meteo JSON fixtures; the two CLAUDE.md overrides honored (qrcode replaces qr2term D-01; tauri-winrt-notification replaces winrt-notification D-09); this is the LAST phase — 05-04 removes the now-dead stub::not_implemented import; QR-01/CLIP-01/POMO-01/WTHR-01 all mapped — completing the 23-command v1 milestone*
