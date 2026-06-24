@@ -47,7 +47,7 @@ Requirements for initial release. All 23 commands are in v1 scope. Each maps to 
 
 - [ ] **QR-01**: User can render a scannable QR code for any text/URL in the terminal using Unicode half-block characters, accepting input as an argument or from stdin
 - [x] **LOL-01**: User can pipe text through `lolcat` to colorize it with a smooth truecolor rainbow gradient; color auto-disables when output is not a TTY
-- [ ] **MTRX-01**: User can run a full-terminal Matrix digital-rain animation that exits cleanly on Ctrl+C and restores terminal state
+- [x] **MTRX-01**: User can run a full-terminal Matrix digital-rain animation that exits cleanly on Ctrl+C and restores terminal state
 - [x] **ASCI-01**: User can convert an image file (PNG/JPEG) to ASCII art fitted to the terminal width
 
 ### Fun
@@ -133,7 +133,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DUPE-01 | Phase 3 | Complete |
 | RENM-01 | Phase 3 | Complete |
 | LOL-01 | Phase 4 | Complete |
-| MTRX-01 | Phase 4 | Pending |
+| MTRX-01 | Phase 4 | Complete |
 | ASCI-01 | Phase 4 | Complete |
 | JSON-01 | Phase 4 | Complete (04-01) |
 | QR-01 | Phase 5 | Pending |

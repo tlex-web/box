@@ -11,7 +11,7 @@
 - [x] **Phase 1: Foundation + Flatten** — Binary scaffold, install script, core infrastructure, and the anchor `flatten` command. Shipped 2026-06-22: install.ps1 + same-session flatten human-verified in PS7; verification passed (5/5); code-review silent-data-loss findings (CR-01/WR-01/WR-02) fixed
 - [x] **Phase 2: Pure Transform Utilities** — Nine zero-external-dependency commands proving the RunCommand pattern: uuid, base64, epoch, color, passgen, cowsay, fortune, 8ball, roast (completed 2026-06-22)
 - [x] **Phase 3: Filesystem Power Tools** — Five commands sharing walkdir: hash, tree, du, dupes, bulk-rename (completed 2026-06-22)
-- [ ] **Phase 4: Terminal Visuals** — Four commands sharing crossterm and rendering libraries: lolcat, matrix, ascii, json
+- [x] **Phase 4: Terminal Visuals** — Four commands sharing crossterm and rendering libraries: lolcat, matrix, ascii, json (completed 2026-06-24)
 - [ ] **Phase 5: Windows Platform Integration** — Four commands with the highest external/API risk: qr, clip, pomodoro, weather
 
 ## Phase Details
@@ -150,7 +150,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 — shares cli.rs/main.rs/mod.rs registry; has human-verify checkpoint)*
 
-- [ ] 04-04-PLAN.md — `matrix`: full-terminal halfwidth-katakana (U+FF66–FF9D) green rain on crossterm 0.29; single-flush-per-frame @~20 FPS (poll=timer); RAII Drop guard restore; exit Ctrl+C/q/Esc with KeyEventKind::Press filter; pure drop/fade+glyph+quit units + smoke test + human-verify animation (D-07/08/09/10) (MTRX-01)
+- [x] 04-04-PLAN.md — `matrix`: full-terminal halfwidth-katakana (U+FF66–FF9D) green rain on crossterm 0.29; single-flush-per-frame @~20 FPS (poll=timer); RAII Drop guard restore; exit Ctrl+C/q/Esc with KeyEventKind::Press filter; pure drop/fade+glyph+quit units + smoke test + human-verify animation (D-07/08/09/10) (MTRX-01)
 
 ### Phase 5: Windows Platform Integration
 
@@ -174,7 +174,7 @@ Plans:
 | 1. Foundation + Flatten | 4/4 | Complete    | 2026-06-22 |
 | 2. Pure Transform Utilities | 5/5 | Complete   | 2026-06-22 |
 | 3. Filesystem Power Tools | 5/5 | Complete    | 2026-06-22 |
-| 4. Terminal Visuals | 3/4 | In Progress|  |
+| 4. Terminal Visuals | 4/4 | Complete   | 2026-06-24 |
 | 5. Windows Platform Integration | 0/? | Not started | - |
 
 ## Coverage
