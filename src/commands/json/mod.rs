@@ -259,4 +259,46 @@ mod tests {
         assert!(out.contains("\"hi\""), "string is JSON-quoted: {out:?}");
         assert!(out.contains('\u{1b}'), "string token is colored: {out:?}");
     }
+
+    /// WR-05 / D-05 — the ACTUAL invariant: stripping ANSI from `colorize(&v, 0)`
+    /// yields EXACTLY `serde_json::to_string_pretty(&v)`, so the colored TTY path
+    /// and the plain piped path differ ONLY by the ANSI escapes (byte-identical
+    /// minus color). The earlier tests only assert substring presence (`"1"`,
+    /// `"true"`); this pins byte-equality across a battery of values — floats,
+    /// large ints, negatives, escaped strings, nested containers — which is where
+    /// a hand-formatted scalar (e.g. `n.to_string()` vs serde's Display) would
+    /// diverge if it ever did.
+    #[test]
+    fn colorize_stripped_equals_pretty() {
+        let cases = [
+            "null",
+            "true",
+            "false",
+            "0",
+            "-1",
+            "42",
+            "3.14",
+            "-2.5e10",
+            "123456789012345",
+            "\"hi\"",
+            "\"tab\\tnewline\\nquote\\\"\"",
+            "[]",
+            "{}",
+            "[1,2,3]",
+            "{\"b\":1,\"a\":2}",
+            "{\"a\":[1,true,null],\"nested\":{\"x\":-3.5,\"y\":\"z\"}}",
+            "[[1,[2,[3]]],{\"deep\":{\"k\":false}}]",
+        ];
+        for src in cases {
+            let value: Value = serde_json::from_str(src).expect("fixture parses");
+            let colored = colorize(&value, 0);
+            // Strip the ANSI escapes the colorizer wrapped each token in.
+            let stripped = strip_ansi_escapes::strip_str(&colored);
+            let pretty = serde_json::to_string_pretty(&value).expect("pretty serializes");
+            assert_eq!(
+                stripped, pretty,
+                "colorize stripped of ANSI must equal to_string_pretty for {src:?}"
+            );
+        }
+    }
 }
