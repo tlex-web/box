@@ -76,6 +76,44 @@ fn paste_exits_zero() {
         .stdout(predicate::str::contains("seed"));
 }
 
+/// WR-02 — when the clipboard holds no text (empty, or non-text content like an
+/// image or a file list), `box clip --paste` must surface the distinct, clearer
+/// "clipboard is empty or contains no text" message (exit 1) instead of the generic
+/// "read clipboard: …". `#[ignore]`d and NOT auto-runnable: the `box` binary has no
+/// way to deterministically PUT the OS clipboard into the `ContentNotAvailable`
+/// state (there is no clear-clipboard or copy-image subcommand — `clip` only ever
+/// sets text), and the clipboard is shared OS state a CI runner may lack entirely.
+/// To exercise locally: empty the clipboard manually (e.g. copy an image, or run
+/// PowerShell `Set-Clipboard -Value $null`) and then
+/// `cargo test --test clip clip_paste_empty -- --ignored`. The deterministic half
+/// of the diagnosability fix is verified by code review of the match arm; this test
+/// is the local, manually-seeded confirmation of the message text.
+#[test]
+#[ignore = "requires the OS clipboard to be manually emptied first; run locally with --ignored"]
+fn clip_paste_empty_reports_no_text() {
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .args(["clip", "--paste"])
+        .output()
+        .expect("run box clip --paste");
+    // Exit code is unchanged by WR-02 — still a plain runtime error (exit 1).
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "an empty/non-text clipboard must stay exit 1, got: {:?}",
+        out.status.code()
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("clipboard is empty or contains no text"),
+        "the empty-clipboard message must be the clearer WR-02 text, got: {stderr}"
+    );
+    assert!(
+        !stderr.contains("read clipboard"),
+        "the empty-clipboard case must NOT use the generic read-failure context, got: {stderr}"
+    );
+}
+
 /// CLIP-01 / D-04 / FOUND-05 (T-05-CLIP-DoS) — non-UTF-8 stdin on copy → clean
 /// exit 1 with a stderr message and NO panic. This is DETERMINISTIC and needs no
 /// clipboard: `String::from_utf8(buf)` rejects the bytes BEFORE `Clipboard::new()`

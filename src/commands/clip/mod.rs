@@ -67,7 +67,20 @@ impl RunCommand for ClipArgs {
             // single-shot main-thread arboard flow (create → one op → return)
             // satisfies the STATE.md "arboard main-thread only" pitfall (CLIP-2).
             let mut cb = arboard::Clipboard::new().context("open clipboard")?;
-            let text = cb.get_text().context("read clipboard")?;
+            // Distinguish the common "nothing to paste" case from a genuine Win32
+            // read failure (WR-02). `arboard` returns `ContentNotAvailable` when the
+            // clipboard is empty or holds non-text content (an image, a file list) —
+            // that is not a read FAILURE, so a generic "read clipboard: …" misleads.
+            // Both branches stay exit 1 (the error path is unchanged); only the
+            // diagnostic message differs. The success path and the byte-exact write
+            // below are untouched (D-05).
+            let text = match cb.get_text() {
+                Ok(t) => t,
+                Err(arboard::Error::ContentNotAvailable) => {
+                    anyhow::bail!("clipboard is empty or contains no text")
+                }
+                Err(e) => return Err(e).context("read clipboard"),
+            };
             // Write the raw bytes; do NOT add or strip a trailing newline (D-05).
             std::io::stdout().write_all(text.as_bytes())?;
         } else {
