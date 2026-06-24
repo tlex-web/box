@@ -27,6 +27,7 @@ pub mod roast;
 pub mod stub;
 pub mod tree;
 pub mod uuid;
+pub mod weather;
 
 /// Implemented by each command's argument struct. `main()` calls `.run()` after
 /// parsing; the command owns all of its business logic and returns errors via

@@ -75,6 +75,12 @@ qrcode = { version = "0.14.1", default-features = false }
 # CF_UNICODETEXT via the Win32 API directly (compatible with +crt-static, no DLL
 # / no async runtime) — the reason for bypassing clip.exe's Unicode mangling.
 arboard = { version = "3.6.1", default-features = false }
+# weather Deserialize derive (WTHR-01 / D-13). Only the `derive` macro is new —
+# `serde_json` 1.0.150 is ALREADY a dep (above) and pulls serde transitively, but
+# the Open-Meteo response structs need the `derive` feature for
+# `#[derive(Deserialize)]`. `ureq` (the blocking HTTPS client) is added alongside
+# in the weather plan's implementation task.
+serde = { version = "1", features = ["derive"] }
 # pomodoro toast (POMO-01 / D-09). The actively maintained drop-in fork of
 # winrt-notification (this OVERRIDES CLAUDE.md's stack pick per D-09 — same
 # `ToastNotificationManager` API, but modern `windows 0.61` vs the stale crate's
