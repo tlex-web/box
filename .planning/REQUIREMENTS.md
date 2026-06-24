@@ -20,7 +20,7 @@ Decisions locked at requirements time (carried into roadmap + plan-phase):
 | D-4 | Non-UTF-8 path policy in `--json` | **`to_string_lossy()` + documented** | Never `to_str().unwrap()` (panics on non-UTF-8 NTFS names). |
 | D-5 | `dupes --delete` | **GO — safe, non-interactive** | keep-first + dry-run-default + `--force` + hardlink-aware + abort-all-before-any pre-flight + snapshot-the-tree tests + mandatory adversarial code review. |
 | D-6 | BLAKE3-default timing | **Co-ship config in Phase 6** | So `hash.default_algo = "sha256"` escape hatch exists when the breaking default flips. |
-| D-7 | `completions` timing | **Phase 9 (last)** | Generated from the final `Cli` arg surface — must include all Phase-8 flags. |
+| D-7 | `completions` timing | **Final phase (last) — now Phase 11** | Generated from the final `Cli` arg surface — must include all depth flags. The 27 depth requirements split across Phases 8–10 (filesystem / dev+visual / fun+system), so the meta-command phase renumbered from the SUMMARY's provisional "Phase 9" to **Phase 11** while staying strictly last. |
 
 **New dependencies committed:** `clap_complete 4.6.5`, `toml 1.1.2`, `dirs 6.0.0`, `indicatif 0.18.4`, `chrono-tz` (epoch `--tz`), `windows 0.61` (Win32 features), `uuid` `v7` feature flag. **No new crate** for `--json` (serde/serde_json), `--clip` (arboard), `tree --gitignore` (ignore), `lolcat`/`matrix` animation (crossterm).
 
@@ -117,50 +117,52 @@ Explicitly excluded. Documented to prevent scope creep and re-litigation.
 
 ## Traceability
 
-Populated during roadmap creation (Step 10). Each requirement maps to exactly one phase. Recommended phase grouping from `SUMMARY.md` build order is noted as a hint; the roadmapper finalizes.
+Each requirement maps to exactly one roadmap phase (finalized 2026-06-25 by roadmapper). Phases continue v1's numbering (v1.0 ended at Phase 5). The 27 depth requirements were split from the SUMMARY's single provisional "Phase 8" into three area-grouped phases (8 filesystem / 9 dev+visual / 10 fun+system) for sane plan/wave sizing; the meta-command phase renumbered to **Phase 11** and stays strictly last (D-7).
 
-| Requirement | Phase | Status | (Recommended phase) |
-|-------------|-------|--------|---------------------|
-| SPINE-01 | — | Pending | 6 (spine pilot: uuid+hash) |
-| SPINE-03 | — | Pending | 6 (spine pilot) |
-| SPINE-05 | — | Pending | 6 (config resolver) |
-| HASH-V2-01 | — | Pending | 6 (BLAKE3 + config co-ship) |
-| SPINE-02 | — | Pending | 7 (--json rollout) |
-| SPINE-04 | — | Pending | 7 (--clip rollout) |
-| HASH-V2-02 | — | Pending | 8 |
-| FLAT-V2-01 | — | Pending | 8 |
-| FLAT-V2-02 | — | Pending | 8 |
-| DUPE-V2-01 | — | Pending | 8 |
-| DUPE-V2-02 | — | Pending | 8 |
-| RENM-V2-01 | — | Pending | 8 |
-| RENM-V2-02 | — | Pending | 8 |
-| TREE-V2-01 | — | Pending | 8 |
-| DU-V2-01 | — | Pending | 8 |
-| DU-V2-02 | — | Pending | 8 |
-| UUID-V2-01 | — | Pending | 8 |
-| EPOC-V2-01 | — | Pending | 8 |
-| COLR-V2-01 | — | Pending | 8 |
-| JSON-V2-01 | — | Pending | 8 |
-| PASS-V2-01 | — | Pending | 8 |
-| LOL-V2-01 | — | Pending | 8 (human-verify) |
-| MTRX-V2-01 | — | Pending | 8 |
-| QR-V2-01 | — | Pending | 8 |
-| ASCI-V2-01 | — | Pending | 8 |
-| COW-V2-01 | — | Pending | 8 |
-| FORT-V2-01 | — | Pending | 8 |
-| 8BAL-V2-01 | — | Pending | 8 |
-| ROST-V2-01 | — | Pending | 8 |
-| POMO-V2-01 | — | Pending | 8 |
-| POMO-V2-02 | — | Pending | 8 |
-| WTHR-V2-01 | — | Pending | 8 |
-| CFG-01 | — | Pending | 9 (meta-command) |
-| CMP-01 | — | Pending | 9 (meta-command) |
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| SPINE-01 | 6 | Pending |
+| SPINE-03 | 6 | Pending |
+| SPINE-05 | 6 | Pending |
+| HASH-V2-01 | 6 | Pending |
+| SPINE-02 | 7 | Pending |
+| SPINE-04 | 7 | Pending |
+| HASH-V2-02 | 8 | Pending |
+| FLAT-V2-01 | 8 | Pending |
+| FLAT-V2-02 | 8 | Pending |
+| DUPE-V2-01 | 8 | Pending |
+| DUPE-V2-02 | 8 | Pending |
+| RENM-V2-01 | 8 | Pending |
+| RENM-V2-02 | 8 | Pending |
+| TREE-V2-01 | 8 | Pending |
+| DU-V2-01 | 8 | Pending |
+| DU-V2-02 | 8 | Pending |
+| UUID-V2-01 | 9 | Pending |
+| EPOC-V2-01 | 9 | Pending |
+| COLR-V2-01 | 9 | Pending |
+| JSON-V2-01 | 9 | Pending |
+| PASS-V2-01 | 9 | Pending |
+| LOL-V2-01 | 9 | Pending |
+| MTRX-V2-01 | 9 | Pending |
+| QR-V2-01 | 9 | Pending |
+| ASCI-V2-01 | 9 | Pending |
+| COW-V2-01 | 10 | Pending |
+| FORT-V2-01 | 10 | Pending |
+| 8BAL-V2-01 | 10 | Pending |
+| ROST-V2-01 | 10 | Pending |
+| POMO-V2-01 | 10 | Pending |
+| POMO-V2-02 | 10 | Pending |
+| WTHR-V2-01 | 10 | Pending |
+| CFG-01 | 11 | Pending |
+| CMP-01 | 11 | Pending |
 
 **Coverage:**
 - v2.0 requirements: **34** total
-- Mapped to phases: 0 (roadmap pending) ⚠️
-- Unmapped: 34 (roadmapper will map all)
+- Mapped to phases: **34** ✓
+- Unmapped: **0** ✓
+
+**Per-phase counts:** Phase 6 = 4 · Phase 7 = 2 · Phase 8 = 10 · Phase 9 = 9 · Phase 10 = 7 · Phase 11 = 2 → 34 total.
 
 ---
 *Requirements defined: 2026-06-25 (v2.0 milestone kickoff)*
-*Last updated: 2026-06-25 after initial definition*
+*Last updated: 2026-06-25 after roadmap creation — traceability finalized, all 34 requirements mapped to Phases 6–11 (coverage 34/34, 0 unmapped); D-7 note updated to reflect the depth-phase split (8–10) and the meta-command phase renumber to 11.*
