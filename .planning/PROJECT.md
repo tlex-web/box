@@ -45,19 +45,17 @@ The toolbox must be **globally available and instantly usable from PowerShell 7*
 - [x] `ascii` — render an image (PNG/JPEG) as ASCII art fitted to terminal width (monochrome v1)
 - [x] `matrix` — full-terminal green katakana digital-rain (~20 FPS, RAII terminal restore, exits cleanly on Ctrl+C/q/Esc; human-verified)
 
+**Windows platform integration** *(validated in Phase 5 — Windows Platform Integration, 2026-06-24)*
+- [x] `qr` — render scannable QR codes for text/URLs in the terminal (qrcode 0.14 Dense1x2 Unicode half-blocks, EcLevel::M, no ANSI; phone-scan human-verified in PS7)
+- [x] `clip` — read from / write to the Windows clipboard (`box clip` copies raw stdin with a single-trailing-newline trim; `box clip --paste` writes byte-exact; arboard/Win32, no elevation; Unicode round-trip human-verified in PS7)
+- [x] `pomodoro` — focus timer with a live in-place countdown + Windows 11 toast on completion (`--break` 5 / `--long-break` 15 / `[MINUTES]`); clean Ctrl+C/q/Esc cancel with no toast; human-verified in PS7
+- [x] `weather` — keyless current weather via Open-Meteo (city geocode or `lat,lon`; `--units metric|imperial`; graceful offline error); unit labels read from the response, never hardcoded
+
 ### Active
 
 <!-- Current scope. Building toward these. All are hypotheses until shipped. -->
 
-**Useful staples**
-- [ ] `qr` — render QR codes for text/URLs in the terminal
-
-**Dev utilities**
-- [ ] `clip` — read from / write to the clipboard
-
-**Whimsy with utility**
-- [ ] `pomodoro` — focus timer with Windows toast notifications
-- [ ] `weather` — quick weather fetch for a location
+None — all 23 v1 commands shipped and validated. **v1 milestone complete (2026-06-24).** Future ideas (BLAKE3-default hash `HASH-V2-01`, colored ASCII / animated lolcat `VIS-V2-01`, etc.) are deferred to a v2 milestone.
 
 ### Out of Scope
 
@@ -113,4 +111,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-24 — Phase 4 (Terminal Visuals) complete: four commands (json, lolcat, ascii, matrix) shipped, verified 4/4, matrix human-verified in PS7; a post-review BLOCKER (matrix raw-mode restore ordering, CR-01) + 6 warnings fixed with covering tests. 18/23 commands live; next = Phase 5 (Windows platform integration: qr, clip, pomodoro, weather).*
+*Last updated: 2026-06-24 — Phase 5 (Windows Platform Integration) complete: four commands (qr, clip, pomodoro, weather) shipped, verified 16/16, human-UAT 3/3 cleared in PS7; code-review WR-01 (pomodoro out-of-range no-panic) + WR-02 (clip empty-clipboard message) fixed with covering tests. **All 23/23 v1 commands live → v1 MILESTONE COMPLETE.** Release x86_64-pc-windows-msvc +crt-static box.exe builds (5.1 MB). Next = `/gsd:complete-milestone` to archive v1, or `./install.ps1` to ship box.exe to PATH.*

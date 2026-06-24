@@ -1,10 +1,10 @@
 ---
 phase: 05-windows-platform-integration
 verified: 2026-06-24T21:00:00Z
-status: human_needed
-score: 13/16 must-haves verified (3 reserved for physical human verification)
+status: passed
+score: 16/16 must-haves verified (3 human-verify items cleared in PowerShell 7 on 2026-06-24)
 overrides_applied: 0
-re_verification: null
+re_verification: "2026-06-24 — human-verify batch passed 3/3 (QR-01 phone-scan, CLIP-01 PS7 round-trip, POMO-01 countdown+toast+cancel); see 05-HUMAN-UAT.md"
 gaps: []
 human_verification:
   - test: "QR-01 phone-scan — scan box qr output in PowerShell 7 on dark theme"
@@ -22,7 +22,7 @@ human_verification:
 
 **Phase Goal:** Users can render QR codes in the terminal, read/write the Windows clipboard, run a Pomodoro timer with toast notifications, and fetch live weather — all working correctly in PowerShell 7.
 **Verified:** 2026-06-24T21:00:00Z
-**Status:** human_needed
+**Status:** passed (human-verify batch cleared 3/3 in PowerShell 7, 2026-06-24)
 **Re-verification:** No — initial verification
 
 ---

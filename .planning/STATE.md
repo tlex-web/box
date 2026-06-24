@@ -2,22 +2,22 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 1
-status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-06-24T18:05:48.730Z"
+current_plan: "—"
+status: milestone_complete
+stopped_at: Milestone complete (Phase 05 was final phase)
+last_updated: 2026-06-24T21:45:00.000Z
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 22
-  completed_plans: 18
-  percent: 80
+  completed_plans: 22
+  percent: 100
 ---
 
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-24
-**Updated by:** plan-phase orchestrator (Phase 5 PLANNED — 4 plans/4 waves; research+validation+patterns; plan-checker passed; decision coverage 14/14)
+**Updated by:** execute-phase orchestrator (Phase 5 COMPLETE & VERIFIED 16/16 — qr/clip/pomodoro/weather shipped; human-UAT 3/3 cleared in PS7; code-review WR-01/WR-02 fixed; release crt-static exe builds → v1 MILESTONE COMPLETE, all 23 commands real)
 
 ---
 
@@ -25,7 +25,7 @@ progress:
 
 **Core Value:** The toolbox must be globally available and instantly usable from PowerShell 7 — type `box <command>` from anywhere and the tool just works.
 
-**Current Focus:** Phase 05 — windows-platform-integration
+**Current Focus:** Milestone complete
 
 **Milestone:** v1 (all 23 commands)
 
@@ -33,24 +33,24 @@ progress:
 
 ## Current Position
 
-Phase: 05 (windows-platform-integration) — EXECUTING
-Plan: 1 of 4
-**Phase:** 5
-**Current Plan:** 1
+Phase: 05 (windows-platform-integration) — ✓ COMPLETE & VERIFIED (16/16 must-haves; human-UAT 3/3 cleared)
+Plan: 4 of 4 ✓ (05-01 qr, 05-02 clip, 05-03 pomodoro, 05-04 weather — all shipped & verified)
+**Phase:** 05
+**Current Plan:** — (v1 milestone complete)
 **Total Plans in Phase:** 4
-**Status:** Executing Phase 05
+**Status:** Milestone complete
 
 **Progress:**
 
 ```
-[████████░░] 80% (4 / 5 phases complete; Phase 4: 4 / 4 plans ✓)
+[██████████] 100% (5 / 5 phases complete; Phase 5: 4 / 4 plans ✓)
 Phase 1 [██████████] 4 / 4 plans ✓ complete
 Phase 2 [██████████] 5 / 5 plans ✓ complete (verified, human-UAT cleared)
 Phase 3 [██████████] 5 / 5 plans ✓ complete (verified 24/24, human-UAT cleared) — 03-01 hash ✓ (HASH-01), 03-02 tree ✓ (TREE-01), 03-03 du ✓ (DU-01), 03-04 dupes ✓ (DUPE-01), 03-05 bulk-rename ✓ (RENM-01)
 Phase 4 [██████████] 4 / 4 plans ✓ complete & verified (4/4 must-haves) — 04-01 json ✓ (JSON-01), 04-02 lolcat ✓ (LOL-01), 04-03 ascii ✓ (ASCI-01), 04-04 matrix ✓ (MTRX-01)
-Phase 5 [          ] 0 / 4 plans — planned, ready to execute
+Phase 5 [██████████] 4 / 4 plans ✓ complete & verified (16/16 must-haves; human-UAT 3/3 cleared) — 05-01 qr ✓ (QR-01), 05-02 clip ✓ (CLIP-01), 05-03 pomodoro ✓ (POMO-01), 05-04 weather ✓ (WTHR-01)
 
-Overall: 4 / 5 phases complete (18 / 22 mapped plans done; Phase 5: 4 planned)
+Overall: 5 / 5 phases complete (22 / 22 mapped plans done) — v1 MILESTONE COMPLETE, all 23 commands shipped & verified
 ```
 
 ---
@@ -63,16 +63,16 @@ Overall: 4 / 5 phases complete (18 / 22 mapped plans done; Phase 5: 4 planned)
 | 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | ✓ Complete (5/5 plans, verified, human-UAT cleared) |
 | 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | ✓ Complete (5/5 plans, verified 24/24, human-UAT cleared) — 03-01 hash ✓ HASH-01, 03-02 tree ✓ TREE-01, 03-03 du ✓ DU-01, 03-04 dupes ✓ DUPE-01, 03-05 bulk-rename ✓ RENM-01 |
 | 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | ✓ Complete (4/4 plans, verified 4/4, matrix human-verified) — 04-01 json ✓ JSON-01, 04-02 lolcat ✓ LOL-01, 04-03 ascii ✓ ASCI-01, 04-04 matrix ✓ MTRX-01 |
-| 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | Planned (4/4 plans, ready to execute) |
+| 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | ✓ Complete (4/4 plans, verified 16/16, human-UAT 3/3 cleared) — 05-01 qr ✓ QR-01, 05-02 clip ✓ CLIP-01, 05-03 pomodoro ✓ POMO-01, 05-04 weather ✓ WTHR-01 |
 
 ---
 
 ## Performance Metrics
 
-**Plans executed:** 18
-**Plans succeeded:** 18
+**Plans executed:** 22
+**Plans succeeded:** 22
 **Plans failed:** 0
-**Phases completed:** 4 / 5 (Phase 3 — 5/5 plans, verified 24/24, human-UAT cleared; Phase 4 — 4/4 plans, verified 4/4, matrix human-verified, code-review BLOCKER+6 warnings fixed)
+**Phases completed:** 5 / 5 — v1 MILESTONE COMPLETE (Phase 3 — verified 24/24, human-UAT cleared; Phase 4 — verified 4/4, matrix human-verified, code-review BLOCKER+6 warnings fixed; Phase 5 — verified 16/16, human-UAT 3/3 cleared in PS7, code-review WR-01[pomodoro no-panic]/WR-02[clip error] fixed, release crt-static exe builds)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -94,6 +94,10 @@ Overall: 4 / 5 phases complete (18 / 22 mapped plans done; Phase 5: 4 planned)
 | 04 | P02 | 3min | 2 (TDD RED→GREEN) | 7 |
 | 04 | P03 | 4min | 2 (TDD RED→GREEN) | 9 |
 | 04 | P04 | 5min | 2 (TDD RED→GREEN + human-verify) | 5 |
+| 05 | P01 | 2min | 2 impl + human-verify (qr) | 6 |
+| 05 | P02 | 4min | 2 impl + human-verify (clip) | 6 |
+| 05 | P03 | 5min | 2 impl + human-verify (pomodoro) | 6 |
+| 05 | P04 | 10min | 2 (weather, autonomous) | 10 |
 
 ---
 
@@ -191,9 +195,9 @@ Overall: 4 / 5 phases complete (18 / 22 mapped plans done; Phase 5: 4 planned)
 
 ### Todos
 
-- [ ] Spike `winrt-notification 0.5` compilation against project MSRV before Phase 5 planning (NOT done in Phase 1; the release MSVC + crt-static build IS verified, but the winrt crate itself was not exercised)
-- [ ] Decide `pomodoro` blocking vs non-blocking timer before Phase 5 planning
-- [ ] Decide `weather` default unit system (metric / imperial / locale-detect) before Phase 5 planning
+- [x] Spike winrt toast compilation — RESOLVED in 05-03: the plan pivoted from `winrt-notification 0.5` to `tauri-winrt-notification 0.7.2` (D-09, slopcheck OK, tauri-apps canonical, modern `windows 0.61`); it compiled clean on `x86_64-pc-windows-msvc` on the first build (no fallback rung) and the real toast fired in the PS7 human-verify
+- [x] Decide `pomodoro` blocking vs non-blocking timer — RESOLVED in 05-03: BLOCKING foreground raw-mode countdown reusing the matrix `RawGuard` + `event::poll(min(1s, remaining))`-as-timer (D-08); single-threaded, no background thread, no SIGINT race; cancel → exit-1-no-toast, completion → toast + exit 0
+- [x] Decide `weather` default unit system — RESOLVED in 05-04: default METRIC, `--units imperial` opt-in (clap `ValueEnum`); the unit LABEL is read from the response `current_units` (D-11), never hardcoded (imperial wind shows the live `mp/h`, not a hardcoded `mph`)
 - [x] Add `strip-ansi-escapes` crate to Cargo.toml for `lolcat` during Phase 4 planning — DONE in 04-02: `strip-ansi-escapes 0.2.1` + `unicode-width 0.2.2` added; `strip_str` used unconditionally before recolor (D-13)
 - [x] Add `image` 0.25.10 to Cargo.toml for `ascii` during Phase 4 — DONE in 04-03: `image = { version = "0.25.10", default-features = false, features = ["png","jpeg"] }` (the trimmed decoder set, RESEARCH A2); artem rejected (D-01)
 - [ ] Code-review advisory follow-ups (01-REVIEW.md, non-blocking): WR-03/WR-04 `install.ps1` PATH empty-segment + smoke-test-by-abspath; IN-02/IN-03 share one flatten render path between dry-run and real run
@@ -208,11 +212,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-24T14:47:24.698Z
-**Stopped At:** Phase 5 context gathered
-**Resume File:** .planning/phases/05-windows-platform-integration/05-CONTEXT.md
+**Last session:** 2026-06-24T21:45:00.000Z
+**Stopped At:** v1 MILESTONE COMPLETE (Phase 5 was the final phase)
+**Resume File:** — (no active phase; next is a new milestone or release)
 
-**Next action:** PHASE 4 COMPLETE & VERIFIED (4/4 plans json/lolcat/ascii/matrix; all four reqs JSON-01/LOL-01/ASCI-01/MTRX-01 satisfied + verified 4/4; matrix human-verified in PS7; post-exec code review fixed CR-01 BLOCKER [matrix raw-mode restore ordering] + 6 warnings with covering tests — 125 unit + all integration green, clippy -D + fmt clean). ALL FOUR Phase-4 stubs gone; four stubs remain (all Phase-5: qr/clip/pomodoro/weather). Next: discuss or plan Phase 5 (Windows Platform Integration). Before Phase-5 planning, resolve the standing todos: spike `winrt-notification 0.5` compile, decide pomodoro blocking-vs-non-blocking, decide weather default units. Reusable into Phase 5: the matrix RAII `RawGuard` terminal-restore pattern + the single-flush-per-frame poll-as-timer loop are the references for `pomodoro` (in-place countdown + clean Ctrl+C cancel). `box` remains binary-only — unit tests via `cargo test --bin box`, NOT `--lib`.
+**Next action:** PHASE 5 COMPLETE & VERIFIED → v1 MILESTONE COMPLETE. All 4 plans shipped sequentially on the shared cli.rs/main.rs/commands/mod.rs/Cargo.toml registry (qr → clip → pomodoro → weather): 05-01 qr ✓ (QR-01, qrcode Dense1x2 half-blocks, no ANSI), 05-02 clip ✓ (CLIP-01, arboard raw-stdin copy + D-05 trim + `--paste`), 05-03 pomodoro ✓ (POMO-01, matrix-family RawGuard raw-mode countdown + tauri-winrt-notification completion-only toast), 05-04 weather ✓ (WTHR-01, Open-Meteo keyless geocode+forecast, ureq non-2xx=Err(StatusCode) split, server-side `current_units` label). 05-04 removed the last `not_implemented` stub + `stub.rs` + `BoxError::NotImplemented` → **all 23 commands are real**. Verified 16/16 must-haves; human-UAT 3/3 cleared in PS7 (qr phone-scan, clip round-trip, pomodoro countdown+toast+cancel). Code review: 0 critical, 2 warning, 4 info → WR-01 (pomodoro out-of-range minutes panic → RangedU64ValueParser 1..=527040, exit 2) + WR-02 (clip --paste empty-clipboard message) fixed with covering tests (150 bin-unit + all integration green, clippy -D + fmt clean). Release `x86_64-pc-windows-msvc` +crt-static `box.exe` builds (5.1 MB). `box` remains binary-only — unit tests via `cargo test --bin box`, NOT `--lib`. **Next options:** `/gsd:complete-milestone` to archive v1 and start the next, or `./install.ps1` to put the finished `box.exe` on PATH, or open a new milestone for v2 ideas (HASH-V2-01 BLAKE3-default, VIS-V2-01 colored ascii/animated lolcat, etc.).
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
@@ -232,3 +236,4 @@ None.
 *Updated: 2026-06-24 by plan-04-03 executor — `box ascii` shipped (ASCI-01): hand-rolled `image` 0.25.10 pipeline (the single sanctioned image-decoding exception, D-01; artem rejected) — `image::open(path)` [extension-based, Pitfall 2] → `resize_exact(cols, rows, Triangle)` → `to_luma8()` → `as_raw()` row-major luma → pure `luma_to_char(byte, b" .:-=+*#%@")` dark→light ramp loop → `println!` per row; cols = `core::output::terminal_width()` (80 piped, INTENTIONALLY diverging from cowsay's fixed width — a visual render fills the terminal, D-02), rows = `(cols*src_h/src_w/2).max(1)` (the `/2` aspect-corrects the ~2:1 cell, `.max(1)` no zero-height); monochrome v1 — NO color path (D-03), the ramp emit is the VIS-V2-01 seam; 0-dimension image guarded with `bail!` (no divide-by-zero); decode error → `.with_context(...)?` → exit-1 no-panic (FOUND-05 / T-04A-02); `image` added `default-features=false, features=["png","jpeg"]` (RESEARCH A2 trim, verified to resolve the full path); 5 unit tests (luma_to_char extremes/monotonic+bounds, compute_rows square/aspect/clamp) + 4/4 ASCI-01 integration (PNG render, JPEG render, valid-UTF-8 no-ANSI, missing-file exit-1 no-panic) against tiny 8x8 grayscale-gradient PNG/JPEG fixtures (140 B / 340 B, committed binary); one Rule-3 blocking auto-fix (cargo fmt reflow of two long assert! lines for the fmt --check gate); full suite 111 unit + all integration + clippy -D warnings + fmt --check clean (no regression in the 106 prior); ascii stub gone — 1 Phase-4 stub remains (matrix)*
 *Updated: 2026-06-24 by plan-04-04 executor (continuation, human-verify close-out) — `box matrix` shipped (MTRX-01) → PHASE 4 FEATURE-COMPLETE (4/4 plans): full-terminal halfwidth-katakana (U+FF66–FF9D, all single-cell, D-07) green digital-rain on crossterm 0.29 — per-column drop state (negative-staggered head, random trail 6–20, per-column speed, reset to a fresh negative start after clearing bottom+trail), the WHOLE frame buffered with queue! then `stdout.flush()` EXACTLY ONCE per frame (D-08, the STATE.md per-character-flush ~5-FPS pitfall HONORED), head cell bright + trail green→dark by distance + cell past tail erased; `event::poll(Duration::from_millis(50))` IS the ~20-FPS frame timer AND the keypress read (D-09, single-threaded no background thread); RAII `RawGuard` (Drop = Show + LeaveAlternateScreen + disable_raw_mode, errors ignored) armed immediately after enter restores terminal state on every exit path (D-10, T-04M-01) — first command to OWN raw-mode state, NO ctrlc/signal crate; exit on Ctrl+C (Char('c')+CONTROL, a KeyEvent in raw mode NOT SIGINT) / q / Esc with a `KeyEventKind::Press`-only filter (Windows double-fire pitfall closed, T-04M-02); loop kept panic-free so the Drop guard is the real restore path under panic=abort; CJK-font note (tofu on bare Cascadia Mono = documented cosmetic limitation, NOT a bug, RESEARCH Pitfall 7) surfaced in `--help` (Rule-2 fix, commit 7f40936); NO Cargo.toml change (crossterm/owo-colors/rand/unicode-width all already present); 8 unit tests (drop/fade model head-advance/bright→dark/reset, katakana table range+width-1, quit-key Press-only + plain-c-not-quit + Release/Repeat-not-quit) + 1 integration smoke (enter/exit non-hanging, no panic) green; full suite per prior agent 119 unit + 20 integration green, matrix slice re-verified intact this session; human-verify gate APPROVED in PS7 (rain fills width, animates smoothly ~20 FPS, bright head + fading green trail with changing glyphs, Ctrl+C/q/Esc each restore cleanly with no artifacts — NOT a self-approval); ALL FOUR Phase-4 not_implemented stubs gone — Phase 4 ready for verification (4 stubs remain, all Phase-5: qr/clip/pomodoro/weather)*
 *Updated: 2026-06-24 by execute-phase orchestrator — Phase 4 VERIFIED (4/4 must-haves) + COMPLETE; sequential wave execution (json→lolcat→ascii→matrix, one plan per wave — shared cli.rs/main.rs/commands/mod.rs registry serialized them), matrix human-verify APPROVED in PS7; post-execution code review found 1 BLOCKER + 6 warnings + 4 INFO → fixed CR-01 (matrix RawGuard armed immediately after enable_raw_mode()? and BEFORE the fallible EnterAlternateScreen execute! — closes a raw-mode-stuck terminal on setup failure), WR-02 (ascii cols*src_h u32 overflow → u64 + u16::MAX clamp, large-image regression test), WR-03 (matrix erase_band clears the full speed-row vacated band, not one cell — stale-glyph smear at speed≥2), WR-04 (lolcat single BufWriter flush, byte-identical preserved), WR-05 (json colorize_stripped_equals_pretty byte-equality test, D-05 verified), WR-06 (lolcat lone-CR already removed by strip_str, locked by test); WR-01 KEPT (json invalid→exit-1 is the JSON-01/D-06 contract, documented carve-out, not a bug); 4 INFO deferred; 125 box-bin unit + all integration green, clippy -D warnings + fmt --check clean; ROADMAP/STATE/REQUIREMENTS updated — next = Phase 5 (windows-platform-integration: QR-01/CLIP-01/POMO-01/WTHR-01)*
+*Updated: 2026-06-24 by execute-phase orchestrator — Phase 5 COMPLETE & VERIFIED (16/16 must-haves) → v1 MILESTONE COMPLETE. Sequential wave execution on the shared cli.rs/main.rs/commands/mod.rs/Cargo.toml registry (qr→clip→pomodoro→weather, files_modified overlap forced serialize as in Phases 3/4): 05-01 qr ✓ QR-01 (qrcode 0.14.1 Dense1x2 half-blocks, EcLevel::M + quiet_zone, no ANSI, no color D-03), 05-02 clip ✓ CLIP-01 (arboard 3.6.1 raw-stdin copy NOT core::input D-04 + single-trailing-newline trim D-05 + UTF-8 validate before clipboard + `--paste` byte-exact, main-thread D-06), 05-03 pomodoro ✓ POMO-01 (matrix-family RawGuard + event::poll(min(1s,remaining))-as-timer countdown D-08, tauri-winrt-notification 0.7.2 completion-ONLY toast — cancel exits 1 before show() T-05-POMO-CANCEL, resolves the winrt spike + blocking-timer todos), 05-04 weather ✓ WTHR-01 (Open-Meteo keyless geocode+forecast via ureq 3.3, non-2xx=Err(StatusCode) match-arm NOT post-success status check Pitfall WTHR-1, server-side current_units label D-11, WMO match, BOX_WEATHER_BASE_URL test seam — no live net in tests, resolves the units todo). 05-04 retired the LAST not_implemented stub + deleted stub.rs + BoxError::NotImplemented → ALL 23 COMMANDS REAL. Human-UAT 3/3 cleared in PS7 (qr phone-scan, clip Unicode round-trip, pomodoro live countdown+real toast+clean Ctrl+C/q/Esc cancel). Code review 0 critical/2 warning/4 info → both warnings fixed: WR-01 (out-of-range pomodoro minutes panic-abort via Instant overflow → clap RangedU64ValueParser 1..=527040 → exit 2, no panic; the project's du/tree --depth pattern) + WR-02 (clip --paste empty-clipboard → distinct message, exit code unchanged), covering tests added; 150 box-bin unit + all integration green, clippy --all-targets -D warnings + fmt --check clean. Release x86_64-pc-windows-msvc +crt-static box.exe builds (5.1 MB, all 4 new Windows-API deps link). ROADMAP/STATE updated; STATE.md hand-reconciled after phase.complete (SDK left completed_phases=4/percent=80/Current-Position=EXECUTING stale — corrected to 5/100/COMPLETE). Next: /gsd:complete-milestone (archive v1) or ./install.ps1 (ship box.exe to PATH)*
