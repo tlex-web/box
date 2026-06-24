@@ -133,8 +133,24 @@ Plans:
   3. User runs `box ascii ./photo.jpg` and sees an ASCII art rendering fitted to the current terminal width; PNG and JPEG inputs both work
   4. User pipes invalid JSON to `box json` and gets exit code 1 with a line/column error on stderr; valid JSON pretty-prints with syntax coloring; `--compact` minifies
 
-**Plans**: TBD
+**Plans**: 4 plans
 **UI hint**: yes
+Plans:
+**Wave 1**
+
+- [ ] 04-01-PLAN.md — `json`: serde_json (preserve_order) parse/validate (1-based line+col→exit 1) + 2-space pretty + hand-rolled is_color_on()-gated colorizer over Value + `--compact` minify (D-04/05/06) (JSON-01)
+
+**Wave 2** *(blocked on Wave 1 — shares cli.rs/main.rs/mod.rs registry)*
+
+- [ ] 04-02-PLAN.md — `lolcat`: classic sine-wave RGB gradient (per-char, width-aware, per-line diagonal) + unconditional strip-ansi-escapes + is_color_on()-gated truecolor (byte-identical minus ANSI when piped); actions the standing strip-ansi todo (D-11/12/13/14) (LOL-01)
+
+**Wave 3** *(blocked on Wave 2 — shares cli.rs/main.rs/mod.rs registry)*
+
+- [ ] 04-03-PLAN.md — `ascii`: hand-rolled on image 0.25.10 (artem rejected) — image::open → resize_exact(Triangle) → to_luma8 → dark→light ramp; cols=terminal_width(), rows aspect-corrected /2; monochrome v1; tiny checked-in PNG/JPEG fixtures (D-01/02/03) (ASCI-01)
+
+**Wave 4** *(blocked on Wave 3 — shares cli.rs/main.rs/mod.rs registry; has human-verify checkpoint)*
+
+- [ ] 04-04-PLAN.md — `matrix`: full-terminal halfwidth-katakana (U+FF66–FF9D) green rain on crossterm 0.29; single-flush-per-frame @~20 FPS (poll=timer); RAII Drop guard restore; exit Ctrl+C/q/Esc with KeyEventKind::Press filter; pure drop/fade+glyph+quit units + smoke test + human-verify animation (D-07/08/09/10) (MTRX-01)
 
 ### Phase 5: Windows Platform Integration
 
@@ -158,7 +174,7 @@ Plans:
 | 1. Foundation + Flatten | 4/4 | Complete    | 2026-06-22 |
 | 2. Pure Transform Utilities | 5/5 | Complete   | 2026-06-22 |
 | 3. Filesystem Power Tools | 5/5 | Complete    | 2026-06-22 |
-| 4. Terminal Visuals | 0/? | Not started | - |
+| 4. Terminal Visuals | 0/4 | Planned | - |
 | 5. Windows Platform Integration | 0/? | Not started | - |
 
 ## Coverage
@@ -183,4 +199,5 @@ Plans:
 *Last updated: 2026-06-22 — Phase 3 Plan 03-01 (hash) COMPLETE: live `box hash` (SHA-256 default, --algo blake3/sha512/md5, --verify 0/1/2 exit contract); streaming enum-dispatch Hasher + core::input --file layer shipped; HASH-01 satisfied; 7/7 HASH-01 tests + full suite green*
 *Last updated: 2026-06-22 — Phase 3 Plan 03-02 (tree) COMPLETE: live `box tree` (dir-first Unicode box-drawing render, is_color_on-gated blue dir names, --sizes/--depth, `N directories, M files` summary); flatten's `human_size` promoted into `core::output` (shared, D-12) with flatten left unbroken; TREE-01 satisfied; 3/3 TREE-01 tests + tree.trycmd + full suite (77 unit + all integration) green*
 *Last updated: 2026-06-22 — Phase 3 Plan 03-04 (dupes) COMPLETE: live `box dupes` (size pre-filter HashMap<u64,Vec<PathBuf>> → rayon par_iter BLAKE3 content hash reusing the 03-01 update_reader path, D-13 → sort (hash,path) before grouping for determinism, RESEARCH Pitfall 6 → groups ≥2 + wasted-space summary via human_size); strictly read-only, NO write/rename/delete path (T-03-13), reuses is_hidden + follow_links(false), no noise list / no ignore crate (D-06/D-07); DUPE-01 satisfied; 4/4 DUPE-01 tests + 6 unit tests + full suite (87 unit + all integration) + clippy -D warnings + fmt --check green; dupes stub gone (1 phase-3 stub remains: bulk-rename)*
+*Last updated: 2026-06-24 — Phase 4 PLANNED: 4 plans across 4 waves (json → lolcat → ascii → matrix), one vertical MVP slice per command; the four commands are independent but share the cli.rs/main.rs/commands/mod.rs registry so they sequence by wave (zero same-wave file overlap); all 15 CONTEXT decisions D-00..D-14 covered; matrix carries the only human-verify checkpoint*
 *Last updated: 2026-06-22 — Phase 3 Plan 03-05 (bulk-rename) COMPLETE → PHASE 3 FEATURE-COMPLETE (5/5 plans): live `box bulk-rename` (regex first-match `replace` over the FULL base name, D-16/D-17 → in-memory ABORT-ALL-BEFORE-ANY-RENAME pre-flight detecting collisions/cycles/path-separator injection, the ONLY backstop vs std::fs::rename's silent overwrite, D-18 → dry-run preview is the DEFAULT, --force executes, D-19); the pre-flight is a PURE I/O-free preflight()->Vec<Conflict> unit-tested for every rule; reuses flatten's format_row/arrow_col + case-folded occupied set + encode_no_separator invariant VERBATIM; every abort path snapshot-asserts the directory byte-for-byte unchanged; RENM-01 satisfied; 7/7 RENM-01 tests + 9 unit tests + full suite (96 unit + all integration) + clippy -D warnings + fmt --check green; ALL 5 Phase-3 not_implemented arms gone — phase ready for verification (8 stubs remain: Phase-4 lolcat/matrix/ascii/json + Phase-5 qr/clip/pomodoro/weather)*
