@@ -2,22 +2,22 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 3
+current_plan: 4
 status: executing
-stopped_at: Phase 4 Plan 04-02 (lolcat) complete
-last_updated: "2026-06-24T12:40:03.000Z"
+stopped_at: Phase 4 Plan 04-03 (ascii) complete
+last_updated: "2026-06-24T12:50:39.191Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 18
-  completed_plans: 16
-  percent: 67
+  completed_plans: 17
+  percent: 94
 ---
 
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-24
-**Updated by:** plan-04-02 executor (lolcat shipped — LOL-01)
+**Updated by:** plan-04-03 executor (ascii shipped — ASCI-01)
 
 ---
 
@@ -34,20 +34,20 @@ progress:
 ## Current Position
 
 Phase: 04 (terminal-visuals) — EXECUTING
-Plan: 3 of 4 (04-01 json ✓, 04-02 lolcat ✓ complete)
+Plan: 4 of 4 (04-01 json ✓, 04-02 lolcat ✓, 04-03 ascii ✓ complete)
 **Phase:** 4 (terminal-visuals)
-**Current Plan:** 3
+**Current Plan:** 4
 **Total Plans in Phase:** 4
-**Status:** Executing Phase 04
+**Status:** Executing Phase 04 — 04-04 matrix is the last remaining plan
 
 **Progress:**
 
 ```
-[███████░░░] 67% (3 / 5 phases complete; Phase 4: 2 / 4 plans)
+[███████░░░] 67% (3 / 5 phases complete; Phase 4: 3 / 4 plans)
 Phase 1 [██████████] 4 / 4 plans ✓ complete
 Phase 2 [██████████] 5 / 5 plans ✓ complete (verified, human-UAT cleared)
 Phase 3 [██████████] 5 / 5 plans ✓ complete (verified 24/24, human-UAT cleared) — 03-01 hash ✓ (HASH-01), 03-02 tree ✓ (TREE-01), 03-03 du ✓ (DU-01), 03-04 dupes ✓ (DUPE-01), 03-05 bulk-rename ✓ (RENM-01)
-Phase 4 [█████░░░░░] 2 / 4 plans — 04-01 json ✓ (JSON-01), 04-02 lolcat ✓ (LOL-01); next: 04-03 ascii, 04-04 matrix
+Phase 4 [████████░░] 3 / 4 plans — 04-01 json ✓ (JSON-01), 04-02 lolcat ✓ (LOL-01), 04-03 ascii ✓ (ASCI-01); next: 04-04 matrix
 Phase 5 [          ] Not started
 
 Overall: 3 / 5 phases complete
@@ -62,17 +62,17 @@ Overall: 3 / 5 phases complete
 | 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | ✓ Complete (4/4 plans) |
 | 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | ✓ Complete (5/5 plans, verified, human-UAT cleared) |
 | 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | ✓ Complete (5/5 plans, verified 24/24, human-UAT cleared) — 03-01 hash ✓ HASH-01, 03-02 tree ✓ TREE-01, 03-03 du ✓ DU-01, 03-04 dupes ✓ DUPE-01, 03-05 bulk-rename ✓ RENM-01 |
-| 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Executing (2/4 plans) — 04-01 json ✓ JSON-01, 04-02 lolcat ✓ LOL-01 |
+| 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Executing (3/4 plans) — 04-01 json ✓ JSON-01, 04-02 lolcat ✓ LOL-01, 04-03 ascii ✓ ASCI-01 |
 | 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | Not started |
 
 ---
 
 ## Performance Metrics
 
-**Plans executed:** 16
-**Plans succeeded:** 16
+**Plans executed:** 17
+**Plans succeeded:** 17
 **Plans failed:** 0
-**Phases completed:** 3 / 5 (Phase 3 complete — 5/5 plans, verified 24/24, human-UAT cleared; Phase 4 in progress — 2/4 plans)
+**Phases completed:** 3 / 5 (Phase 3 complete — 5/5 plans, verified 24/24, human-UAT cleared; Phase 4 in progress — 3/4 plans)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -92,6 +92,7 @@ Overall: 3 / 5 phases complete
 | 03 | P05 | 6min | 2 (TDD-style) | 5 |
 | 04 | P01 | 5min | 2 (TDD RED→GREEN) | 8 |
 | 04 | P02 | 3min | 2 (TDD RED→GREEN) | 7 |
+| 04 | P03 | 4min | 2 (TDD RED→GREEN) | 9 |
 
 ---
 
@@ -160,6 +161,9 @@ Overall: 3 / 5 phases complete
 | [04-02] lolcat gradient is the locked sine-wave RGB `rgb_at(phase)` = `sin(0.1·phase + {0, 2π/3, 4π/3})·127 + 128` (D-11); per-line phase seed `line_idx·SPREAD` (SPREAD=3.0) gives the diagonal | The `·127 + 128` maps the sine's `[-1,1]` into `[1,255]`, so the `as u8` cast can NEVER wrap — no clamp/saturating cast needed (the in-range unit test documents this invariant). freq 0.1 + the starting phase are FIXED; SPREAD is discretion within D-11. No `--freq`/`--seed`/`--animate` flags — those are VIS-V2-01. The pure crate-free `rgb_at` lives behind an in-module `#[cfg(test)]` seam (run via `cargo test --bin box lolcat`, NOT `--lib`) |
 | [04-02] lolcat colors per Unicode scalar (D-12) with a width-aware phase advance; whitespace is emitted uncolored but still advances the phase; newlines emitted raw via `println!()` | The phase advances by `UnicodeWidthChar::width(c).unwrap_or(0)` (wide/CJK=2, combining=0 → inherit base color), so multi-byte UTF-8 is NEVER byte-split (proven by the `héllo→世界` integration test — no U+FFFD). A colored space is invisible, so spaces print plain yet still advance the phase to keep the gradient continuous. `println!()` (not `print!("\n")`) emits the identical single `\n` byte and satisfies clippy's `print_with_newline` lint (the one Rule-3 blocking auto-fix in this plan) |
 | [04-02] lolcat strips ALL incoming ANSI UNCONDITIONALLY via `strip_ansi_escapes::strip_str` before recolor, on BOTH the color and no-color paths (D-13) — ACTIONS the standing strip-ansi todo | This is the T-04L-01 terminal-escape-injection mitigation: re-emitting piped input that carries ANSI/control escapes (e.g. `ls --color \| box lolcat`) is neutralized because the escapes are removed first. `.truecolor` is gated SOLELY on `is_color_on()` (the [04-01] template), so piped-to-file output is clean plain UTF-8 byte-identical to the cleaned input minus color (D-14, proven by the `a\nb\n` round-trip). `unicode-width 0.2.2` + `strip-ansi-escapes 0.2.1` (+ transitive `vte 0.14.1`) added — both threat-register-verified legitimate (unicode-rs / luser canonical), no checkpoint |
+| [04-03] ascii engine is hand-rolled on `image` 0.25.10 (the single sanctioned image-decoding hand-roll exception, D-01) — artem REJECTED | The pipeline is `image::open(path)` → `resize_exact(cols, rows, FilterType::Triangle)` → `to_luma8()` → `as_raw()` row-major luma bytes → pure `luma_to_char(byte, ramp)` ramp loop → `println!` per row. `image` added with `default-features = false, features = ["png", "jpeg"]` (RESEARCH A2 trim) — verified to resolve the full open/resize/luma path. artem rejected because its unconditional deps drag clap/colored/terminal_size/log/env_logger/once_cell/ureq and bypass `terminal_width()`. `image::open` detects format by EXTENSION not content (Pitfall 2), so fixtures' extensions must match their format |
+| [04-03] ascii cols = `core::output::terminal_width()` (80 when piped), INTENTIONALLY diverging from cowsay's fixed width; rows = `(cols*src_h/src_w/2).max(1)` (D-02) | cowsay locks a fixed 40 cols for reproducible pipe-vs-TTY output; ascii is a visual render that should FILL the terminal, so it uses `terminal_width()` (D-02) — the divergence is documented in the module doc. The `/2` corrects the ~2:1 terminal-cell aspect (a square image renders square, not tall); `.max(1)` prevents a zero-height render for an extreme aspect ratio. A 0-dimension image is guarded with `bail!` before the rows divide (no divide-by-zero panic). Because the render depends on `terminal_width()`, it is NOT snapshotable — integration tests pin the CLI contract (PNG/JPEG exit-0 non-empty valid-UTF-8, missing-file exit-1 no-panic); `luma_to_char` monotonicity/bounds + `compute_rows` aspect/clamp are `#[cfg(test)]` units (run via `cargo test --bin box`, NOT `--lib`) |
+| [04-03] ascii is monochrome v1 (D-03) — NO color path | The module imports neither `owo_colors` nor `is_color_on`; the dark→light ramp `b" .:-=+*#%@"` emit is the clean seam where VIS-V2-01 colored ASCII attaches. The decode error is mapped via `.with_context(...)?` → clean exit-1, never a panic (FOUND-05 / T-04A-02). Tiny 8x8 grayscale gradient fixtures (140 B PNG / 340 B JPEG) generated once via a throwaway image-crate program and committed as binary |
 
 ### Critical Pitfalls to Remember
 
@@ -187,6 +191,7 @@ Overall: 3 / 5 phases complete
 - [ ] Decide `pomodoro` blocking vs non-blocking timer before Phase 5 planning
 - [ ] Decide `weather` default unit system (metric / imperial / locale-detect) before Phase 5 planning
 - [x] Add `strip-ansi-escapes` crate to Cargo.toml for `lolcat` during Phase 4 planning — DONE in 04-02: `strip-ansi-escapes 0.2.1` + `unicode-width 0.2.2` added; `strip_str` used unconditionally before recolor (D-13)
+- [x] Add `image` 0.25.10 to Cargo.toml for `ascii` during Phase 4 — DONE in 04-03: `image = { version = "0.25.10", default-features = false, features = ["png","jpeg"] }` (the trimmed decoder set, RESEARCH A2); artem rejected (D-01)
 - [ ] Code-review advisory follow-ups (01-REVIEW.md, non-blocking): WR-03/WR-04 `install.ps1` PATH empty-segment + smoke-test-by-abspath; IN-02/IN-03 share one flatten render path between dry-run and real run
 
 ### Blockers
@@ -199,11 +204,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-24T12:40:03.000Z
-**Stopped At:** Phase 4 Plan 04-02 (lolcat) complete
-**Resume File:** .planning/phases/04-terminal-visuals/04-03-PLAN.md
+**Last session:** 2026-06-24T12:49:34.000Z
+**Stopped At:** Phase 4 Plan 04-03 (ascii) complete
+**Resume File:** .planning/phases/04-terminal-visuals/04-04-PLAN.md
 
-**Next action:** `box lolcat` shipped (LOL-01) — Phase 4 plan 2/4 complete. Next: execute 04-03 (ascii). Phase-4 remaining deps still to add when their plan runs: `image` 0.25.10 (ascii); crossterm/owo-colors already present (matrix). serde_json 1.0.150 + preserve_order (04-01) and unicode-width 0.2.2 + strip-ansi-escapes 0.2.1 (04-02) are now IN — the standing strip-ansi todo is actioned. `box` remains binary-only — unit tests via `cargo test --bin box`, NOT `--lib`. The `is_color_on()`-gated pure-colorizer template (04-01) plus the per-Unicode-scalar width-aware gated-emit pattern (04-02) are the reusable color paths for matrix.
+**Next action:** `box ascii` shipped (ASCI-01) — Phase 4 plan 3/4 complete. Next: execute 04-04 (matrix, MTRX-01) — the LAST Phase-4 plan, then Phase 4 is ready for verification. All Phase-4 deps are now IN: serde_json 1.0.150 + preserve_order (04-01), unicode-width 0.2.2 + strip-ansi-escapes 0.2.1 (04-02), and image 0.25.10 png+jpeg trim (04-03). matrix needs NO new crate (crossterm/owo-colors/enable-ansi-support already present). `box` remains binary-only — unit tests via `cargo test --bin box`, NOT `--lib`. Reusable for matrix: the `is_color_on()`-gated pure-colorizer template (04-01) + the per-Unicode-scalar width-aware gated-emit pattern (04-02); CRITICAL pitfall for matrix — buffer the full frame and flush once per frame (NOT per character — causes ~5 FPS).
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
@@ -220,3 +225,4 @@ None.
 *Updated: 2026-06-23 by execute-phase orchestrator — Phase 3 VERIFIED (24/24 must-haves) + COMPLETE; post-execution code review fixed CR-01 BLOCKER (bulk-rename `..`/`.` path-escape) + WR-01..05 with covering tests (98 tests green, clippy -D warnings + fmt clean, 4 INFO deferred); human-UAT cleared (tree/du/dupes color confirmed in PS7); ROADMAP/STATE/REQUIREMENTS updated — next = Phase 4 (terminal-visuals: LOL-01/MTRX-01/ASCI-01/JSON-01)*
 *Updated: 2026-06-24 by plan-04-01 executor — `box json` shipped (JSON-01): serde_json::from_str::<Value> with preserve_order (key order kept, arbitrary_precision OFF) → invalid `bail!`s with 1-based line/column (exit 1) → `--compact` minify / plain 2-space pretty / colored TTY via a pure hand-rolled colorize(&Value) walker gated SOLELY on is_color_on() so piped output is byte-identical minus ANSI (D-04/05/06); 6-variant walker + 4 unit tests + 5/5 JSON-01 integration + json.trycmd; full suite 102 unit + all integration + clippy -D warnings + fmt --check clean (no regression in the 98 prior tests); serde_json 1.0.150 transitively pulls dtolnay's verified-legitimate `zmij` (ryu-successor float crate, NOT a slopsquat) + serde_core + indexmap; json stub gone — 3 Phase-4 stubs remain (lolcat/matrix/ascii)*
 *Updated: 2026-06-24 by plan-04-02 executor — `box lolcat` shipped (LOL-01): read_input → `strip_ansi_escapes::strip_str` UNCONDITIONALLY (D-13 / T-04L-01 terminal-escape-injection mitigation, actions the standing strip-ansi todo) → per-Unicode-scalar emit over split_inclusive('\n'), per-line phase seed `line_idx·SPREAD` (SPREAD=3.0) → diagonal, phase advances by `UnicodeWidthChar::width(c)` (wide/CJK=2, combining=0; D-12 never byte-split) → pure `rgb_at(phase)` classic sine-wave RGB (freq 0.1, 120°/240° offsets, floor 128; `·127+128` maps `[-1,1]`→`[1,255]` so `as u8` never wraps) gated SOLELY on is_color_on() (D-14, piped = clean plain UTF-8 byte-identical minus color); whitespace uncolored but phase-advancing, newlines raw via println!(); NO --freq/--seed/--animate (VIS-V2-01); 4 unit tests (rgb_at range/phase-0/120°-spacing + strip_str) + 3/3 LOL-01 integration (piped-plain round-trip, héllo→世界 UTF-8 intact, incoming-ANSI stripped); unicode-width 0.2.2 + strip-ansi-escapes 0.2.1 (+ vte 0.14.1) added — threat-register-verified legitimate; one Rule-3 blocking auto-fix (`print!("\n")`→`println!()` for clippy print_with_newline); full suite 106 unit + all integration + clippy -D warnings + fmt --check clean (no regression); lolcat stub gone — 2 Phase-4 stubs remain (matrix/ascii)*
+*Updated: 2026-06-24 by plan-04-03 executor — `box ascii` shipped (ASCI-01): hand-rolled `image` 0.25.10 pipeline (the single sanctioned image-decoding exception, D-01; artem rejected) — `image::open(path)` [extension-based, Pitfall 2] → `resize_exact(cols, rows, Triangle)` → `to_luma8()` → `as_raw()` row-major luma → pure `luma_to_char(byte, b" .:-=+*#%@")` dark→light ramp loop → `println!` per row; cols = `core::output::terminal_width()` (80 piped, INTENTIONALLY diverging from cowsay's fixed width — a visual render fills the terminal, D-02), rows = `(cols*src_h/src_w/2).max(1)` (the `/2` aspect-corrects the ~2:1 cell, `.max(1)` no zero-height); monochrome v1 — NO color path (D-03), the ramp emit is the VIS-V2-01 seam; 0-dimension image guarded with `bail!` (no divide-by-zero); decode error → `.with_context(...)?` → exit-1 no-panic (FOUND-05 / T-04A-02); `image` added `default-features=false, features=["png","jpeg"]` (RESEARCH A2 trim, verified to resolve the full path); 5 unit tests (luma_to_char extremes/monotonic+bounds, compute_rows square/aspect/clamp) + 4/4 ASCI-01 integration (PNG render, JPEG render, valid-UTF-8 no-ANSI, missing-file exit-1 no-panic) against tiny 8x8 grayscale-gradient PNG/JPEG fixtures (140 B / 340 B, committed binary); one Rule-3 blocking auto-fix (cargo fmt reflow of two long assert! lines for the fmt --check gate); full suite 111 unit + all integration + clippy -D warnings + fmt --check clean (no regression in the 106 prior); ascii stub gone — 1 Phase-4 stub remains (matrix)*
