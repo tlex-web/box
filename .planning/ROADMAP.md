@@ -142,7 +142,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 — shares cli.rs/main.rs/mod.rs registry)*
 
-- [ ] 04-02-PLAN.md — `lolcat`: classic sine-wave RGB gradient (per-char, width-aware, per-line diagonal) + unconditional strip-ansi-escapes + is_color_on()-gated truecolor (byte-identical minus ANSI when piped); actions the standing strip-ansi todo (D-11/12/13/14) (LOL-01)
+- [x] 04-02-PLAN.md — `lolcat`: classic sine-wave RGB gradient (per-char, width-aware, per-line diagonal) + unconditional strip-ansi-escapes + is_color_on()-gated truecolor (byte-identical minus ANSI when piped); actions the standing strip-ansi todo (D-11/12/13/14) (LOL-01) ✓ (2 tasks, TDD RED→GREEN; pure rgb_at — freq 0.1, 120°/240° offsets, floor 128, ·127+128 maps [-1,1]→[1,255] so as-u8 never wraps; per-Unicode-scalar emit, phase advances by UnicodeWidthChar::width, whitespace uncolored but phase-advancing, newlines raw; strip_str unconditional before recolor, D-13/T-04L-01; 4 unit + 3/3 LOL-01 integration green; unicode-width 0.2.2 + strip-ansi-escapes 0.2.1 added — strip-ansi todo actioned; one Rule-3 fix print!("\n")→println!() for clippy; full suite 106 unit + all integration + clippy -D + fmt clean; lolcat stub gone — 2 phase-4 stubs remain: matrix/ascii)
 
 **Wave 3** *(blocked on Wave 2 — shares cli.rs/main.rs/mod.rs registry)*
 
@@ -174,7 +174,7 @@ Plans:
 | 1. Foundation + Flatten | 4/4 | Complete    | 2026-06-22 |
 | 2. Pure Transform Utilities | 5/5 | Complete   | 2026-06-22 |
 | 3. Filesystem Power Tools | 5/5 | Complete    | 2026-06-22 |
-| 4. Terminal Visuals | 1/4 | In Progress | - |
+| 4. Terminal Visuals | 2/4 | In Progress|  |
 | 5. Windows Platform Integration | 0/? | Not started | - |
 
 ## Coverage

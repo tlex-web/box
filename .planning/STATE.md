@@ -2,22 +2,22 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 2
+current_plan: 3
 status: executing
-stopped_at: Phase 4 Plan 04-01 (json) complete
-last_updated: "2026-06-24T12:31:01.000Z"
+stopped_at: Phase 4 Plan 04-02 (lolcat) complete
+last_updated: "2026-06-24T12:40:03.000Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 18
-  completed_plans: 15
-  percent: 63
+  completed_plans: 16
+  percent: 67
 ---
 
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-24
-**Updated by:** plan-04-01 executor (json shipped — JSON-01)
+**Updated by:** plan-04-02 executor (lolcat shipped — LOL-01)
 
 ---
 
@@ -34,20 +34,20 @@ progress:
 ## Current Position
 
 Phase: 04 (terminal-visuals) — EXECUTING
-Plan: 2 of 4 (04-01 json ✓ complete)
+Plan: 3 of 4 (04-01 json ✓, 04-02 lolcat ✓ complete)
 **Phase:** 4 (terminal-visuals)
-**Current Plan:** 2
+**Current Plan:** 3
 **Total Plans in Phase:** 4
 **Status:** Executing Phase 04
 
 **Progress:**
 
 ```
-[██████░░░░] 63% (3 / 5 phases complete; Phase 4: 1 / 4 plans)
+[███████░░░] 67% (3 / 5 phases complete; Phase 4: 2 / 4 plans)
 Phase 1 [██████████] 4 / 4 plans ✓ complete
 Phase 2 [██████████] 5 / 5 plans ✓ complete (verified, human-UAT cleared)
 Phase 3 [██████████] 5 / 5 plans ✓ complete (verified 24/24, human-UAT cleared) — 03-01 hash ✓ (HASH-01), 03-02 tree ✓ (TREE-01), 03-03 du ✓ (DU-01), 03-04 dupes ✓ (DUPE-01), 03-05 bulk-rename ✓ (RENM-01)
-Phase 4 [██░░░░░░░░] 1 / 4 plans — 04-01 json ✓ (JSON-01); next: 04-02 lolcat, 04-03 ascii, 04-04 matrix
+Phase 4 [█████░░░░░] 2 / 4 plans — 04-01 json ✓ (JSON-01), 04-02 lolcat ✓ (LOL-01); next: 04-03 ascii, 04-04 matrix
 Phase 5 [          ] Not started
 
 Overall: 3 / 5 phases complete
@@ -62,17 +62,17 @@ Overall: 3 / 5 phases complete
 | 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | ✓ Complete (4/4 plans) |
 | 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | ✓ Complete (5/5 plans, verified, human-UAT cleared) |
 | 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | ✓ Complete (5/5 plans, verified 24/24, human-UAT cleared) — 03-01 hash ✓ HASH-01, 03-02 tree ✓ TREE-01, 03-03 du ✓ DU-01, 03-04 dupes ✓ DUPE-01, 03-05 bulk-rename ✓ RENM-01 |
-| 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Executing (1/4 plans) — 04-01 json ✓ JSON-01 |
+| 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Executing (2/4 plans) — 04-01 json ✓ JSON-01, 04-02 lolcat ✓ LOL-01 |
 | 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | Not started |
 
 ---
 
 ## Performance Metrics
 
-**Plans executed:** 15
-**Plans succeeded:** 15
+**Plans executed:** 16
+**Plans succeeded:** 16
 **Plans failed:** 0
-**Phases completed:** 3 / 5 (Phase 3 complete — 5/5 plans, verified 24/24, human-UAT cleared; Phase 4 in progress — 1/4 plans)
+**Phases completed:** 3 / 5 (Phase 3 complete — 5/5 plans, verified 24/24, human-UAT cleared; Phase 4 in progress — 2/4 plans)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -91,6 +91,7 @@ Overall: 3 / 5 phases complete
 | 03 | P04 | 4min | 2 (TDD-style) | 5 |
 | 03 | P05 | 6min | 2 (TDD-style) | 5 |
 | 04 | P01 | 5min | 2 (TDD RED→GREEN) | 8 |
+| 04 | P02 | 3min | 2 (TDD RED→GREEN) | 7 |
 
 ---
 
@@ -156,6 +157,9 @@ Overall: 3 / 5 phases complete
 | [04-01] json coloring is a pure hand-rolled `colorize(&Value, depth)->String` walker gated SOLELY on `is_color_on()` — NO colored_json crate, NO set_override toggle, NO second color stack | D-05. The walker always emits ANSI and is reached only when the caller already checked `is_color_on()`; `--compact`→`serde_json::to_string` and plain→`serde_json::to_string_pretty` delegate to serde's own serializers, so piped (plain) output is byte-identical to the colored output minus the ANSI escapes (verified by `json_piped_no_ansi` byte-scan + `cat -A` LF-only/no-`^[` end-to-end). Token colors (RESEARCH OQ-3 discretion): key=blue, string=green, number=yellow, bool+null=magenta, punctuation plain. `to_string_pretty` is fixed at 2-space, so no `PrettyFormatter` needed. The `is_color_on()`-gated pure-walker template carries forward to lolcat (04-02) and matrix (04-03) |
 | [04-01] serde_json added with `preserve_order` ON and `arbitrary_precision` OFF | D-04. `preserve_order` makes the parsed `Value` object map an insertion-ordered IndexMap so `{"b":1,"a":2}` keeps `b` before `a` (never alphabetized) — proven by both a unit test and the `preserves_input_key_order` integration test. `arbitrary_precision` is deliberately OFF: it breaks `Value` round-tripping/Display for numbers (the documented D-04 landmine, serde-rs/json #505/#721/#845). serde comes transitively (Value needs no derive → NO direct `serde` dep) |
 | [04-01] serde_json 1.0.150 transitively pulls dtolnay's `zmij` (NOT a slopsquat) | Package-legitimacy check during the json build: `serde_json 1.0.150` resolves `zmij v1.0.21` (replacing the historically-expected `ryu`) plus `serde_core` (serde's recent split) and `indexmap`→`hashbrown` (from preserve_order). Verified against the OFFICIAL crates.io sparse-index manifest (checksum e8014e44…) which lists `zmij` req `^1.0` as a declared normal dep — i.e. serde_json itself adopted it, not a substitution. `zmij`'s on-disk Cargo.toml shows `authors = ["David Tolnay <dtolnay@gmail.com>"]`, repo github.com/dtolnay/zmij, "double-to-string conversion based on Schubfach" — same author as serde_json/ryu/anyhow. Legitimate; no checkpoint required |
+| [04-02] lolcat gradient is the locked sine-wave RGB `rgb_at(phase)` = `sin(0.1·phase + {0, 2π/3, 4π/3})·127 + 128` (D-11); per-line phase seed `line_idx·SPREAD` (SPREAD=3.0) gives the diagonal | The `·127 + 128` maps the sine's `[-1,1]` into `[1,255]`, so the `as u8` cast can NEVER wrap — no clamp/saturating cast needed (the in-range unit test documents this invariant). freq 0.1 + the starting phase are FIXED; SPREAD is discretion within D-11. No `--freq`/`--seed`/`--animate` flags — those are VIS-V2-01. The pure crate-free `rgb_at` lives behind an in-module `#[cfg(test)]` seam (run via `cargo test --bin box lolcat`, NOT `--lib`) |
+| [04-02] lolcat colors per Unicode scalar (D-12) with a width-aware phase advance; whitespace is emitted uncolored but still advances the phase; newlines emitted raw via `println!()` | The phase advances by `UnicodeWidthChar::width(c).unwrap_or(0)` (wide/CJK=2, combining=0 → inherit base color), so multi-byte UTF-8 is NEVER byte-split (proven by the `héllo→世界` integration test — no U+FFFD). A colored space is invisible, so spaces print plain yet still advance the phase to keep the gradient continuous. `println!()` (not `print!("\n")`) emits the identical single `\n` byte and satisfies clippy's `print_with_newline` lint (the one Rule-3 blocking auto-fix in this plan) |
+| [04-02] lolcat strips ALL incoming ANSI UNCONDITIONALLY via `strip_ansi_escapes::strip_str` before recolor, on BOTH the color and no-color paths (D-13) — ACTIONS the standing strip-ansi todo | This is the T-04L-01 terminal-escape-injection mitigation: re-emitting piped input that carries ANSI/control escapes (e.g. `ls --color \| box lolcat`) is neutralized because the escapes are removed first. `.truecolor` is gated SOLELY on `is_color_on()` (the [04-01] template), so piped-to-file output is clean plain UTF-8 byte-identical to the cleaned input minus color (D-14, proven by the `a\nb\n` round-trip). `unicode-width 0.2.2` + `strip-ansi-escapes 0.2.1` (+ transitive `vte 0.14.1`) added — both threat-register-verified legitimate (unicode-rs / luser canonical), no checkpoint |
 
 ### Critical Pitfalls to Remember
 
@@ -182,7 +186,7 @@ Overall: 3 / 5 phases complete
 - [ ] Spike `winrt-notification 0.5` compilation against project MSRV before Phase 5 planning (NOT done in Phase 1; the release MSVC + crt-static build IS verified, but the winrt crate itself was not exercised)
 - [ ] Decide `pomodoro` blocking vs non-blocking timer before Phase 5 planning
 - [ ] Decide `weather` default unit system (metric / imperial / locale-detect) before Phase 5 planning
-- [ ] Add `strip-ansi-escapes` crate to Cargo.toml for `lolcat` during Phase 4 planning
+- [x] Add `strip-ansi-escapes` crate to Cargo.toml for `lolcat` during Phase 4 planning — DONE in 04-02: `strip-ansi-escapes 0.2.1` + `unicode-width 0.2.2` added; `strip_str` used unconditionally before recolor (D-13)
 - [ ] Code-review advisory follow-ups (01-REVIEW.md, non-blocking): WR-03/WR-04 `install.ps1` PATH empty-segment + smoke-test-by-abspath; IN-02/IN-03 share one flatten render path between dry-run and real run
 
 ### Blockers
@@ -195,11 +199,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-24T12:31:01.000Z
-**Stopped At:** Phase 4 Plan 04-01 (json) complete
-**Resume File:** .planning/phases/04-terminal-visuals/04-02-PLAN.md
+**Last session:** 2026-06-24T12:40:03.000Z
+**Stopped At:** Phase 4 Plan 04-02 (lolcat) complete
+**Resume File:** .planning/phases/04-terminal-visuals/04-03-PLAN.md
 
-**Next action:** `box json` shipped (JSON-01) — Phase 4 plan 1/4 complete. Next: execute 04-02 (lolcat). Phase-4 remaining deps still to add when their plan runs: `image` 0.25.10 (ascii), `unicode-width` 0.2 + `strip-ansi-escapes` 0.2 (lolcat — actions the standing strip-ansi todo); crossterm/owo-colors already present (matrix). serde_json 1.0.150 + preserve_order is now IN (added by 04-01). `box` remains binary-only — unit tests via `cargo test --bin box`, NOT `--lib`. The `is_color_on()`-gated pure-colorizer template (04-01) is the reusable color path for lolcat/matrix.
+**Next action:** `box lolcat` shipped (LOL-01) — Phase 4 plan 2/4 complete. Next: execute 04-03 (ascii). Phase-4 remaining deps still to add when their plan runs: `image` 0.25.10 (ascii); crossterm/owo-colors already present (matrix). serde_json 1.0.150 + preserve_order (04-01) and unicode-width 0.2.2 + strip-ansi-escapes 0.2.1 (04-02) are now IN — the standing strip-ansi todo is actioned. `box` remains binary-only — unit tests via `cargo test --bin box`, NOT `--lib`. The `is_color_on()`-gated pure-colorizer template (04-01) plus the per-Unicode-scalar width-aware gated-emit pattern (04-02) are the reusable color paths for matrix.
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
@@ -215,3 +219,4 @@ None.
 *Updated: 2026-06-22 by plan-03-05 executor — `box bulk-rename` shipped (RENM-01) → PHASE 3 FEATURE-COMPLETE (5/5 plans): regex first-match `replace` over the FULL base name (D-16/D-17) → in-memory ABORT-ALL-BEFORE-ANY-RENAME pre-flight, a PURE I/O-free preflight()->Vec<Conflict> implementing all four D-18 rules (per-dir case-folded occupied set seeded from on-disk names NOT renamed away, target-vs-target + target-vs-existing collision, cycle/swap = target equals another item's source, path-separator refusal) — the ONLY backstop vs std::fs::rename's silent Windows overwrite, no create_new for moves → dry-run preview is the DEFAULT (writes nothing), --force executes only after a clean pre-flight (D-19); reuses flatten's format_row/arrow_col + case-folded occupied set + encode_no_separator invariant VERBATIM; case-only rename correct by construction (byte-exact no-ops filtered to (unchanged) before preflight, Pitfall 5); ${1}abc foot-gun + full-base-name match documented in --help; every abort path snapshot-asserts the dir byte-for-byte unchanged; one Rule-1 test-side fix (case-exact read_dir listing not Path::exists — NTFS case-insensitive/preserving); 7/7 RENM-01 tests + 9 unit tests + full suite (96 unit + all integration) + clippy -D warnings + fmt --check all green; ALL 5 Phase-3 not_implemented arms gone — phase ready for verification (8 stubs remain: Phase-4 + Phase-5)*
 *Updated: 2026-06-23 by execute-phase orchestrator — Phase 3 VERIFIED (24/24 must-haves) + COMPLETE; post-execution code review fixed CR-01 BLOCKER (bulk-rename `..`/`.` path-escape) + WR-01..05 with covering tests (98 tests green, clippy -D warnings + fmt clean, 4 INFO deferred); human-UAT cleared (tree/du/dupes color confirmed in PS7); ROADMAP/STATE/REQUIREMENTS updated — next = Phase 4 (terminal-visuals: LOL-01/MTRX-01/ASCI-01/JSON-01)*
 *Updated: 2026-06-24 by plan-04-01 executor — `box json` shipped (JSON-01): serde_json::from_str::<Value> with preserve_order (key order kept, arbitrary_precision OFF) → invalid `bail!`s with 1-based line/column (exit 1) → `--compact` minify / plain 2-space pretty / colored TTY via a pure hand-rolled colorize(&Value) walker gated SOLELY on is_color_on() so piped output is byte-identical minus ANSI (D-04/05/06); 6-variant walker + 4 unit tests + 5/5 JSON-01 integration + json.trycmd; full suite 102 unit + all integration + clippy -D warnings + fmt --check clean (no regression in the 98 prior tests); serde_json 1.0.150 transitively pulls dtolnay's verified-legitimate `zmij` (ryu-successor float crate, NOT a slopsquat) + serde_core + indexmap; json stub gone — 3 Phase-4 stubs remain (lolcat/matrix/ascii)*
+*Updated: 2026-06-24 by plan-04-02 executor — `box lolcat` shipped (LOL-01): read_input → `strip_ansi_escapes::strip_str` UNCONDITIONALLY (D-13 / T-04L-01 terminal-escape-injection mitigation, actions the standing strip-ansi todo) → per-Unicode-scalar emit over split_inclusive('\n'), per-line phase seed `line_idx·SPREAD` (SPREAD=3.0) → diagonal, phase advances by `UnicodeWidthChar::width(c)` (wide/CJK=2, combining=0; D-12 never byte-split) → pure `rgb_at(phase)` classic sine-wave RGB (freq 0.1, 120°/240° offsets, floor 128; `·127+128` maps `[-1,1]`→`[1,255]` so `as u8` never wraps) gated SOLELY on is_color_on() (D-14, piped = clean plain UTF-8 byte-identical minus color); whitespace uncolored but phase-advancing, newlines raw via println!(); NO --freq/--seed/--animate (VIS-V2-01); 4 unit tests (rgb_at range/phase-0/120°-spacing + strip_str) + 3/3 LOL-01 integration (piped-plain round-trip, héllo→世界 UTF-8 intact, incoming-ANSI stripped); unicode-width 0.2.2 + strip-ansi-escapes 0.2.1 (+ vte 0.14.1) added — threat-register-verified legitimate; one Rule-3 blocking auto-fix (`print!("\n")`→`println!()` for clippy print_with_newline); full suite 106 unit + all integration + clippy -D warnings + fmt --check clean (no regression); lolcat stub gone — 2 Phase-4 stubs remain (matrix/ascii)*
