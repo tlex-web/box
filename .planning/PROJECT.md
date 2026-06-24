@@ -39,6 +39,12 @@ The toolbox must be **globally available and instantly usable from PowerShell 7*
 - [x] `dupes` — content-duplicate finder (size pre-filter → parallel BLAKE3, grouped output, wasted-space summary; strictly read-only)
 - [x] `bulk-rename` — regex bulk rename, dry-run preview by default + `--force` to execute, abort-all-before-any pre-flight (collisions / cycles / path-escape)
 
+**Terminal visuals** *(validated in Phase 4 — Terminal Visuals, 2026-06-24)*
+- [x] `json` — pretty-print + validate JSON (2-space pretty, syntax-colored TTY, `preserve_order`; invalid → exit 1 with 1-based line/column; `--compact` minify)
+- [x] `lolcat` — rainbow-colorize piped text (per-Unicode-scalar truecolor sine gradient, width-aware; unconditional ANSI strip; byte-identical-minus-color when piped)
+- [x] `ascii` — render an image (PNG/JPEG) as ASCII art fitted to terminal width (monochrome v1)
+- [x] `matrix` — full-terminal green katakana digital-rain (~20 FPS, RAII terminal restore, exits cleanly on Ctrl+C/q/Esc; human-verified)
+
 ### Active
 
 <!-- Current scope. Building toward these. All are hypotheses until shipped. -->
@@ -48,14 +54,6 @@ The toolbox must be **globally available and instantly usable from PowerShell 7*
 
 **Dev utilities**
 - [ ] `clip` — read from / write to the clipboard
-- [ ] `json` — pretty-print and validate JSON
-
-**Disk & art**
-- [ ] `ascii` — render an image as ASCII art
-
-**Fun**
-- [ ] `lolcat` — rainbow-colorize piped text
-- [ ] `matrix` — Matrix digital-rain screensaver effect
 
 **Whimsy with utility**
 - [ ] `pomodoro` — focus timer with Windows toast notifications
@@ -115,4 +113,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-23 — Phase 3 (Filesystem Power Tools) complete: five commands (hash, tree, du, dupes, bulk-rename) shipped, verified 24/24, human-UAT cleared; a post-review BLOCKER (bulk-rename `..`/`.` path-escape) + 5 warnings fixed with covering tests. 14/23 commands live; next = Phase 4 (terminal visuals).*
+*Last updated: 2026-06-24 — Phase 4 (Terminal Visuals) complete: four commands (json, lolcat, ascii, matrix) shipped, verified 4/4, matrix human-verified in PS7; a post-review BLOCKER (matrix raw-mode restore ordering, CR-01) + 6 warnings fixed with covering tests. 18/23 commands live; next = Phase 5 (Windows platform integration: qr, clip, pomodoro, weather).*
