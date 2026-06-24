@@ -55,11 +55,11 @@ Full phase details, decisions, and outcomes archived in [`milestones/v1.0-ROADMA
   2. `box uuid --clip` copies the generated UUID to the Windows clipboard *and* prints it, emitting a "Copied to clipboard" confirmation to stderr that is suppressed when stdout is not a TTY; `box uuid --json --clip` puts the JSON document on the clipboard.
   3. `box hash file.bin` (no `--algo`) now emits a 64-hex BLAKE3 digest where v1 emitted SHA-256, while `box hash --algo sha256 file.bin` still emits SHA-256.
   4. With `%APPDATA%\box\config.toml` containing `hash.default_algo = "sha256"`, `box hash file.bin` emits SHA-256 again — and a CLI `--algo blake3` still wins over that config (CLI flag > env > config > built-in BLAKE3); a missing or malformed config file never errors a normal `box uuid` invocation.
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 06-01: TBD — `core::output` spine (`JSON_ON`/`CLIP_ON` atomics, `init_output`, `is_json_on`, `emit_json`, `out_line`, `CLIP_BUF`, `flush_clip`) + `core::config` (`Config`, `load`, `OnceLock`, `config()`, `init_config`) + `BoxError::Config` + global `--json`/`--clip` on `Cli` + `main.rs` wiring + precedence unit tests.
-- [ ] 06-02: TBD — `uuid` + `hash` as first consumers (output structs, `is_json_on()` fork, `--clip`, BLAKE3-default flip with config tier); JSON-purity + `--clip`-capture + BLAKE3-default + config-precedence tests as the reusable template.
+- [ ] 06-01-PLAN.md — Shared spine: `core::output` primitives (`JSON_ON`/`CLIP_ON`/`CLIP_BUF`, `init_output`, `is_json_on`, `emit_json`, `out_line`, `flush_clip`) + NEW `core::config` (`Config`, `load`, `OnceLock`, `config()`, `init_config`) + `BoxError::Config` (exit-2) + global `--json`/`--clip` on `Cli` + `main.rs` ordering/flush wiring + precedence/missing/malformed tests. [wave 1]
+- [ ] 06-02-PLAN.md — First consumers: `uuid` (`UuidOutput` + `is_json_on()` fork + `out_line`) and `hash` (`HashOutput`, BLAKE3 compute-default flip with config+env tier, `Algo` serde, D-05 BLAKE3 verify probe; verify table UNCHANGED) + the reusable JSON-purity/`--clip`-capture/BLAKE3-default/config-precedence test template. [wave 2, depends_on 06-01]
 
 ### Phase 7: Spine Rollout
 **Goal**: Apply the now-frozen Phase-6 template to every remaining applicable command so `--json` and `--clip` are consistent and house-style across the toolkit; per-command cost is mechanical, ordered simplest→nested so any surprise surfaces on `base64`, not `flatten`.
