@@ -626,7 +626,9 @@ assert_ne!(&out.stdout[..3.min(out.stdout.len())], b"\xEF\xBB\xBF", "no UTF-8 BO
 
 **If this table is empty:** it is not — but every entry is either Claude's Discretion (A1, A6) or a low-risk implementation detail (A2–A5). No locked decision rests on an assumption; all D-01..D-10 claims are CITED to CONTEXT.md and VERIFIED against source.
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> Both questions below carry inline recommendations and are implemented in the Phase-6 plans: Q1 (env-tier wiring now) → 06-02 Task 2; Q2 (`init_config()` Err routed through main's exit-2 downcast) → 06-01 Task 3.
 
 1. **Should the env-tier be wired in Phase 6 or stubbed for Phase 7?**
    - What we know: SPINE-05 mandates the env tier in the precedence CHAIN (`cli.or(env).or(config)…`).

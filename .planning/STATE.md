@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
-status: planning
-stopped_at: Phase 6 context gathered
-last_updated: "2026-06-25T00:00:00.000Z"
-last_activity: 2026-06-25 — Phase 6 context gathered (discuss-phase: 4 spine-template decisions locked)
+status: executing
+stopped_at: Phase 6 planned (2 plans, ready to execute)
+last_updated: "2026-06-24T23:53:28.365Z"
+last_activity: 2026-06-25 -- Phase 06 planned (2 plans, 2 waves)
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 18
+  total_plans: 2
   completed_plans: 0
   percent: 0
 ---
@@ -17,7 +17,7 @@ progress:
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-25
-**Updated by:** discuss-phase (Phase 6 context gathered — JSON shape, verify-tie, --clip, --json errors locked; next: `/gsd:plan-phase 6`)
+**Updated by:** plan-phase (Phase 6 planned — 2 plans in 2 waves: 06-01 spine, 06-02 uuid/hash pilots; next: `/gsd:execute-phase 6`)
 
 ---
 
@@ -35,10 +35,10 @@ See: .planning/PROJECT.md · .planning/ROADMAP.md · .planning/REQUIREMENTS.md (
 
 ## Current Position
 
-Phase: 6 of 11 (Scriptable-Core Foundation) — Context gathered, ready to plan
-Plan: — (none yet)
-Status: Ready to plan Phase 6 (06-CONTEXT.md committed)
-Last activity: 2026-06-25 — Phase 6 context gathered (4 spine-template decisions locked via discuss-phase)
+Phase: 6 of 11 (Scriptable-Core Foundation) — Planned (2 plans), ready to execute
+Plan: 06-01 (spine), 06-02 (uuid/hash pilots) — 2 plans across 2 waves
+Status: Ready to execute
+Last activity: 2026-06-25 -- Phase 06 planning complete
 
 Progress: [░░░░░░░░░░] 0% (0/18 v2.0 plans)
 
@@ -48,7 +48,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 
 | Phase | Name | Requirements | Status |
 |-------|------|-------------|--------|
-| 6 | Scriptable-Core Foundation | SPINE-01, SPINE-03, SPINE-05, HASH-V2-01 (4) | Ready to plan |
+| 6 | Scriptable-Core Foundation | SPINE-01, SPINE-03, SPINE-05, HASH-V2-01 (4) | Planned (2 plans) |
 | 7 | Spine Rollout | SPINE-02, SPINE-04 (2) | Not started |
 | 8 | Filesystem Depth | HASH-V2-02, FLAT-V2-01/02, DUPE-V2-01/02, RENM-V2-01/02, TREE-V2-01, DU-V2-01/02 (10) | Not started |
 | 9 | Dev-Transform & Visual Depth | UUID-V2-01, EPOC-V2-01, COLR-V2-01, JSON-V2-01, PASS-V2-01, LOL-V2-01, MTRX-V2-01, QR-V2-01, ASCI-V2-01 (9) | Not started |
