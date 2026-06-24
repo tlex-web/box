@@ -49,9 +49,14 @@ impl RunCommand for JsonArgs {
         let text = crate::core::input::read_input(self.input)?;
 
         match serde_json::from_str::<Value>(&text) {
-            // D-06: a parse error surfaces the 1-based line/column on stderr and
-            // exits 1 (main() adds the `error:` prefix). No panic on bad input —
-            // `from_str` returns a `Result` (T-04J-02).
+            // D-06 (WR-01): a parse error surfaces the 1-based line/column on
+            // stderr and exits 1 (main() adds the `error:` prefix). Exit 1 — not
+            // exit 2 — is DELIBERATE: malformed JSON is bad *data* the command
+            // processed and rejected (a runtime/data error), NOT a *usage* error
+            // in how `box json` was invoked. Exit 2 is reserved for usage errors
+            // (missing input, bad flags, unsupported `--verify` length); see the
+            // exit-code policy in `main.rs`. No panic on bad input — `from_str`
+            // returns a `Result` (T-04J-02). Pinned by `tests/json.rs`.
             Err(e) => anyhow::bail!("at line {} column {}: {e}", e.line(), e.column()),
             Ok(value) => {
                 if self.compact {

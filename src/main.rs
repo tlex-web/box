@@ -8,6 +8,21 @@
 //! - bad command / bad args → clap's own exit 2 to stderr (D-07).
 //! - command runs OK → exit 0.
 //! - command returns `Err` (incl. NotImplemented) → `error: …` to stderr, exit 1.
+//!
+//! The 2-vs-1 boundary is "USAGE error vs RUNTIME/DATA error", NOT "any bad
+//! user input" (WR-01 carve-out, D-06):
+//! - exit 2 = USAGE: the invocation itself is wrong — a missing required
+//!   input/no-arg interactive TTY (`BoxError::MissingInput`), an unknown flag or
+//!   bad option value (clap), or a `--verify` length matching no algorithm
+//!   (`BoxError::UnsupportedHashLength`). These are mistakes in HOW the command
+//!   was called.
+//! - exit 1 = RUNTIME/DATA: the invocation was well-formed but the work failed
+//!   on the *content* — e.g. `box json` given syntactically invalid JSON exits 1
+//!   (the parse error reports the 1-based line/column; pinned by
+//!   `tests/json.rs::invalid_json_exits_1_with_line_and_column`). Malformed JSON
+//!   is bad *data* the command processed and rejected, not a usage mistake, so
+//!   it is deliberately exit 1 — NOT exit 2. Do not "align" it with the usage
+//!   variants above; that divergence is intentional (D-06 / JSON-01).
 
 mod cli;
 mod commands;
