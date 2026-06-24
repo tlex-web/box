@@ -20,6 +20,7 @@ pub mod json;
 pub mod lolcat;
 pub mod matrix;
 pub mod passgen;
+pub mod qr;
 pub mod roast;
 pub mod stub;
 pub mod tree;

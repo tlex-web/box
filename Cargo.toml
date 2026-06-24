@@ -61,6 +61,12 @@ strip-ansi-escapes = "0.2"
 # decoder set to exactly the two formats ASCI-01 needs (RESEARCH A2) — verified to
 # resolve the full open→resize_exact→to_luma8 pipeline (fixture generator + build).
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
+# qr (QR-01 / D-01/D-02). `default-features = false` drops qrcode's default
+# ["image","svg","pic"] pull-in (this phase renders to the terminal, never an
+# image file — `--save` is VIS-V2-01, out of scope). The
+# `render::unicode::Dense1x2` half-block path is ALWAYS available with no feature
+# (RESEARCH A2). qr2term REJECTED (D-01 — always emits ANSI, polarity in bg color).
+qrcode = { version = "0.14.1", default-features = false }
 # NOTE: no `rand_core` yet — verify `use rand::TryRngCore` resolves through rand
 # 0.9 re-exports during the passgen plan (RESEARCH A1); not needed here.
 # NOTE: no `filetime` — use std::fs::FileTimes (Rust 1.75+).
