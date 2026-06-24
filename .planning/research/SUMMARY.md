@@ -1,195 +1,298 @@
-# Project Research Summary
+# Research Summary - box v2.0 Toolbox to Toolkit
 
-**Project:** box - Rust CLI Toolbox
-**Domain:** Single-binary multi-subcommand CLI toolbox, Windows PowerShell 7
-**Researched:** 2026-06-22
+**Project:** box - single-binary Rust CLI toolbox (Windows PowerShell 7)
+**Domain:** Scriptable developer CLI - adding `--json`/`--clip` spine, config-file defaults, PS7 completions, and per-command depth to a shipped 23-command binary
+**Researched:** 2026-06-24
 **Confidence:** HIGH
+
+---
 
 ## Executive Summary
 
-`box` is a greenfield Rust CLI toolbox: one binary, 23 subcommands, globally installed on Windows PowerShell 7 via `install.ps1`. The research is unusually clear-cut because the Rust CLI ecosystem has converged on strong defaults for exactly this pattern. The architecture is clap derive with per-command `Args` structs and a `RunCommand` trait -- this keeps `main.rs` under 50 lines forever and makes each command independently testable. The recommended stack covers all 23 commands with high-confidence crate choices verified against docs.rs. There are no meaningful architecture debates to resolve; the patterns are well-established and documented.
+box v2.0 is a *deepening*, not a rewrite. The v1 architecture (single crate, `src/commands/<cmd>/mod.rs`, `RunCommand` trait, `is_color_on()`-gated styling, strict 0/1/2 exit codes) is settled and correct. v2 grafts three cross-cutting capabilities (`--json`, `--clip`, config-file defaults) and two meta-commands (`completions`, `config`) onto that foundation, then adds focused depth flags to the existing 23 commands. The stack change is deliberately crate-light: `--json` and `--clip` need zero new crates (serde/serde_json/arboard are already present). Only `clap_complete`, a config solution (Decision 1), `indicatif`, and optionally `windows 0.61` are genuinely new.
 
-The key implementation risk is Windows-specific behavior, not application logic. Four pitfalls must be addressed at the foundation layer before any command is built: `std::fs::canonicalize` produces UNC paths that break downstream path handling (fix: use `dunce::canonicalize` everywhere), the 260-character path limit silently fails on deep directory trees (fix: verbatim prefix or `LongPathsAware` manifest), ANSI color codes must be stripped when stdout is not a TTY (fix: project-wide `output.rs` using `owo-colors` + `enable-ansi-support`), and `install.ps1` must refresh the PATH in the current session or every new user's first experience is "command not found." These are cheap to solve upfront and expensive to fix after 23 commands have shipped.
+The single most important architectural decision is the `--json` house style. All four research files agree: stdout under `--json` must carry exactly one JSON document (array for multi-item commands, object for scalars, recursive object for `tree`) with no ANSI, no progress chrome, and a single trailing newline. NDJSON is an explicit anti-feature - PowerShell 7 `ConvertFrom-Json` cannot consume it inline. Every cross-cutting flag follows the proven `COLOR_ON` atomic pattern: declared once as `global = true` on `Cli`, initialized once in `main`, consulted via `is_*_on()` - no per-command field, no `RunCommand` signature change.
 
-The recommended phase structure is: Foundation (binary scaffold + install), then a core utilities batch (low-complexity, high-value commands that prove the pattern), then filesystem power tools (commands sharing `walkdir`), then terminal/visual effects, then Windows platform-dependent commands last. The platform-dependent commands (`clip`, `pomodoro`, `weather`) carry the highest integration risk and should be validated in early spikes even if built last. All 23 commands are in-scope for v1 per PROJECT.md; the phase structure is about build order, not scope reduction.
+The primary risks are all about discipline, not technology. The `--json` STDOUT contamination pitfall (stray progress bytes breaking `ConvertFrom-Json`) is the number-one failure mode and must be addressed structurally in the shared spine before any per-command work. Destructive flags (`dupes --delete`, `flatten --move`, `bulk-rename --backup`) must inherit v1 exact dry-run-default + abort-all-before-any + snapshot-the-tree-unchanged ritual. The BLAKE3-default change to `hash` is the only user-visible breaking change and needs loud documentation plus a config-file escape hatch.
+
+---
+
+## Stack Additions
+
+Authoritative consolidated dependency table. All four reports are consistent; tensions are reconciled here.
+
+| Dependency | Version | Tag | For |
+|------------|---------|-----|-----|
+| `clap_complete` | `4.6.5` | [NEW CRATE] | `box completions powershell` - static `Register-ArgumentCompleter` script |
+| `config` | `0.15.24` | [NEW CRATE - see Decision 1] | Layered flag>env>file>default merge |
+| `dirs` | `6.0.0` | [NEW CRATE] | `%APPDATA%` resolution for config file location (needed under both config approaches) |
+| `indicatif` | `0.18.4` | [NEW CRATE - CONDITIONAL] | Progress bars/spinners for flatten/hash/dupes; named in CLAUDE.md but never pulled in v1 |
+| `windows` | `0.61` | [NEW CRATE - CONDITIONAL, see Decision 2] | `MessageBeep` (pomodoro sound) + `GetCompressedFileSizeW` (du on-disk size) only |
+| `uuid "v7"` | existing `1.23.3` | [FEATURE FLAG] | `box uuid --v7` (time-ordered UUIDs via `Uuid::now_v7()`) |
+| `serde` (already `derive`) | existing | [REUSE-EXISTING] | `#[derive(Serialize)]` on per-command output structs - zero change |
+| `serde_json` (already `preserve_order`) | existing | [REUSE-EXISTING] | `--json` serialization + `json --sort-keys` (no feature change) |
+| `arboard` | existing `3.6.1` | [REUSE-EXISTING] | `--clip` on every applicable command - proven v1 infra |
+| `ignore` | existing `0.4` | [REUSE-EXISTING] | `tree --gitignore` via `ignore::WalkBuilder` |
+| `crossterm` | existing `0.29` | [REUSE-EXISTING] | `lolcat --animate`, matrix color/speed/charset |
+| `rayon` / `blake3` / `walkdir` | existing | [REUSE-EXISTING] | dupes multi-stage hashing, hash multi-file, flatten progress |
+| `toml` | `1.1.2` | [NEW CRATE - hand-roll path only, see Decision 1] | Config file parsing if `config` crate is rejected |
+
+**What NOT to use:**
+
+| Avoid | Why |
+|-------|-----|
+| `filesize 0.2.0` | Unmaintained since 2020; wraps the same Win32 call as `windows` crate |
+| `rodio` / `cpal` / `rusty_audio` | Full audio stack for a single beep - use `MessageBeep` instead |
+| `windows 0.62.2` as a direct dep | Duplicates `windows ^0.61` pulled by `tauri-winrt-notification 0.7.2`; pin `0.61` to unify |
+| `clap_complete unstable-dynamic` | PS7 native dynamic completion still unstable (clap #3918); use static `generate(Shell::PowerShell)` |
+| `figment 0.10.19` | Viable but last release 2024-05-17 vs `config` 2026-06-16; no functional advantage here |
+| Any second gitignore/animation/clipboard crate | `ignore`, `crossterm`, `arboard` already present and sufficient |
+
+**Minimum v2 (neither du --on-disk nor pomodoro --sound):** only `clap_complete` + config solution + `indicatif` + `uuid "v7"` feature flag. No `windows` dep at all.
+
+---
+
+## Decision 1 - Config Approach (REQUIRES REQUIREMENTS CONFIRMATION)
+
+**The tension:** STACK.md recommends the `config` crate (0.15.24). ARCHITECTURE.md recommends a hand-roll with bare `toml` + an `Option`-merge resolver.
+
+**`config 0.15.24`** (STACK.md position): native `flag>env>file>default` precedence via ordered `add_source`, native `File::required(false)` (missing file = defaults, not error), native `Environment` source, TOML-only via `default-features=false, features=["toml"]`. Maintained by `epage` (the clap maintainer). 2 new crates: `config` + `dirs`.
+
+**Hand-roll `toml` + `dirs`** (ARCHITECTURE.md position): a `#[serde(default)] Config` struct of `Option<T>` fields, `fs::read_to_string` + `io::ErrorKind::NotFound => Config::default()`, a manual `.or().or().unwrap_or()` merge per field. Reuses existing `serde derive`. 2 new crates: `toml` + `dirs`. More in-repo transparency; re-implements the solved merge and missing-file branch.
+
+**Recommendation: `config 0.15.24` + `dirs 6.0.0`.**
+
+Rationale: the precedence merge + optional-file + env-overlay is exactly what `config` exists to do, verified correct on docs.rs. The hand-roll re-implements a solved, tested problem for only ~4 keys. The `config` crate is actively maintained (2026-06-16), same ecosystem as clap. With `default-features=false, features=["toml"]` it trims non-TOML parsers, matching the project lean-bundle discipline.
+
+The hand-roll is the right pick if the project lean-dep ethos overrides this, or if explicit in-repo precedence code is preferred for auditability. Both paths need `dirs 6.0.0` for `%APPDATA%` resolution.
+
+**Requirements must confirm which path to take.** The ARCHITECTURE.md `Option<T>`-no-default + `.or().or().unwrap_or()` per-command resolver is correct and mandatory regardless of path.
+
+Config keys: `hash.default_algo`, `weather.units`, `weather.location`, `color` (on/off/auto). Extensible: `uuid.default_version`, `passgen.length`.
+
+---
+
+## Decision 2 - Go/No-Go: `windows` Win32 Dependency (REQUIRES REQUIREMENTS CONFIRMATION)
+
+Only two specific features pull in the Win32 `windows` crate:
+
+- **`du --on-disk`** (allocated/compressed size): needs `GetCompressedFileSizeW` from `Win32::Storage::FileSystem`.
+- **`pomodoro --sound`** (completion beep): needs `MessageBeep` from `Win32::System::Diagnostics::Debug`.
+
+If both ship: `windows = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug"] }`. Pin `0.61` (not `0.62`) to unify with `windows ^0.61` already pulled by `tauri-winrt-notification 0.7.2`.
+
+**Requirements must make these an explicit go/no-go.** `du` defaults to apparent size (`metadata().len()`, std, free); the `windows` dep is only for `--on-disk`.
+
+---
 
 ## Key Findings
 
-### Recommended Stack
+### `--json` House Style (the v2 contract - all four reports agree)
 
-The stack research is HIGH confidence with all versions verified against docs.rs. The core is: `clap 4.6` (derive API, subcommand dispatch), `anyhow 1.0` (error propagation in binaries), `thiserror 2.0` (typed errors where exit codes differ). Terminal output uses `crossterm 0.29` + `owo-colors 4.3` + `enable-ansi-support 0.3` -- this is the correct 2025 Windows ANSI stack; `termcolor` and `colored` are explicitly wrong for this environment. The binary must be built for `x86_64-pc-windows-msvc` with `RUSTFLAGS="-C target-feature=+crt-static"` -- the MinGW target was demoted to Tier 2 in Rust 1.88 (May 2025) and should be avoided.
+- **Global `--json` flag on `Cli` with `global = true`** stored in `JSON_ON: AtomicBool` in `core::output`, consulted via `is_json_on()`. Mirrors the proven `no_color` to `COLOR_ON` pattern exactly. Zero new field on any command struct.
+- **One `#[derive(Serialize)]` output struct per command.** Both human and JSON paths read from the same struct - they cannot drift.
+- **Shape:** single top-level array for multi-item commands (`hash N files`, `du`, `dupes`, `flatten`, `bulk-rename`); single object for scalar commands (`color`, `epoch`, `passgen`, `weather`); recursive object for `tree`. Single-item invocations emit a 1-element array for shape stability.
+- **NOT NDJSON.** PS7 `ConvertFrom-Json` cannot consume NDJSON inline. box results are bounded and buffered before printing - no streaming need exists.
+- **Pretty by default** (`serde_json::to_string_pretty`). PS7 `ConvertFrom-Json` is whitespace-agnostic; pretty output is human-readable when eyeballed.
+- **`snake_case` fields** everywhere. Rust/serde default, jq idiom, PS7 property access is case-insensitive.
+- **`--json` forces `COLOR_ON = false`** via `init_output` - stray `.green()` calls cannot corrupt the document.
 
-**Core technologies:**
-- `clap 4.6` (derive): CLI parsing + subcommand dispatch -- community standard; derive API handles 23 subcommands with zero boilerplate
-- `anyhow 1.0`: error propagation -- correct pairing for a binary; `?` operator + `.context()` everywhere
-- `thiserror 2.0`: typed errors -- only where distinct exit codes are needed
-- `crossterm 0.29`: terminal control for `matrix`, `pomodoro` countdown, terminal size detection
-- `owo-colors 4.3` + `enable-ansi-support 0.3`: ANSI color -- Windows-correct approach; respects `NO_COLOR`
-- `walkdir 2.5` + `ignore 0.4` + `rayon 1.12`: filesystem traversal -- powers `flatten`, `tree`, `du`, `dupes`, `bulk-rename`
-- `ureq 3.3` (not reqwest): HTTP for `weather` -- blocking client, no tokio, far smaller binary
-- `arboard 3.6`: clipboard -- maintained by 1Password; correct Win32 API usage
-- `winrt-notification 0.5` (with PowerShell AUMID fallback): toast notifications for `pomodoro`
-- `blake3 1.8` + `sha2 0.11` + `md-5` (RustCrypto): hashing -- all implement `digest::Digest` for a unified hasher
-- `qr2term 0.3`: QR rendering -- handles half-block Unicode automatically; avoids the aspect-ratio pitfall
-- `artem 3.0` + `image 0.25`: ASCII art from images
-- `uuid 1.23`, `base64 0.22`, `chrono 0.4`, `serde_json 1.0`, `passwords 3.1`, `rand 0.9`: data utilities
+### `--clip` Behavior
 
-**What NOT to use:** `termcolor` (legacy Console API), `colored` (no Windows ANSI init), `reqwest` (pulls in tokio for no benefit), `md5` crate (use `md-5` hyphenated), `notify-rust` (Linux-first), `x86_64-pc-windows-gnu` target (Tier 2 since Rust 1.88).
+- **Copy AND print.** Copy primary result to clipboard, still print to stdout. "Copied to clipboard" confirmation to stderr (suppressed when not a TTY).
+- Copies raw result text, never ANSI. With `--json --clip`, copies the JSON.
+- Reuses `arboard 3.6.1` via `core::output::out_line` + `flush_clip()` (main thread, after successful dispatch).
+- **Applicable:** `passgen`, `uuid`, `color`, `hash`, `qr` (text payload only), `base64`, `epoch`, `json`.
+- **Not applicable:** `matrix`, `pomodoro`, `lolcat`, `tree`/`du`/`dupes`/`flatten`/`bulk-rename`.
 
-### Expected Features
+### Feature Table Stakes vs Differentiators
 
-All 23 commands are v1 scope. Key cross-cutting conventions: stdout for data only, stderr for messages/progress, `--dry-run` default on mutating commands (`flatten`, `bulk-rename`), `NO_COLOR`/non-TTY strips ANSI, consistent flag naming.
+**Table stakes (must ship in v2):**
+- `--json` on every applicable value-producing command with the unified house style
+- `--clip` on single-textual-result commands
+- `box completions powershell` - static script via `clap_complete`
+- `box config` show/get/set/path with flag>env>config>default precedence
+- BLAKE3 as the new `hash` default (breaking, documented, config-overridable)
+- `hash` multi-file, coreutils double-space format (`digest  filename`)
+- `tree` `.gitignore` respect, `--dirs-only`, `--ignore <glob>`
+- `du` percentage column, `--exclude <glob>`, apparent-size default
+- `passgen` `--no-similar` (il1Lo0O), `--separator` for passphrases
+- `uuid` format flags (`--upper`, `--no-hyphens`, `--braces`, `--urn`)
+- `epoch --json {epoch,utc,local,relative}`
+- `bulk-rename` case transforms (upper/lower/title), sequential numbering token + padding
+- `flatten` `--extensions`, `--separator`, progress bar
 
-**Must have (table stakes):**
-- `--help` / `-h` on every subcommand (clap handles this automatically)
-- Exit codes: 0 success, 1 error, 2 bad args (clap exits 2 on parse errors natively)
-- Dry-run default on `flatten` and `bulk-rename` -- require `--force` / `--execute` to write changes
-- Collision-rename strategy in `flatten` (path-encoding, not silent overwrite)
-- Content-hash deduplication in `dupes` (not filename comparison)
-- SHA-256 as default hash algorithm in `hash` (BLAKE3 available via `--algo blake3`)
-- Non-TTY / `NO_COLOR` detection disabling ANSI on all colorized commands
-- Open-Meteo API for `weather` (no API key required; keyless geocoding included)
-- CSPRNG (`OsRng`) for all password and passphrase generation in `passgen`
+**Differentiators (v2, prioritize after spine):**
+- `uuid --version 7` (time-ordered, B-tree-friendly) - one feature flag on existing dep
+- `epoch` relative time ("3 hours ago"), timezone support (`--tz`, needs `chrono-tz` new dep)
+- `du` color-coded size ranges, in-line percentage bar, `--on-disk` (go/no-go)
+- `dupes` multi-stage hashing, hardlink awareness, optional `--delete` (go/no-go)
+- `passgen` entropy bits estimate
+- `color` CSS named-color lookup both directions, HSL input
+- `lolcat --animate`, `--freq`, `--seed`
+- `matrix` `--color`, `--speed`, `--charset`
+- `qr --save PNG/SVG`, `--error-correction L|M|Q|H`
+- `ascii` color (truecolor), `--braille`, `--invert`
+- `cowsay` multiple figures, think-mode; `fortune` categories; `8ball` art/sentiment; `roast --language`
+- `pomodoro` session counter, auto-break, `--label`, `--sound` (go/no-go)
+- `weather --forecast`, response cache, stored default location (depends on config)
 
-**Should have (differentiators):**
-- `--json` output on file-ops commands (`flatten`, `dupes`, `hash`, `tree`, `du`) for scripting
-- Progress indicators via `indicatif` on long-running commands (`dupes`, large-file `hash`, large-tree `flatten`)
-- Multi-stage hashing in `dupes` (size pre-filter then prefix hash then full hash) for performance on large trees
-- Entropy estimate display in `passgen`; color swatch rendering in `color` (ANSI truecolor block)
-- UUID v7 support in `uuid` (time-ordered; increasingly preferred for DB keys)
-- 3-day forecast in `weather` (Open-Meteo supports it in the same API call)
-
-**Defer (v2+):**
-- `--move` destructive mode in `flatten`; auto-delete in `dupes`
-- Full jq expression language in `json` (pretty-print + validate is the v1 job)
-- Undo/history in `bulk-rename`; pomodoro session statistics
-- Image `ascii` from URL (file input only in v1); Base32/Base58 in `base64`
+**Anti-features (do not build):**
+- NDJSON / JSON Lines (breaks `ConvertFrom-Json`)
+- Per-command bespoke JSON schemas (inconsistency defeats the spine)
+- Interactive prompts in any destructive command (unscriptable, breaks 0/1/2 contract)
+- `flatten --move` that deletes source before confirming copy
+- Config wizard / interactive TUI
+- `--clip` on animations or timer commands
+- `json --sort-keys` as default (breaks `preserve_order` contract)
 
 ### Architecture Approach
 
-The architecture is a single Rust crate (not a workspace) with a `src/commands/<cmd>/mod.rs` module per command. Each module exports `pub struct Args` (clap derive) and implements `pub trait RunCommand { fn run(self) -> anyhow::Result<()>; }`. `main.rs` is approximately 40 lines: parse `Cli`, match on `Commands` enum, call `.run()`, map `Err` to `ExitCode::FAILURE`. Shared infrastructure lives in `src/core/`. The `8ball` command maps to a Rust module named `eight_ball` (Rust identifiers cannot start with a digit).
+v2 grafts three atomics (`JSON_ON`, `CLIP_ON`, plus existing `COLOR_ON`) and a config `OnceLock` onto `core::output` / `main.rs`. The `RunCommand::run(self)` signature is unchanged - no per-command field, no trait churn. Each applicable command gains one `#[derive(Serialize)]` output struct and an `if is_json_on() { emit_json(&result) } else { out_line(&human_render) }` fork over the same data source.
 
-**Major components:**
-1. `src/main.rs` -- parse + dispatch only; ~40 lines; no business logic ever lives here
-2. `src/cli.rs` -- `Cli` struct + `Commands` enum; the single authoritative list of all 23 commands
-3. `src/core/` -- `errors.rs` (BoxError with thiserror), `output.rs` (color init + print helpers), `fs.rs` (walkdir wrapper, safe copy, collision rename)
-4. `src/commands/<cmd>/mod.rs` -- 23 self-contained modules; each owns its `Args` + `RunCommand` impl
-5. `install.ps1` -- build release binary (crt-static), copy to dedicated bin dir, idempotent PATH update, session PATH refresh, smoke test
-6. `tests/<cmd>.rs` -- black-box integration tests via `assert_cmd`; one file per command
+**Modified core files:** `src/core/output.rs` (atomics + emit_json + out_line + flush_clip), `src/core/config.rs` (NEW), `src/core/errors.rs` (BoxError::Config), `src/cli.rs` (global flags + 2 new Commands variants), `src/main.rs` (init_config + init_output + flush_clip), `Cargo.toml`.
 
-### Critical Pitfalls
+**New command modules:** `src/commands/completions/mod.rs`, `src/commands/config/mod.rs`.
 
-1. **`std::fs::canonicalize` returns UNC paths** -- use `dunce::canonicalize` everywhere from day one; establish a single `core::fs::normalize_path` wrapper (rust-lang/rust#42869)
+**Per command (incremental, Phases 6-8):** one output struct, `is_json_on()` fork, `out_line` for primary output, config-tier merge where applicable, depth flags.
 
-2. **260-character path limit silently fails** -- affects `flatten`, `dupes`, `tree`, `du`; use `verbatim` crate or verbatim prefix for I/O on deep paths; embed `LongPathsAware` manifest via `embed-resource`; add CI test with 300-character synthetic path
+---
 
-3. **ANSI codes corrupt piped output** -- establish `core::output::init_color()` called once in `main()`; use `owo-colors` `if_supports_color()` which checks `is_terminal()` + `NO_COLOR` automatically
+## Watch Out For
 
-4. **`install.ps1` PATH not visible in current session** -- always refresh the session PATH at end of install by merging user + machine PATH from registry; run `box --help` as smoke test
+**1. `--json` STDOUT contamination (the number-one failure mode)**
+Under `--json`, stdout MUST contain exactly one thing: the JSON document, UTF-8, no BOM, terminated by a single newline. Progress bars, summaries, banners, ANSI escapes go to stderr or are suppressed. Construct `indicatif` bars with `ProgressDrawTarget::stderr()` explicitly; use `ProgressBar::hidden()` under `--json`. Per-command test: stdout first 3 bytes not `EF BB BF`, no `0x1B` byte, `serde_json::from_slice` succeeds on full stdout. This is the v2 analogue of v1 piped-no-ANSI test.
 
-5. **Output dir inside input dir causes infinite copy loop in `flatten`** -- canonicalize both paths with `dunce::canonicalize` before the walker starts; abort if dest starts with src using `Path::starts_with` on canonical forms
+**2. `--json` correctness - BOM, large numbers, NaN/Infinity, non-UTF-8 paths, shape contract**
+Write via `serde_json::to_writer(stdout_lock, &value)` + newline (never via a BOM-injecting path). File sizes (`u64`) and epoch nanos can exceed 2^53 (JS `Number.MAX_SAFE_INTEGER`) - decide one policy for the spine. Guard all float fields against NaN/Infinity (emit `null` for undefined). Standardize on `to_string_lossy()` for Windows paths with an explicit documented decision; never `to_str().unwrap()` in `--json` context (panics on non-UTF-8 NTFS names).
 
-Additional pitfalls: `walkdir` junction point loops (default `follow_links(false)`), NTFS case-insensitive collision bugs in `flatten` (lowercase HashMap keys), `matrix` per-character stdout flush causing ~5 FPS (buffer entire frame, flush once per frame), clipboard threading in `arboard` (main thread only), reserved Windows filenames in `flatten` output (`CON.txt`, `NUL.txt` -- use `sanitize-filename` crate).
+**3. Config precedence - explicit flag must always win**
+Every config-overridable CLI flag must be `Option<T>` with NO `default_value`. Resolve: `cli_flag.or(env_var).or(config.field).unwrap_or(BUILTIN)`. Unit-test all 16 present/absent combinations. A missing or malformed config MUST fall back to defaults, never error on `box uuid`.
 
-## Implications for Roadmap
+**4. Destructive flags bypassing v1 safety discipline**
+`dupes --delete`, `flatten --move`, `bulk-rename --backup` are the only data-loss surface in v2. Dry-run is the default; `--force` executes only after a clean pure pre-flight; abort-all-before-any (full plan as a pure I/O-free preflight() before any filesystem write); snapshot-the-tree-unchanged test for every abort path. `flatten --move` = copy then verify (dest exists + size matches) then only remove source. `dupes --delete` = keep at least one copy per group; hardlink-aware.
 
-Based on research, the natural phase structure follows the architecture dependency groups: foundation first, then zero-external-dep commands to prove the pattern, then filesystem commands (shared `walkdir` dep), then terminal effects, then Windows platform commands last (highest integration risk).
+**5. `dupes --delete` hardlink false-positive**
+Hardlinked paths have identical content but share one inode. Reporting them as wasted space is wrong; deleting one is data loss with no disk reclaim. Detect via `(volume_serial_number(), file_index())` from `fs::metadata(path)` - NOT `DirEntry::metadata()` (returns `None` for those fields, a confirmed std gotcha). Collapse shared-identity paths before computing wasted space.
 
-### Phase 1: Foundation
+**6. BLAKE3-default breaking change**
+`box hash file` now emits BLAKE3 where it emitted SHA-256. Users with scripted checksum workflows, stored baselines, or `--verify` round-trips will be silently broken. Mitigations: loud `--help`/changelog note; `--algo sha256` explicit override preserved; config `hash.default_algo = "sha256"` restores old behavior globally. Ship config before or with the BLAKE3 flip. The `--verify` 64-hex tie now maps to BLAKE3; provide a transitional hint on mismatch.
 
-**Rationale:** Every pitfall mitigation and shared infrastructure must be in place before any command is built. The `install.ps1` is the product delivery mechanism -- if it does not work, nothing else matters.
-**Delivers:** Compilable `box` binary with `--version` and `--help`; `install.ps1` that correctly builds, installs, and makes `box` available in the current PS7 session; `src/core/` with `dunce`-based path normalization, color utility, and shared error types.
-**Addresses:** `--version`, `--help`, exit codes, ANSI initialization, install experience
-**Avoids:** UNC path pitfall, ANSI corruption pitfall, PATH session refresh pitfall, execution policy pitfall
+**7. ANSI leaking into `--json`/piped output**
+Every new colored feature must pass through `is_color_on()`. `init_output` forces `COLOR_ON = false` when `--json` or `--clip` is set. Add per-command `_piped_no_ansi` stdout scan for every newly colored command.
 
-### Phase 2: Core Utilities (Pure Transforms)
+**8. Terminal-loop discipline (`lolcat --animate`, `matrix` extensions)**
+Arm the existing `RawGuard` RAII type immediately after `enable_raw_mode()?`. Detect TTY first; degrade to static render when piped or under `--json`. Single-flush-per-frame (`queue!` + `flush()` once). `KeyEventKind::Press`-only quit filter for Ctrl+C/q/Esc (avoids Windows press+release double-fire).
 
-**Rationale:** These 9 commands have zero external API/filesystem/Windows dependencies. They prove the `RunCommand` pattern, the `Args` struct convention, and the testing approach. Fast to build, immediately useful, zero integration risk.
-**Delivers:** `uuid`, `base64`, `epoch`, `color`, `passgen`, `cowsay`, `roast`, `fortune`, `8ball` -- all functional with unit and integration tests
-**Uses:** `uuid 1.23`, `base64 0.22`, `chrono 0.4`, `rand 0.9`, `passwords 3.1`, `owo-colors` (color swatch in `color`)
-**Implements:** `RunCommand` trait pattern; per-command `Args` structs; `assert_cmd` integration test pattern established for all subsequent phases
+---
 
-### Phase 3: Filesystem Power Tools
+## Decisions for REQUIREMENTS
 
-**Rationale:** These 6 commands share `walkdir`, the collision-rename logic, and the dry-run pattern. Build `flatten` first (anchor command per PROJECT.md). The `dupes` multi-stage hashing and `bulk-rename` collision detection are the hardest problems here and benefit from `flatten` being debugged first.
-**Delivers:** `flatten` (dry-run, collision rename, path guard, timestamp preservation), `tree`, `du`, `hash`, `bulk-rename`, `dupes`
-**Uses:** `walkdir 2.5`, `ignore 0.4`, `rayon 1.12` (parallel hashing in `dupes`), `blake3 1.8`, `sha2 0.11`, `md-5`, `indicatif 0.18`
-**Avoids:** Output-inside-input loop, NTFS case collision, 260-char path limit, symlink/junction loops, reserved filename generation, `fs::copy` timestamp destruction
+| # | Decision | Research Recommendation | Status |
+|---|----------|------------------------|--------|
+| D-1 | **Config crate vs hand-roll** | `config 0.15.24` + `dirs 6.0.0` | Needs requirements confirmation |
+| D-2 | **`windows` Win32 dep** - `du --on-disk` + `pomodoro --sound` go/no-go | Both scope-optional; `windows 0.61` only ships if at least one does | Needs explicit go/no-go per feature |
+| D-3 | **Large-number JSON policy** | Decide per-field: bare `u64` (PS7-first, documented JS caveat) or string-encoded for >2^53 | Needs one rule for the whole spine before Phase 7 |
+| D-4 | **Non-UTF-8 path policy in `--json`** | `to_string_lossy()` + documented, or refuse + exit 1 | Needs one rule for the whole spine |
+| D-5 | **`dupes --delete` scope** | Non-interactive `--keep first` + `--force` + hardlink-aware, or defer to v3 | Needs explicit go/no-go |
+| D-6 | **BLAKE3-default timing** | Ship config in same phase or before, so `hash.default_algo` is available when default flips | Ordering dependency - coordinate phases |
+| D-7 | **`completions` timing** | Must land AFTER `--json`/`--clip` are in `Cli` so generated script includes them | Phase 9 ordering constraint |
 
-### Phase 4: Terminal Visual Effects
+---
 
-**Rationale:** These commands share `crossterm` and require frame-buffered output. Independent of filesystem logic. Build `lolcat` before `matrix` -- simpler scope teaches the stdout-buffering pattern.
-**Delivers:** `lolcat`, `matrix`, `json`, `ascii` (image to ASCII)
-**Uses:** `crossterm 0.29`, `serde_json 1.0`, `image 0.25`, `artem 3.0`
-**Avoids:** Per-character stdout flush in `matrix` (buffer full frame, flush once per frame), existing ANSI codes corrupted by `lolcat` (strip before rainbow-colorizing)
+## Recommended Build Order
 
-### Phase 5: Windows Platform Integration
+Phase numbers continue from v1 Phase 5. Rationale: order by integration risk (v1 retrospective #1 lesson).
 
-**Rationale:** These 4 commands depend on Windows-specific APIs or external services with the highest integration risk. Build `qr` first (no external service), then `clip`, `pomodoro`, `weather`. Validate `winrt-notification` compiles as a Phase 1 spike.
-**Delivers:** `qr`, `clip`, `pomodoro`, `weather`
-**Uses:** `qr2term 0.3`, `arboard 3.6`, `winrt-notification 0.5` (PowerShell AUMID fallback), `ureq 3.3`, `serde_json 1.0`
-**Avoids:** QR aspect-ratio distortion (use `qr2term` half-block rendering), clipboard threading deadlock (main thread only), toast AUMID failure (use PowerShell AUMID fallback), weather hanging on bad network (5-second timeout)
+### Phase 6 - Scriptable-core foundation (spine + 2 pilot commands)
+
+**Rationale:** Build the entire shared spine once, prove it on `uuid` (zero input, single value) and `hash` (already `Option`-shaped, home of the BLAKE3 flip). An architecture flaw costs 2 commands of rework, not 23.
+**Delivers:** `JSON_ON`/`CLIP_ON` atomics, `emit_json`, `out_line`, `CLIP_BUF`/`flush_clip` in `core::output`; `core::config` with `OnceLock` + `init_config()`; `BoxError::Config`; `--json`/`--clip` on `uuid` and `hash`; BLAKE3-default flip with config-tier override; config-precedence unit tests; JSON-purity + `--clip` capture tests as templates for every later command.
+**Addresses:** Pitfalls 1, 2, 3, 6; Decision 1 (config approach implemented); Decision 6 (BLAKE3 + config co-shipped).
+**Research flag:** STANDARD PATTERNS - all architecture decisions resolved. No research phase needed.
+
+### Phase 7 - Roll `--json`/`--clip` across value-producing commands
+
+**Rationale:** Apply the Phase-6 template to all remaining applicable commands, simplest-to-nested. Contract is frozen; per-command cost is mechanical. Surfaces surprises on `base64`, not `flatten`.
+**Wave 7a (pure transforms):** `base64`, `epoch`, `color`, `passgen`, `8ball`, `fortune`, `roast`, `cowsay`.
+**Wave 7b (filesystem buffered-rows):** `du`, `tree`, `dupes`, `flatten`, `bulk-rename` - validate buffer-then-serialize, top-level-object decision.
+**Wave 7c (remaining):** `json`, `qr`, `weather`. Skip/N/A: `matrix`, `pomodoro`, `ascii`, `lolcat`, `clip`.
+**Delivers:** Consistent `--json`/`--clip` on all applicable commands; per-command JSON-purity + `--clip` capture tests.
+**Addresses:** Pitfall 7 (ANSI gate per new colored command); Decisions 3, 4 (number/path policy applied per field).
+**Research flag:** STANDARD PATTERNS - template fixed from Phase 6. No research phase needed.
+
+### Phase 8 - Per-command depth flags
+
+**Rationale:** Every command already has its output struct; a new depth field slots into both human + JSON paths for free. Each flag is local to one command, low integration risk.
+**Filesystem:** flatten `--move` + filters + progress; hash multi-file + progress + coreutils format; dupes multi-stage + hardlink awareness + optional `--delete`; bulk-rename case + numbering + `--backup`; tree `.gitignore` + `--dirs-only`; du percentage bar + colors + `--exclude` + optional `--on-disk`.
+**Dev transforms:** uuid v7; epoch relative time + tz; color CSS names + HSL input; json `--sort-keys`; passgen entropy + `--no-similar` + `--separator`.
+**Visuals:** lolcat `--animate`/`--freq`/`--seed`; matrix color/speed/charset; qr `--save`/EC; ascii color/braille/invert.
+**Fun/system:** cowsay figures/think; fortune categories; 8ball art/sentiment; roast `--language`; pomodoro counter/auto-break/`--label`/`--sound`; weather `--forecast`/cache/stored-location.
+**Addresses:** Pitfalls 4, 5 (destructive flags + hardlink); Pitfall 8 (lolcat/matrix animate discipline); Decision 2 (windows dep if du-on-disk or pomodoro-sound).
+**Research flag:** Destructive flags (`--move`, `--delete`, `--backup`) require adversarial code review - not a research phase (same gate as v1 Phase 3 bulk-rename). Lolcat animate requires human-verify in PS7.
+
+### Phase 9 - Meta-command polish: `config` + `completions`
+
+**Rationale:** Both depend on the finished arg surface. `completions` must be last - it generates from the live `Cli` and must include all Phase-8 flags.
+**Delivers:** `box config show/get/set/path` (with `--json`); `box completions powershell`; `install.ps1` optional completion-registration hint; final `--help`/PROJECT note for BLAKE3 breaking change.
+**Addresses:** Pitfall 3 (meta-command exercises precedence resolver); Decision 7 (completions after full arg surface).
+**Research flag:** STANDARD PATTERNS - both read-only over a settled `Cli`. No research phase needed.
 
 ### Phase Ordering Rationale
 
-- Foundation before everything because three critical shared utilities (path normalization, color init, PATH refresh) must exist before any command can be correctly built
-- Pure transforms before filesystem commands because they prove the `RunCommand` pattern at zero risk -- if the architecture is wrong, discover it on `uuid`, not on `flatten`
-- Filesystem commands grouped together because `walkdir` setup, dry-run pattern, and collision-rename logic are shared; `flatten` is the anchor that defines the safety patterns `dupes` and `bulk-rename` build on
-- Terminal effects after filesystem because `crossterm` is an independent dependency group; building visual effects before utilities risks scope drift
-- Platform-dependent commands last because `arboard`, `winrt-notification`, and `ureq`+Open-Meteo carry the highest external/Windows-API risk -- validate with spikes during Phase 1
+- Spine built once on 2 commands (Phase 6) before 21 others adopt it - flaw costs 2 commands of rework, not 23.
+- Each command edited for spine once (Phase 7) and for depth once (Phase 8) - no thrashing as the contract evolves.
+- BLAKE3 flip and config co-scheduled in Phase 6 so the escape hatch (`hash.default_algo = "sha256"`) is available when the breaking change ships.
+- Completions/config last (Phase 9) - they consume the final arg surface; building them earlier guarantees regenerating them.
 
-### Research Flags
-
-Phases likely needing deeper research during planning:
-- **Phase 5 (`pomodoro`):** `winrt-notification` maintenance status is uncertain; may need to switch to `winrt-toast` -- validate crate compiles against MSRV before Phase 5 planning; run as a Phase 1 spike
-- **Phase 5 (`weather`):** Open-Meteo geocoding behavior for edge-case city names (disambiguation, non-ASCII) needs validation; caching strategy for rapid repeated calls needs a design decision
-- **Phase 3 (`dupes`):** Multi-stage hashing implementation complexity; rayon parallelism over file I/O requires tuning to avoid disk thrashing on HDDs vs SSDs
-
-Phases with standard patterns (skip research-phase):
-- **Phase 2 (pure transforms):** `uuid`, `base64`, `epoch`, `color`, `passgen`, `cowsay`, `fortune`, `roast`, `8ball` all follow trivially documented patterns
-- **Phase 1 (foundation):** Clap derive binary scaffold and PowerShell install scripts are fully documented; architecture pattern is established
-- **Phase 4 (`json`):** `serde_json` pretty-print + validation is a one-page implementation
+---
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All crate versions verified against docs.rs; Windows-specific choices confirmed against current platform guidance including Rust 1.88 MinGW demotion |
-| Features | HIGH (core), MEDIUM (differentiators) | Table stakes grounded in prior art (fdupes, rnr, dust, clig.dev); differentiator priorities are reasoned but not empirically validated against actual user needs |
-| Architecture | HIGH | Clap derive + `RunCommand` trait + single-crate module tree is the documented community standard; all patterns have reference implementations |
-| Pitfalls | HIGH | All 15 pitfalls grounded in specific GitHub issues, official Microsoft docs, or crate documentation; not inferred |
+| Stack | HIGH | All versions verified against crates.io API 2026-06-24; `windows 0.61` pin verified against tauri-winrt-notification transitive dep |
+| Features | HIGH | `--json`/`--clip`/config/completions conventions verified against official PS7 docs, gh, ripgrep, bat; per-command norms verified against authoritative manuals |
+| Architecture | HIGH | Recommendations checked against v1 source files; clap global/AtomicBool pattern verified via Context7 + docs.rs |
+| Pitfalls | HIGH | Windows/PS7/serde_json behaviors verified against official Microsoft docs, Rust std docs, serde-rs/json issue tracker; mapped onto v1 proven patterns |
 
-**Overall confidence:** HIGH
+**Overall confidence: HIGH**
 
 ### Gaps to Address
 
-- **`winrt-notification` vs `winrt-toast` selection:** Validate the recommended crate compiles against the project MSRV during Phase 1 as a spike; if not, switch to `winrt-toast 0.1` with `windows 0.62` directly
-- **`pomodoro` background vs foreground:** Decide whether to block the terminal for the full 25-minute timer or print timer-started and exit immediately, relying solely on the toast notification
-- **`weather` default unit system:** Decide whether to default to metric, detect from Windows locale, or prompt once and cache in `%APPDATA%ox\config.toml`
-- **`lolcat` ANSI stripping:** The `strip-ansi-escapes` crate was not included in the STACK.md Cargo.toml template; add it during Phase 4 planning
+- **Config crate choice (Decision 1):** project ethos decision (lean-dep vs solved-problem adoption), not a technical uncertainty. Requirements must confirm.
+- **`windows 0.61` go/no-go (Decision 2):** API calls are straightforward; scope decision. Requirements must confirm `du --on-disk` and `pomodoro --sound` explicitly.
+- **Large-number JSON policy (Decision 3):** must be decided once for the spine and held consistently. PS7 handles `Int64`/`BigInteger` correctly; caveat is JS/cross-language consumers.
+- **`dupes --delete` scope (Decision 5):** highest-risk new surface; deferring to v3 is equally valid. Requirements must decide.
+- **`chrono-tz` for epoch timezone support:** new dep (IANA database bundled); only needed if epoch `--tz` ships in Phase 8. Low technical risk; scope/timing call.
+
+---
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- docs.rs (all crate versions) -- clap, crossterm, owo-colors, enable-ansi-support, arboard, blake3, sha2, ureq, walkdir, ignore, rayon, chrono, indicatif, anyhow, thiserror, artem, winrt-notification, qr2term
-- rust-lang/rust GitHub issues #42869, #80884, #76586, #67403, #66260 -- Windows path and filesystem behavior
-- Microsoft Learn -- Naming Files, Paths, and Namespaces (reserved filenames, MAX_PATH)
-- Rust CLI Recommendations (rust-cli-recommendations.sunshowers.io) -- colors, argument handling
-- Command Line Applications in Rust (rust-cli.github.io) -- testing, exit codes, subcommands
-- Rust Blog 2025-05-26 -- x86_64-pc-windows-gnu Tier 2 demotion in Rust 1.88
-- Open-Meteo (open-meteo.com) -- keyless free weather + geocoding API confirmed
+- `docs.rs/config` 0.15.24 - `File::required(false)`, `add_source` ordered precedence, `Environment::with_prefix` - verified
+- `docs.rs/clap_complete` 4.6.5 - `generate(Shell::PowerShell)`, `CommandFactory`, static AOT vs `unstable-dynamic`
+- `docs.rs/uuid` 1.23.3 - `now_v7()` gated on `std`+`v7`; format methods always-available `const fn`
+- `doc.rust-lang.org/std/os/windows/fs/MetadataExt` - `number_of_links()`/`file_index()` return `None` from `DirEntry::metadata()`; need `fs::metadata(path)`
+- crates.io API (2026-06-24) - version pins for all new deps confirmed
+- `tauri-winrt-notification/0.7.2/dependencies` - transitive `windows ^0.61` confirmed (drives 0.61 pin)
+- Microsoft Learn - `ConvertFrom-Json` (PS 7.6): array enumeration; NDJSON not natively supported
+- Microsoft Learn - `about_Character_Encoding` (PS7): `utf8NoBOM` default, BOM handling
+- v1 source files (`src/cli.rs`, `src/main.rs`, `src/core/output.rs`, `src/commands/{uuid,hash,clip,tree,du,weather}/mod.rs`) - authoritative for existing architecture
+- `.planning/RETROSPECTIVE.md` - #1 lesson: order by integration risk
+- `.planning/STATE.md` - accumulated pitfalls (RawGuard, single-flush-per-frame, `is_color_on()` gate, arboard main-thread)
 
 ### Secondary (MEDIUM confidence)
-- clig.dev -- CLI UX conventions (exit codes, stdout/stderr separation, dry-run patterns)
-- bootandy/dust -- disk usage tree behavior and bar visualization patterns
-- ismaelgv/rnr -- dry-run-first, capture group syntax for bulk rename
-- pkolaczk/fclones -- multi-stage hashing strategy for duplicate detection
-- TheZoraiz/ascii-image-converter -- brightness mapping, color mode, braille mode
+- clap GitHub issues #3918, #3166 - PowerShell native/dynamic completion gap; static generation recommended
+- clap-rs/clap issues #5525, #3269 - `from_global` is opt-in per consumer (no `flatten, from_global`)
+- serde-rs/json issues #505/#721/#845 - `arbitrary_precision` round-trip; #329 (64-bit-as-string interop)
+- Rust CLI recommendations (sunshowers.io) - `Option<T>`-no-default + `.or()` merge pattern
 
 ### Tertiary (LOW confidence)
-- winrt-notification 0.5 long-term maintenance status -- described as uncertain; validate before Phase 5
-- win-toast-notify as alternative crate -- maintenance status unverified; fallback option only
+- `dust -j` field names - confirmed as one document/nested tree; exact field names not published
+- `eza` JSON rejection - issue #1064 "not planned" (useful negative signal)
 
 ---
-*Research completed: 2026-06-22*
+*Research completed: 2026-06-24*
 *Ready for roadmap: yes*
