@@ -1,0 +1,9 @@
+```
+$ box json "{\"name\":\"box\",\"n\":1,\"ok\":true}"
+{
+  "name": "box",
+  "n": 1,
+  "ok": true
+}
+
+```
