@@ -45,3 +45,60 @@ fn pomodoro_starts_and_exits_non_hanging() {
         "box pomodoro must not panic; stderr was: {stderr}"
     );
 }
+
+/// WR-01 / FOUND-05 (T-05 no-panic) — an out-of-range `[MINUTES]` (here the maximum
+/// `u64`, which would otherwise wrap `mins * 60` and/or overflow-panic
+/// `Instant::now() + total`) is rejected by clap's `RangedU64ValueParser` as a
+/// USAGE error: exit code 2, a clap error on stderr, NO `panicked`, and NO hang.
+/// This is the deterministic, clipboard/terminal-independent proof that an absurd
+/// numeric argument can no longer abort the process. The fixed `1` timeout doubles
+/// as the hang backstop: a parse rejection returns immediately, well inside it.
+#[test]
+fn pomodoro_absurd_minutes_exits_2_no_panic() {
+    let assert = Command::cargo_bin("box")
+        .unwrap()
+        .args(["pomodoro", "18446744073709551615"])
+        .timeout(Duration::from_secs(5))
+        .assert();
+
+    let output = assert.get_output();
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "an out-of-range minutes arg must be a clap usage error (exit 2), got: {:?}",
+        output.status.code()
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "stdout must stay clean on a usage error, got: {:?}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains("panicked"),
+        "an out-of-range minutes arg must NOT panic/abort; stderr was: {stderr}"
+    );
+    assert!(
+        !stderr.is_empty(),
+        "clap must print a usage error to stderr for the out-of-range value"
+    );
+}
+
+/// WR-01 — the lower bound holds too: `0` minutes is rejected (exit 2) rather than
+/// silently running a zero-length timer. Bounds the accepted range at `1..` on the
+/// low end, mirroring the `du --depth`/`--top` "must be >= 1" parser contract.
+#[test]
+fn pomodoro_zero_minutes_exits_2() {
+    let assert = Command::cargo_bin("box")
+        .unwrap()
+        .args(["pomodoro", "0"])
+        .timeout(Duration::from_secs(5))
+        .assert();
+
+    let code = assert.get_output().status.code();
+    assert_eq!(
+        code,
+        Some(2),
+        "a zero minutes arg must be a clap usage error (exit 2), got: {code:?}"
+    );
+}

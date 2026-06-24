@@ -61,6 +61,13 @@ const WORK_MINUTES: u64 = 25;
 const BREAK_MINUTES: u64 = 5;
 /// `--long-break` long-break length in minutes (D-08).
 const LONG_BREAK_MINUTES: u64 = 15;
+/// Upper bound (inclusive) on an accepted positional `[MINUTES]` (WR-01): ~1 year
+/// (366 days). A value above this is rejected by clap as a USAGE error (exit 2)
+/// BEFORE `run()`. The cap is deliberately small relative to `u64::MAX` so that
+/// `mins * 60` cannot wrap and `Instant::now() + Duration::from_secs(mins * 60)`
+/// cannot overflow-panic — preserving the T-05 no-panic invariant against an
+/// absurd numeric argument while staying far larger than any real focus session.
+const MAX_MINUTES: u64 = 24 * 60 * 366;
 
 /// `box pomodoro` — a focus timer with a Windows toast on completion (POMO-01).
 ///
@@ -73,6 +80,14 @@ const LONG_BREAK_MINUTES: u64 = 15;
 #[derive(Debug, Args)]
 pub struct PomodoroArgs {
     /// Minutes to run; defaults to 25 (work), 5 with --break, 15 with --long-break.
+    ///
+    /// Bounded at parse time to `1..=MAX_MINUTES` (WR-01). An out-of-range value
+    /// (`0`, or an absurd `u64` such as `18446744073709551615`) is rejected by clap
+    /// as a USAGE error (exit 2) BEFORE `run()` — the same `RangedU64ValueParser`
+    /// pattern `du`/`tree` use for `--depth`/`--top`. This guarantees `mins * 60`
+    /// cannot wrap and `Instant::now() + total` cannot overflow-panic, preserving
+    /// the T-05 no-panic invariant against an attacker-supplied numeric argument.
+    #[arg(value_parser = clap::builder::RangedU64ValueParser::<u64>::new().range(1..=MAX_MINUTES))]
     pub minutes: Option<u64>,
     /// Run a 5-minute short break instead of a 25-minute work session.
     #[arg(long = "break")]
@@ -210,6 +225,12 @@ fn resolve_duration(minutes: Option<u64>, break_: bool, long_break: bool) -> Dur
         None if break_ => BREAK_MINUTES,
         None => WORK_MINUTES,
     };
+    // Defense in depth (WR-01): the clap `RangedU64ValueParser` already rejects
+    // `minutes > MAX_MINUTES` (exit 2) before this is reached, but clamp here too so
+    // this pure, separately-unit-tested seam can NEVER produce a `mins * 60` that
+    // wraps `u64` — the multiply is overflow-safe for any input. `MAX_MINUTES * 60`
+    // is ~31.6M seconds, far below `u64::MAX`, so the product is always exact.
+    let mins = mins.min(MAX_MINUTES);
     Duration::from_secs(mins * 60)
 }
 
@@ -286,6 +307,25 @@ mod tests {
             resolve_duration(None, true, true),
             Duration::from_secs(15 * 60),
             "--long-break wins over --break when both are set"
+        );
+    }
+
+    /// WR-01 — an absurd positional `minutes` (here `u64::MAX`) is clamped to
+    /// `MAX_MINUTES` so the internal `mins * 60` can NEVER wrap and the resulting
+    /// `Duration` stays representable. This is the pure-seam half of the no-panic
+    /// fix (the clap parser rejects it as exit 2 at the binary boundary; this proves
+    /// the function itself is overflow-safe even if called directly).
+    #[test]
+    fn resolve_duration_clamps_absurd_minutes() {
+        assert_eq!(
+            resolve_duration(Some(u64::MAX), false, false),
+            Duration::from_secs(MAX_MINUTES * 60),
+            "an out-of-range minutes value is clamped to MAX_MINUTES, never overflowed"
+        );
+        // The capped duration is well below the range where `Instant::now() + d`
+        // could overflow, so the run loop's `Instant` add is safe by construction.
+        assert!(
+            resolve_duration(Some(u64::MAX), false, false) <= Duration::from_secs(MAX_MINUTES * 60)
         );
     }
 
