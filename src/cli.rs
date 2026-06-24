@@ -67,6 +67,16 @@ pub enum Commands {
     /// Rainbow-colorize piped text
     Lolcat(crate::commands::lolcat::LolcatArgs),
     /// Run the Matrix digital-rain screensaver effect
+    ///
+    /// A full-terminal green halfwidth-katakana "digital rain" at ~20 FPS. Press
+    /// Ctrl+C, q, or Esc to exit — the cursor and terminal are restored cleanly
+    /// with no leftover artifacts.
+    ///
+    /// FONT NOTE: the rain uses halfwidth katakana (U+FF66–U+FF9D), which need a
+    /// CJK-capable font. On the bare default PowerShell 7 font (Cascadia Mono)
+    /// the glyphs show as tofu boxes — this is a known cosmetic font limitation,
+    /// not a bug. For authentic glyphs, switch to a CJK-capable font such as
+    /// Cascadia Next JP.
     Matrix(crate::commands::matrix::MatrixArgs),
     /// Render an image as ASCII art
     Ascii(crate::commands::ascii::AsciiArgs),
