@@ -7,6 +7,7 @@
 pub mod ascii;
 pub mod base64;
 pub mod bulk_rename;
+pub mod clip;
 pub mod color;
 pub mod cowsay;
 pub mod du;
