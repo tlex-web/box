@@ -60,7 +60,10 @@ fn png_render_is_valid_utf8() {
         .expect("run box ascii");
     assert!(out.status.success(), "box ascii <png> should exit 0");
     let text = String::from_utf8(out.stdout).expect("stdout must be valid UTF-8");
-    assert!(!text.trim().is_empty(), "render must be non-empty: {text:?}");
+    assert!(
+        !text.trim().is_empty(),
+        "render must be non-empty: {text:?}"
+    );
     assert!(
         !text.contains('\u{1b}'),
         "monochrome v1 render must carry no ANSI escape: {text:?}"

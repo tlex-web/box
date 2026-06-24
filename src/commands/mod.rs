@@ -4,6 +4,7 @@
 //! the parsed [`crate::cli::Commands`] variant and calls `.run()`. Static
 //! dispatch — no `Box<dyn>`.
 
+pub mod ascii;
 pub mod base64;
 pub mod bulk_rename;
 pub mod color;

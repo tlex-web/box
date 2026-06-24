@@ -69,7 +69,7 @@ pub enum Commands {
     /// Run the Matrix digital-rain screensaver effect
     Matrix,
     /// Render an image as ASCII art
-    Ascii,
+    Ascii(crate::commands::ascii::AsciiArgs),
     /// Pretty-print and validate JSON
     Json(crate::commands::json::JsonArgs),
     /// Render a QR code for text or a URL in the terminal

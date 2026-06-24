@@ -54,6 +54,13 @@ serde_json = { version = "1.0.150", features = ["preserve_order"] }
 # injection mitigation (D-13). crossterm/owo-colors/enable-ansi-support already present.
 unicode-width = "0.2"
 strip-ansi-escapes = "0.2"
+# ascii (ASCI-01 / D-01/D-02). The ONE sanctioned new crate — the image-decoding
+# hand-roll exception. artem is REJECTED (D-01): its unconditional deps drag
+# clap/colored/terminal_size/log/env_logger/once_cell/ureq and bypass our
+# terminal_width() gate. `default-features = false` + ["png","jpeg"] trims the
+# decoder set to exactly the two formats ASCI-01 needs (RESEARCH A2) — verified to
+# resolve the full open→resize_exact→to_luma8 pipeline (fixture generator + build).
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
 # NOTE: no `rand_core` yet — verify `use rand::TryRngCore` resolves through rand
 # 0.9 re-exports during the passgen plan (RESEARCH A1); not needed here.
 # NOTE: no `filetime` — use std::fs::FileTimes (Rust 1.75+).

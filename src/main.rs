@@ -75,7 +75,7 @@ fn main() -> ExitCode {
         Commands::BulkRename(args) => args.run(),
         Commands::Lolcat(args) => args.run(),
         Commands::Matrix => Err(not_implemented("matrix")),
-        Commands::Ascii => Err(not_implemented("ascii")),
+        Commands::Ascii(args) => args.run(),
         Commands::Json(args) => args.run(),
         Commands::Qr => Err(not_implemented("qr")),
         Commands::Clip => Err(not_implemented("clip")),
