@@ -47,6 +47,13 @@ const-hex = "1.19.1"
 # is deliberately OFF: it breaks Value round-tripping / Display for numbers and is a
 # known D-04 landmine (serde-rs/json #505/#721/#845).
 serde_json = { version = "1.0.150", features = ["preserve_order"] }
+# lolcat (LOL-01 / D-12/D-13). `unicode-width` gives per-Unicode-scalar display
+# width so the gradient phase advances by width(c) (wide/CJK=2, combining=0), NOT
+# per byte (D-12). `strip-ansi-escapes` removes ALL incoming ANSI before recolor —
+# actions the standing STATE.md strip-ansi todo and is the T-04L-01 terminal-escape-
+# injection mitigation (D-13). crossterm/owo-colors/enable-ansi-support already present.
+unicode-width = "0.2"
+strip-ansi-escapes = "0.2"
 # NOTE: no `rand_core` yet — verify `use rand::TryRngCore` resolves through rand
 # 0.9 re-exports during the passgen plan (RESEARCH A1); not needed here.
 # NOTE: no `filetime` — use std::fs::FileTimes (Rust 1.75+).

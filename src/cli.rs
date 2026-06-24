@@ -65,7 +65,7 @@ pub enum Commands {
     #[command(name = "bulk-rename")]
     BulkRename(crate::commands::bulk_rename::BulkRenameArgs),
     /// Rainbow-colorize piped text
-    Lolcat,
+    Lolcat(crate::commands::lolcat::LolcatArgs),
     /// Run the Matrix digital-rain screensaver effect
     Matrix,
     /// Render an image as ASCII art

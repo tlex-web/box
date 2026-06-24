@@ -73,7 +73,7 @@ fn main() -> ExitCode {
         Commands::Du(args) => args.run(),
         Commands::Dupes(args) => args.run(),
         Commands::BulkRename(args) => args.run(),
-        Commands::Lolcat => Err(not_implemented("lolcat")),
+        Commands::Lolcat(args) => args.run(),
         Commands::Matrix => Err(not_implemented("matrix")),
         Commands::Ascii => Err(not_implemented("ascii")),
         Commands::Json(args) => args.run(),
