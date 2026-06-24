@@ -24,6 +24,8 @@
 //! UTF-8 is never split. Whitespace advances the phase but is emitted uncolored
 //! (a colored space is invisible); newlines are emitted raw.
 
+use std::io::{BufWriter, Write};
+
 use clap::Args;
 use owo_colors::OwoColorize;
 use unicode_width::UnicodeWidthChar;
@@ -57,6 +59,16 @@ impl RunCommand for LolcatArgs {
         // (T-04L-01) and guarantees piped output carries no stray escapes.
         let clean = strip_ansi_escapes::strip_str(&raw);
 
+        // Buffer the whole render and flush ONCE (WR-04). The previous loop did
+        // one unbuffered `print!`/`println!` per Unicode scalar — each macro
+        // re-locks stdout and line-buffers, so a large piped input meant many
+        // thousands of tiny writes (the same per-char-flush pitfall the `matrix`
+        // module calls out). A `BufWriter` over a single locked stdout handle
+        // coalesces them; the BYTES written are identical to the old per-scalar
+        // sequence, so the D-14 byte-identical-minus-ANSI contract is unchanged.
+        let stdout = std::io::stdout();
+        let mut out = BufWriter::new(stdout.lock());
+
         // Emit one Unicode scalar at a time (D-12 — never per byte). Each line
         // seeds a per-line vertical offset for the diagonal (D-11); within a line
         // the phase advances by the char's display width.
@@ -64,10 +76,9 @@ impl RunCommand for LolcatArgs {
             let mut phase = line_idx as f64 * SPREAD;
             for c in line.chars() {
                 if c == '\n' {
-                    // Newlines are emitted raw (never colored). `println!()`
-                    // emits the identical single `\n` byte (clippy prefers it
-                    // over `print!("\n")`).
-                    println!();
+                    // Newlines are emitted raw (never colored) — a single `\n`
+                    // byte, byte-identical to the old `println!()`.
+                    out.write_all(b"\n")?;
                     continue;
                 }
                 // Width-aware phase advance (D-12): wide/CJK = 2, combining = 0.
@@ -75,18 +86,20 @@ impl RunCommand for LolcatArgs {
                 if c.is_whitespace() {
                     // A colored space is invisible; emit it plain but still let
                     // the phase advance so the gradient stays continuous.
-                    print!("{c}");
+                    write!(out, "{c}")?;
                 } else if is_color_on() {
                     // The ONE color path — gated on the single Phase-1 decision.
                     let (r, g, b) = rgb_at(phase);
-                    print!("{}", c.truecolor(r, g, b));
+                    write!(out, "{}", c.truecolor(r, g, b))?;
                 } else {
                     // Plain: byte-identical to the cleaned input minus ANSI (D-14).
-                    print!("{c}");
+                    write!(out, "{c}")?;
                 }
                 phase += w;
             }
         }
+        // Single flush — the entire colored/plain render lands in one go.
+        out.flush()?;
         Ok(())
     }
 }
