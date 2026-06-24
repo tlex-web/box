@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
+milestone_name: Full Toolbox
 current_plan: "—"
 status: milestone_complete
-stopped_at: Milestone complete (Phase 05 was final phase)
-last_updated: 2026-06-24T21:45:00.000Z
+stopped_at: v1.0 milestone ARCHIVED + tagged (Phase 05 was final phase)
+last_updated: 2026-06-24T22:10:00.000Z
 progress:
   total_phases: 5
   completed_phases: 5
@@ -25,9 +25,11 @@ progress:
 
 **Core Value:** The toolbox must be globally available and instantly usable from PowerShell 7 — type `box <command>` from anywhere and the tool just works.
 
-**Current Focus:** Milestone complete
+**Current Focus:** Planning next milestone (v2) — run `/gsd:new-milestone`
 
-**Milestone:** v1 (all 23 commands)
+**Milestone:** v1.0 Full Toolbox — SHIPPED & ARCHIVED 2026-06-24 (all 23 commands; see `.planning/MILESTONES.md`)
+
+See: .planning/PROJECT.md (updated 2026-06-24 after v1.0 milestone)
 
 ---
 
@@ -216,7 +218,9 @@ None.
 **Stopped At:** v1 MILESTONE COMPLETE (Phase 5 was the final phase)
 **Resume File:** — (no active phase; next is a new milestone or release)
 
-**Next action:** PHASE 5 COMPLETE & VERIFIED → v1 MILESTONE COMPLETE. All 4 plans shipped sequentially on the shared cli.rs/main.rs/commands/mod.rs/Cargo.toml registry (qr → clip → pomodoro → weather): 05-01 qr ✓ (QR-01, qrcode Dense1x2 half-blocks, no ANSI), 05-02 clip ✓ (CLIP-01, arboard raw-stdin copy + D-05 trim + `--paste`), 05-03 pomodoro ✓ (POMO-01, matrix-family RawGuard raw-mode countdown + tauri-winrt-notification completion-only toast), 05-04 weather ✓ (WTHR-01, Open-Meteo keyless geocode+forecast, ureq non-2xx=Err(StatusCode) split, server-side `current_units` label). 05-04 removed the last `not_implemented` stub + `stub.rs` + `BoxError::NotImplemented` → **all 23 commands are real**. Verified 16/16 must-haves; human-UAT 3/3 cleared in PS7 (qr phone-scan, clip round-trip, pomodoro countdown+toast+cancel). Code review: 0 critical, 2 warning, 4 info → WR-01 (pomodoro out-of-range minutes panic → RangedU64ValueParser 1..=527040, exit 2) + WR-02 (clip --paste empty-clipboard message) fixed with covering tests (150 bin-unit + all integration green, clippy -D + fmt clean). Release `x86_64-pc-windows-msvc` +crt-static `box.exe` builds (5.1 MB). `box` remains binary-only — unit tests via `cargo test --bin box`, NOT `--lib`. **Next options:** `/gsd:complete-milestone` to archive v1 and start the next, or `./install.ps1` to put the finished `box.exe` on PATH, or open a new milestone for v2 ideas (HASH-V2-01 BLAKE3-default, VIS-V2-01 colored ascii/animated lolcat, etc.).
+**Next action:** v1.0 MILESTONE ARCHIVED (2026-06-24) — archives written to `.planning/milestones/v1.0-ROADMAP.md` + `v1.0-REQUIREMENTS.md`; `MILESTONES.md` + `RETROSPECTIVE.md` created; ROADMAP collapsed to milestone grouping; PROJECT.md full evolution review done (Key Decisions outcomes recorded); `REQUIREMENTS.md` removed via `git rm` (fresh one comes with the next milestone); git tag `v1.0` created (no remote → not pushed). **Next: `/clear` then `/gsd:new-milestone` for v2**, or `./install.ps1` to put the finished `box.exe` on PATH. — Prior phase-close context below —
+
+**Phase 5 close (superseded by milestone archive above):** PHASE 5 COMPLETE & VERIFIED → v1 MILESTONE COMPLETE. All 4 plans shipped sequentially on the shared cli.rs/main.rs/commands/mod.rs/Cargo.toml registry (qr → clip → pomodoro → weather): 05-01 qr ✓ (QR-01, qrcode Dense1x2 half-blocks, no ANSI), 05-02 clip ✓ (CLIP-01, arboard raw-stdin copy + D-05 trim + `--paste`), 05-03 pomodoro ✓ (POMO-01, matrix-family RawGuard raw-mode countdown + tauri-winrt-notification completion-only toast), 05-04 weather ✓ (WTHR-01, Open-Meteo keyless geocode+forecast, ureq non-2xx=Err(StatusCode) split, server-side `current_units` label). 05-04 removed the last `not_implemented` stub + `stub.rs` + `BoxError::NotImplemented` → **all 23 commands are real**. Verified 16/16 must-haves; human-UAT 3/3 cleared in PS7 (qr phone-scan, clip round-trip, pomodoro countdown+toast+cancel). Code review: 0 critical, 2 warning, 4 info → WR-01 (pomodoro out-of-range minutes panic → RangedU64ValueParser 1..=527040, exit 2) + WR-02 (clip --paste empty-clipboard message) fixed with covering tests (150 bin-unit + all integration green, clippy -D + fmt clean). Release `x86_64-pc-windows-msvc` +crt-static `box.exe` builds (5.1 MB). `box` remains binary-only — unit tests via `cargo test --bin box`, NOT `--lib`. **Next options:** `/gsd:complete-milestone` to archive v1 and start the next, or `./install.ps1` to put the finished `box.exe` on PATH, or open a new milestone for v2 ideas (HASH-V2-01 BLAKE3-default, VIS-V2-01 colored ascii/animated lolcat, etc.).
 
 ---
 *State initialized: 2026-06-22 by roadmapper*

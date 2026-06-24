@@ -2,7 +2,7 @@
 
 ## What This Is
 
-`box` is a single Rust binary that bundles ~23 command-line tools — a mix of genuinely useful utilities and fun toys — exposed as subcommands (`box flatten`, `box qr`, `box cowsay`, …). It's built for a developer running Windows PowerShell 7, installed globally so any tool is one short command away.
+`box` is a single Rust binary that bundles 23 command-line tools — a mix of genuinely useful utilities and fun toys — exposed as subcommands (`box flatten`, `box qr`, `box cowsay`, …). It's built for a developer running Windows PowerShell 7, installed globally so any tool is one short command away. **v1.0 shipped 2026-06-24 — all 23 commands live.**
 
 ## Core Value
 
@@ -68,10 +68,11 @@ None — all 23 v1 commands shipped and validated. **v1 milestone complete (2026
 
 ## Context
 
-- **Environment:** Windows 11, PowerShell 7 terminal. Several commands are inherently Windows-flavored (clipboard access, toast notifications, terminal color/Unicode rendering) and will rely on Windows-appropriate crates/APIs.
-- **Language:** Rust — chosen for a single fast, dependency-free distributable binary.
-- **Network-dependent commands:** `weather` (and potentially others) require an external web API; the research phase should identify a suitable no-/low-friction API and the right HTTP/QR/clipboard/image crates.
-- **Greenfield:** brand-new project, no existing code. Repo initialized fresh.
+- **Current state (v1.0, 2026-06-24):** All 23 commands shipped and validated. ~7,748 Rust LOC across 32 `.rs` files; 150 bin-unit + all integration tests green; clippy `--all-targets -D warnings` + `fmt --check` clean. Release `x86_64-pc-windows-msvc` + `crt-static` `box.exe` builds at 5.1 MB (portable).
+- **Environment:** Windows 11, PowerShell 7 terminal. Several commands are inherently Windows-flavored (clipboard via arboard, toast via tauri-winrt-notification, terminal color/Unicode rendering via crossterm) and rely on Windows-appropriate crates/APIs — all working in PS7.
+- **Language:** Rust — a single fast, statically-linked distributable binary.
+- **Network-dependent commands:** `weather` uses Open-Meteo (keyless geocode + forecast via ureq); the only networked command.
+- **Architecture:** single crate, `src/commands/<cmd>/mod.rs` per command, `RunCommand` trait, ~40-line dispatch-only `main.rs`, shared `src/core/` (errors / output / fs / input).
 
 ## Constraints
 
@@ -86,12 +87,17 @@ None — all 23 v1 commands shipped and validated. **v1 milestone complete (2026
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Single binary `box` with subcommands | One discoverable PATH entry; avoids name clashes and PATH clutter from many small binaries | — Pending |
-| Binary named `box` | Short, neutral, fast to type, no common Windows clash | — Pending |
-| `install.ps1` for global install | Doesn't assume cargo bin is on PATH; copies exe to a dedicated bin dir and updates user PATH | — Pending |
-| `flatten` collisions → prefix with source path | Predictable, traceable to origin, nothing silently lost or overwritten | — Pending |
-| All 23 commands targeted for v1 | User wants the full toolbox to land together | — Pending |
-| Rust as implementation language | Single fast native binary, easy global distribution | — Pending |
+| Single binary `box` with subcommands | One discoverable PATH entry; avoids name clashes and PATH clutter from many small binaries | ✓ Good — one clap-derive registry, all 23 commands in `box --help` |
+| Binary named `box` | Short, neutral, fast to type, no common Windows clash | ✓ Good — no clash observed in PS7 |
+| `install.ps1` for global install | Doesn't assume cargo bin is on PATH; copies exe to a dedicated bin dir and updates user PATH | ✓ Good — same-session install + `box --help` smoke-test human-verified in PS7 (idempotent REG_EXPAND_SZ-safe PATH) |
+| `flatten` collisions → prefix with source path | Predictable, traceable to origin, nothing silently lost or overwritten | ✓ Good — plus post-review hardening of trailing-dot/space + non-ASCII-case + `create_new` loud-fail |
+| All 23 commands targeted for v1 | User wants the full toolbox to land together | ✓ Good — all 23 shipped & validated in one milestone |
+| Rust as implementation language | Single fast native binary, easy global distribution | ✓ Good — 5.1 MB `crt-static` portable exe |
+| Order phases by integration risk (pure → fs → visuals → platform) | Find architecture problems on `uuid`, not `flatten`; attempt riskiest Windows-API/network integrations last with 21 commands already working | ✓ Good — Phase 5's new Windows-API deps compiled first try against a stable base |
+| SHA-256 (not BLAKE3) as `hash` default; BLAKE3 via `--algo` | HASH-01 binding contract; interop with `sha256sum`/Docker workflows | ✓ Good — BLAKE3-default deferred to HASH-V2-01 |
+| `x86_64-pc-windows-msvc` + `crt-static` target | MinGW Tier-2 in Rust 1.88; MSVC required for arboard/winrt; static CRT = portable exe | ✓ Good — links all 4 Windows-API deps, runs standalone |
+| Override two CLAUDE.md crate recs after slop-check (`qrcode` over qr2term, `tauri-winrt-notification` over winrt-notification) | Maintenance + modern `windows 0.61`; validated legitimate before adoption | ✓ Good — both compiled clean, toast + QR human-verified |
+| Per-phase post-execution code review (not just verification) | Verification confirms the feature works; adversarial review finds path-escapes / terminal-restore bugs | ✓ Good — caught 2 BLOCKERs verification missed (bulk-rename `..` escape, matrix raw-mode-stuck) |
 
 ## Evolution
 
@@ -111,4 +117,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-24 — Phase 5 (Windows Platform Integration) complete: four commands (qr, clip, pomodoro, weather) shipped, verified 16/16, human-UAT 3/3 cleared in PS7; code-review WR-01 (pomodoro out-of-range no-panic) + WR-02 (clip empty-clipboard message) fixed with covering tests. **All 23/23 v1 commands live → v1 MILESTONE COMPLETE.** Release x86_64-pc-windows-msvc +crt-static box.exe builds (5.1 MB). Next = `/gsd:complete-milestone` to archive v1, or `./install.ps1` to ship box.exe to PATH.*
+*Last updated: 2026-06-24 after v1.0 milestone — full PROJECT.md evolution review: all 23 commands moved to Validated, Active cleared, Key Decisions outcomes recorded (12 decisions, all ✓ Good), Context updated to shipped state. v1.0 archived to `milestones/v1.0-{ROADMAP,REQUIREMENTS}.md`, tagged `v1.0`. Next = `/gsd:new-milestone` for v2 (HASH-V2-01 BLAKE3-default, VIS-V2-01 colored ascii / animated lolcat, …), or `./install.ps1` to ship box.exe to PATH.*
