@@ -37,9 +37,11 @@
 //! `KeyEvent` (`Char('c')` + `CONTROL`), NOT a SIGINT — so there is no `ctrlc`
 //! crate. Only `KeyEventKind::Press` events are honored: Windows fires both Press
 //! AND Release, so without that filter an exit key would double-count (Pitfall 3).
-//! Restoration is an RAII [`RawGuard`] armed immediately after setup; its `Drop`
-//! runs `cursor::Show` + `LeaveAlternateScreen` then `disable_raw_mode()` (errors
-//! ignored) on normal return, on a `?` early-return, and on unwinding. Under the
+//! Restoration is an RAII [`RawGuard`] armed the INSTANT raw mode is enabled —
+//! BEFORE the fallible alternate-screen/cursor `execute!`, so a failure there
+//! still restores the terminal (CR-01). Its `Drop` runs `cursor::Show` +
+//! `LeaveAlternateScreen` then `disable_raw_mode()` (errors ignored) on normal
+//! return, on a `?` early-return, and on unwinding. Under the
 //! release profile `panic = "abort"` a true panic won't unwind, so the alternate
 //! screen itself is the backstop (nothing persists in the real terminal); the
 //! loop is therefore kept panic-free (no `.unwrap()` on terminal ops).
@@ -96,11 +98,13 @@ const FADE_DARK: u8 = 40;
 #[derive(Debug, Args)]
 pub struct MatrixArgs {}
 
-/// RAII terminal-restore guard (D-10). Constructed immediately after raw-mode +
-/// alternate-screen setup; its `Drop` undoes that setup on EVERY non-aborting
-/// exit path (normal return, `?` early-return, unwinding). All teardown errors
-/// are deliberately ignored — there is nothing useful to do if restore fails,
-/// and `drop` must not panic.
+/// RAII terminal-restore guard (D-10). Constructed the INSTANT raw mode is
+/// enabled — BEFORE the alternate-screen/cursor `execute!` — so it also covers a
+/// failure of that fallible setup step (CR-01). Its `Drop` undoes the setup on
+/// EVERY non-aborting exit path (normal return, `?` early-return, unwinding). All
+/// teardown errors are deliberately ignored — there is nothing useful to do if
+/// restore fails (e.g. `LeaveAlternateScreen` when the alternate screen was never
+/// entered), and `drop` must not panic.
 struct RawGuard;
 
 impl Drop for RawGuard {
@@ -114,11 +118,19 @@ impl Drop for RawGuard {
 impl RunCommand for MatrixArgs {
     fn run(self) -> anyhow::Result<()> {
         enable_raw_mode()?;
-        let mut out = std::io::stdout();
-        // Arm the guard BEFORE any `?` that could early-return: from this point
-        // on, every non-aborting exit restores the terminal (D-10).
-        crossterm::execute!(out, EnterAlternateScreen, cursor::Hide)?;
+        // Arm the guard THE INSTANT raw mode is on, BEFORE any further `?` that
+        // could early-return (D-10 / CR-01). If `execute!(EnterAlternateScreen,
+        // cursor::Hide)` below fails, its `?` returns from `run()` — but the
+        // guard already exists, so its `Drop` runs `disable_raw_mode()` and the
+        // terminal is restored. Were the guard armed AFTER the `execute!`, a
+        // failure there would early-return with raw mode still on and no guard
+        // to undo it, leaving the user's terminal stuck (no echo, no cooked
+        // input). `RawGuard::drop` tolerates the alternate screen never having
+        // been entered — `LeaveAlternateScreen` on a screen never entered is a
+        // harmless, ignored error.
         let _guard = RawGuard;
+        let mut out = std::io::stdout();
+        crossterm::execute!(out, EnterAlternateScreen, cursor::Hide)?;
 
         let (cols, rows) = terminal::size()?;
         let cols = cols as usize;
