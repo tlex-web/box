@@ -1,23 +1,22 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: Full Toolbox
-current_plan: "—"
-status: milestone_complete
-stopped_at: v1.0 milestone ARCHIVED + tagged (Phase 05 was final phase)
-last_updated: 2026-06-24T22:10:00.000Z
+milestone: v2.0
+milestone_name: Toolbox to Toolkit
+status: planning
+last_updated: "2026-06-24T21:49:39.974Z"
+last_activity: 2026-06-24
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 22
-  completed_plans: 22
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-24
-**Updated by:** execute-phase orchestrator (Phase 5 COMPLETE & VERIFIED 16/16 — qr/clip/pomodoro/weather shipped; human-UAT 3/3 cleared in PS7; code-review WR-01/WR-02 fixed; release crt-static exe builds → v1 MILESTONE COMPLETE, all 23 commands real)
+**Updated by:** new-milestone orchestrator (v2.0 Toolbox → Toolkit kickoff — PROJECT.md updated, STATE.md switched to v2.0/planning; next: research → REQUIREMENTS.md → ROADMAP.md. Prior v1.0 close context preserved below.)
 
 ---
 
@@ -25,37 +24,20 @@ progress:
 
 **Core Value:** The toolbox must be globally available and instantly usable from PowerShell 7 — type `box <command>` from anywhere and the tool just works.
 
-**Current Focus:** Planning next milestone (v2) — run `/gsd:new-milestone`
+**Current Focus:** v2.0 Toolbox → Toolkit — defining requirements (scriptable `--json`/`--clip` spine + comprehensive per-command depth + PS7 completions + config-file defaults)
 
-**Milestone:** v1.0 Full Toolbox — SHIPPED & ARCHIVED 2026-06-24 (all 23 commands; see `.planning/MILESTONES.md`)
+**Milestone:** v2.0 Toolbox → Toolkit — PLANNING (defining requirements). v1.0 Full Toolbox shipped & archived 2026-06-24 (all 23 commands; see `.planning/MILESTONES.md`).
 
-See: .planning/PROJECT.md (updated 2026-06-24 after v1.0 milestone)
+See: .planning/PROJECT.md (updated 2026-06-24 after v2.0 milestone kickoff)
 
 ---
 
 ## Current Position
 
-Phase: 05 (windows-platform-integration) — ✓ COMPLETE & VERIFIED (16/16 must-haves; human-UAT 3/3 cleared)
-Plan: 4 of 4 ✓ (05-01 qr, 05-02 clip, 05-03 pomodoro, 05-04 weather — all shipped & verified)
-**Phase:** 05
-**Current Plan:** — (v1 milestone complete)
-**Total Plans in Phase:** 4
-**Status:** Milestone complete
-
-**Progress:**
-
-```
-[██████████] 100% (5 / 5 phases complete; Phase 5: 4 / 4 plans ✓)
-Phase 1 [██████████] 4 / 4 plans ✓ complete
-Phase 2 [██████████] 5 / 5 plans ✓ complete (verified, human-UAT cleared)
-Phase 3 [██████████] 5 / 5 plans ✓ complete (verified 24/24, human-UAT cleared) — 03-01 hash ✓ (HASH-01), 03-02 tree ✓ (TREE-01), 03-03 du ✓ (DU-01), 03-04 dupes ✓ (DUPE-01), 03-05 bulk-rename ✓ (RENM-01)
-Phase 4 [██████████] 4 / 4 plans ✓ complete & verified (4/4 must-haves) — 04-01 json ✓ (JSON-01), 04-02 lolcat ✓ (LOL-01), 04-03 ascii ✓ (ASCI-01), 04-04 matrix ✓ (MTRX-01)
-Phase 5 [██████████] 4 / 4 plans ✓ complete & verified (16/16 must-haves; human-UAT 3/3 cleared) — 05-01 qr ✓ (QR-01), 05-02 clip ✓ (CLIP-01), 05-03 pomodoro ✓ (POMO-01), 05-04 weather ✓ (WTHR-01)
-
-Overall: 5 / 5 phases complete (22 / 22 mapped plans done) — v1 MILESTONE COMPLETE, all 23 commands shipped & verified
-```
-
----
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-06-24 — Milestone v2.0 started
 
 ## Phase Map
 

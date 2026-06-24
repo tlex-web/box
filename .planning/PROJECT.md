@@ -2,11 +2,24 @@
 
 ## What This Is
 
-`box` is a single Rust binary that bundles 23 command-line tools — a mix of genuinely useful utilities and fun toys — exposed as subcommands (`box flatten`, `box qr`, `box cowsay`, …). It's built for a developer running Windows PowerShell 7, installed globally so any tool is one short command away. **v1.0 shipped 2026-06-24 — all 23 commands live.**
+`box` is a single Rust binary that bundles 23 command-line tools — a mix of genuinely useful utilities and fun toys — exposed as subcommands (`box flatten`, `box qr`, `box cowsay`, …). It's built for a developer running Windows PowerShell 7, installed globally so any tool is one short command away. **v1.0 shipped 2026-06-24 — all 23 commands live.** **v2.0 (in progress) deepens these into a scriptable toolkit** — `--json`/`--clip` everywhere applicable, PS7 completions, and config-file defaults.
 
 ## Core Value
 
 The toolbox must be **globally available and instantly usable from PowerShell 7** — type `box <command>` from anywhere and the tool just works. If the breadth of commands is impressive but they aren't reachable on PATH, the project has failed at its one job.
+
+## Current Milestone: v2.0 — Toolbox → Toolkit
+
+**Goal:** Make the existing 23 commands deeper, scriptable, and frictionless in PowerShell 7 — turning the toolbox into a toolkit. No new *tool* commands; only `completions` / `config` meta-commands.
+
+**Target features:**
+- **Scriptable spine (cross-cutting):** `--json` machine-readable output across all applicable commands (`box … | ConvertFrom-Json` → PS7 objects); `--clip` to push output to the Windows clipboard (reusing v1's arboard infra).
+- **Per-command depth (comprehensive — the full deferred-V2 set):** filesystem (flatten / hash / dupes / bulk-rename / tree / du), dev transforms (uuid v7, epoch tz, color CSS+HSL, json `--sort-keys`, passgen entropy / `--no-similar` / `--separator`), visuals (lolcat `--animate`/`--freq`/`--seed`, matrix color/speed/charset, qr `--save`/EC, ascii color/braille/invert), fun (cowsay figures/think, fortune categories, 8ball art/sentiment, roast `--language`), system (pomodoro counter/auto-break/sound/`--label`, weather `--forecast`/cache/stored-location).
+- **Frictionless PS7:** `box completions powershell` (clap_complete); config-file defaults (`box config` + config file for default algo / units / location / color).
+
+**Breaking change:** `hash` switches its default algorithm to BLAKE3 (`HASH-V2-01`), superseding the v1 `HASH-01` SHA-256-default binding contract — the major-version trigger.
+
+**Explicitly out of scope (this milestone):** self-update; Scoop / winget packaging (v1 distribution boundary preserved).
 
 ## Requirements
 
@@ -55,7 +68,12 @@ The toolbox must be **globally available and instantly usable from PowerShell 7*
 
 <!-- Current scope. Building toward these. All are hypotheses until shipped. -->
 
-None — all 23 v1 commands shipped and validated. **v1 milestone complete (2026-06-24).** Future ideas (BLAKE3-default hash `HASH-V2-01`, colored ASCII / animated lolcat `VIS-V2-01`, etc.) are deferred to a v2 milestone.
+**v2.0 Toolbox → Toolkit** *(scoped 2026-06-24; detailed REQ-IDs land in REQUIREMENTS.md)*
+- [ ] Scriptable spine — `--json` output + `--clip` clipboard across all applicable commands
+- [ ] Comprehensive per-command depth — the full deferred-V2 set (FLAT / HASH / DUPE / RENM / TREE / DU / DEV / VIS / FUN / SYS / PASS-V2)
+- [ ] BLAKE3-default `hash` (breaking; supersedes the `HASH-01` SHA-256 default)
+- [ ] PS7 shell completions (`completions` meta-command)
+- [ ] Config-file defaults (`config` meta-command + config file)
 
 ### Out of Scope
 
@@ -117,4 +135,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-24 after v1.0 milestone — full PROJECT.md evolution review: all 23 commands moved to Validated, Active cleared, Key Decisions outcomes recorded (12 decisions, all ✓ Good), Context updated to shipped state. v1.0 archived to `milestones/v1.0-{ROADMAP,REQUIREMENTS}.md`, tagged `v1.0`. Next = `/gsd:new-milestone` for v2 (HASH-V2-01 BLAKE3-default, VIS-V2-01 colored ascii / animated lolcat, …), or `./install.ps1` to ship box.exe to PATH.*
+*Last updated: 2026-06-24 after v2.0 milestone kickoff (/gsd:new-milestone) — added Current Milestone (Toolbox → Toolkit); Active set to v2.0 scope (scriptable `--json`/`--clip` spine + comprehensive per-command depth + PS7 completions + config-file defaults); BLAKE3-default `hash` recorded as the breaking change; self-update & Scoop/winget packaging held out of scope. Next: research → REQUIREMENTS.md (REQ-IDs) → ROADMAP.md (phases continue numbering from v1's Phase 5).*
