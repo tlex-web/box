@@ -62,11 +62,40 @@ pub struct ClipArgs {
 
 impl RunCommand for ClipArgs {
     fn run(self) -> anyhow::Result<()> {
-        // RED placeholder — replaced by the real arboard copy/paste flow in Task 2
-        // (GREEN). The pure `trim_one_trailing_newline` helper below is already real
-        // and unit-tested; only the binary's integration behavior is RED here.
-        let _ = self.paste;
-        anyhow::bail!("not implemented")
+        if self.paste {
+            // PASTE: clipboard → stdout, byte-exact (D-05 — no newline policy). The
+            // single-shot main-thread arboard flow (create → one op → return)
+            // satisfies the STATE.md "arboard main-thread only" pitfall (CLIP-2).
+            let mut cb = arboard::Clipboard::new().context("open clipboard")?;
+            let text = cb.get_text().context("read clipboard")?;
+            // Write the raw bytes; do NOT add or strip a trailing newline (D-05).
+            std::io::stdout().write_all(text.as_bytes())?;
+        } else {
+            // COPY: raw stdin → clipboard. Read RAW bytes directly, NOT via
+            // `core::input::read_input` (D-04) — that would inherit the
+            // no-arg-TTY → exit-2 contract, wrong for a clipboard copy.
+            let mut buf = Vec::new();
+            std::io::stdin().read_to_end(&mut buf)?;
+            // Strip at most one trailing terminator so the implicit CRLF PowerShell
+            // appends when piping a string does not land a spurious blank line on
+            // the clipboard (D-05 / Pitfall CLIP-1).
+            let buf = trim_one_trailing_newline(buf);
+            // Validate UTF-8 BEFORE touching the clipboard: a non-UTF-8 stream is a
+            // clean exit-1 error here (main() prints `error: …`), never a panic
+            // (D-04 / FOUND-05 / T-05-CLIP-DoS). `arboard::Clipboard::new()` is not
+            // even reached on bad input, so the failure is deterministic and
+            // clipboard-independent.
+            let text = String::from_utf8(buf).context("clipboard input must be UTF-8")?;
+            // Single-shot main-thread set: arboard's `set_text` performs the full
+            // OpenClipboard → SetClipboardData(CF_UNICODETEXT) → CloseClipboard
+            // synchronously; the OS owns the handle after, so the copy persists past
+            // process exit (D-06 — no keep-alive pump needed on Windows). `set_text`
+            // takes `&mut self`, hence `let mut cb` (Pitfall CLIP-2). The clipboard
+            // contents are never echoed to stdout/stderr (T-05-CLIP-INFO).
+            let mut cb = arboard::Clipboard::new().context("open clipboard")?;
+            cb.set_text(text).context("write clipboard")?;
+        }
+        Ok(())
     }
 }
 

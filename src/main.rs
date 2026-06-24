@@ -93,7 +93,7 @@ fn main() -> ExitCode {
         Commands::Ascii(args) => args.run(),
         Commands::Json(args) => args.run(),
         Commands::Qr(args) => args.run(),
-        Commands::Clip => Err(not_implemented("clip")),
+        Commands::Clip(args) => args.run(),
         Commands::Pomodoro => Err(not_implemented("pomodoro")),
         Commands::Weather => Err(not_implemented("weather")),
     };

@@ -85,7 +85,13 @@ pub enum Commands {
     /// Render a QR code for text or a URL in the terminal
     Qr(crate::commands::qr::QrArgs),
     /// Read from or write to the system clipboard
-    Clip,
+    ///
+    /// With no flag, `box clip` copies piped stdin to the Windows clipboard
+    /// (`"text" | box clip`); with `--paste` it reads the clipboard to stdout.
+    /// On copy a single trailing newline is stripped (the implicit CRLF
+    /// PowerShell appends when piping a string) so no spurious blank line lands
+    /// on the clipboard; on paste the text is emitted byte-exact.
+    Clip(crate::commands::clip::ClipArgs),
     /// Run a focus timer with Windows toast notifications
     Pomodoro,
     /// Fetch the weather for a location
