@@ -24,7 +24,6 @@ pub mod passgen;
 pub mod pomodoro;
 pub mod qr;
 pub mod roast;
-pub mod stub;
 pub mod tree;
 pub mod uuid;
 pub mod weather;

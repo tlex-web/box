@@ -5,11 +5,6 @@ use thiserror::Error;
 /// Errors raised by `box` commands that `main()` translates into exit codes.
 #[derive(Debug, Error)]
 pub enum BoxError {
-    /// A registered-but-unbuilt command was invoked. Maps to exit code 1 with
-    /// the message printed to stderr (D-06).
-    #[error("'{cmd}' is not yet implemented — coming in a future release")]
-    NotImplemented { cmd: &'static str },
-
     /// No input was provided: a stdin-consuming command was run with no
     /// positional argument on an interactive TTY (D-04 branch 3). `main()`
     /// downcasts this variant and maps it to exit code 2 (a usage error), never

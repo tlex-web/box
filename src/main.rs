@@ -7,7 +7,7 @@
 //!   clap's `arg_required_else_help` default is exit 0 — see Pitfall 2 / OQ-1).
 //! - bad command / bad args → clap's own exit 2 to stderr (D-07).
 //! - command runs OK → exit 0.
-//! - command returns `Err` (incl. NotImplemented) → `error: …` to stderr, exit 1.
+//! - command returns `Err` → `error: …` to stderr, exit 1.
 //!
 //! The 2-vs-1 boundary is "USAGE error vs RUNTIME/DATA error", NOT "any bad
 //! user input" (WR-01 carve-out, D-06):
@@ -34,7 +34,6 @@ use clap::error::ErrorKind;
 use clap::Parser;
 
 use crate::cli::{Cli, Commands};
-use crate::commands::stub::not_implemented;
 use crate::commands::RunCommand;
 
 fn main() -> ExitCode {
@@ -95,7 +94,7 @@ fn main() -> ExitCode {
         Commands::Qr(args) => args.run(),
         Commands::Clip(args) => args.run(),
         Commands::Pomodoro(args) => args.run(),
-        Commands::Weather => Err(not_implemented("weather")),
+        Commands::Weather(args) => args.run(),
     };
 
     match result {
@@ -110,8 +109,8 @@ fn main() -> ExitCode {
             //   - `UnsupportedHashLength`: a `box hash --verify <hex>` whose length
             //     matches no algorithm (D-04). A mismatched-but-valid `--verify` is
             //     a plain `anyhow` error → exit 1, NOT this variant (Pitfall 1).
-            // All other errors (incl. NotImplemented) keep exit 1. Downcast on the
-            // typed variants so a plain `anyhow::bail!` elsewhere is unaffected.
+            // All other errors keep exit 1. Downcast on the typed variants so a
+            // plain `anyhow::bail!` elsewhere is unaffected.
             match e.downcast_ref::<crate::core::errors::BoxError>() {
                 Some(
                     crate::core::errors::BoxError::MissingInput

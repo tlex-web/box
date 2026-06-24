@@ -48,7 +48,5 @@ fn offline_exits_1_clean() {
         .failure()
         .code(1)
         .stdout(predicate::str::is_empty())
-        .stderr(
-            predicate::str::contains("offline").or(predicate::str::contains("service")),
-        );
+        .stderr(predicate::str::contains("offline").or(predicate::str::contains("service")));
 }

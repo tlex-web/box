@@ -6,8 +6,8 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 
 /// FOUND-01 / SC1 — `box --help` exits 0 and lists the command names. We assert
-/// a representative set spanning built + stub commands; the full 23-line listing
-/// is snapshot-checked by the trycmd transcript (`tests/cmd/help.trycmd`).
+/// a representative set spanning the 23 commands; the full 23-line listing is
+/// snapshot-checked by the trycmd transcript (`tests/cmd/help.trycmd`).
 #[test]
 fn help_lists_23_commands() {
     Command::cargo_bin("box")
@@ -60,22 +60,13 @@ fn bare_box_exits_2() {
         .code(2);
 }
 
-/// D-06 / FOUND-03 — invoking an unbuilt command exits 1 with the message on
-/// stderr only; stdout stays empty so pipes are never corrupted. Uses `weather`
-/// as the representative stub: `qr` became real in plan 05-01, so this points at
-/// a command that is still a stub (clip/pomodoro/weather remain until plans
-/// 05-02..05-04); `weather` is the last to be built, so it stays a stub longest.
-#[test]
-fn stub_exits_1_to_stderr() {
-    Command::cargo_bin("box")
-        .unwrap()
-        .arg("weather")
-        .assert()
-        .failure()
-        .code(1)
-        .stderr(predicate::str::contains("not yet implemented"))
-        .stdout(predicate::str::is_empty());
-}
+// NOTE: the `stub_exits_1_to_stderr` test was removed in plan 05-04. It used
+// `weather` as the last remaining NotImplemented stub; weather is now a real
+// command, so NO stubs remain and the `BoxError::NotImplemented` variant +
+// `commands::stub` module were deleted. The exit-1 RUNTIME-error contract those
+// tested is now exercised by real command error paths (e.g. `tests/json.rs`
+// invalid-JSON exit 1, `tests/color.rs` malformed-input exit 1, and
+// `tests/weather.rs` offline exit 1).
 
 /// FOUND-04 / SC3 — when stdout is not a TTY (assert_cmd captures it via a pipe),
 /// `box flatten --help` output must contain no ANSI escape sequence (`\x1b[`).

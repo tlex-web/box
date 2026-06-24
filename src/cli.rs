@@ -5,9 +5,8 @@
 //! cannot be Rust idents (`8ball`, `bulk-rename`) keep their CLI name via
 //! `#[command(name = "...")]`.
 //!
-//! This phase registers all 23 commands; only `flatten` becomes functional, in
-//! plan 03 — which swaps the unit `Flatten` variant for one carrying the real
-//! `FlattenArgs`. Until then every variant is routed to the stub handler.
+//! All 23 commands are now functional: every [`Commands`] variant carries its
+//! real `Args` struct and dispatches to that command's `RunCommand::run`.
 
 use clap::{Parser, Subcommand};
 
@@ -28,8 +27,8 @@ pub struct Cli {
     pub command: Commands,
 }
 
-/// Every registered subcommand. All 23 are listed in `box --help`; only the
-/// built ones do real work — the rest dispatch to the NotImplemented stub.
+/// Every registered subcommand. All 23 are listed in `box --help` and every one
+/// carries a real `Args` struct that does real work.
 #[derive(Subcommand)]
 pub enum Commands {
     /// Flatten a folder tree into a single output directory
@@ -102,5 +101,12 @@ pub enum Commands {
     /// are restored on every exit path.
     Pomodoro(crate::commands::pomodoro::PomodoroArgs),
     /// Fetch the weather for a location
-    Weather,
+    ///
+    /// `box weather <LOCATION>` shows the current temperature, conditions, wind,
+    /// and humidity from the keyless Open-Meteo API. `LOCATION` is either a
+    /// `lat,lon` pair (`51.5,-0.13`, used directly) or a city name (`London`,
+    /// geocoded — the resolved match is echoed to stderr). `--units imperial`
+    /// switches to °F/mph; the default is metric °C/km/h. No API key is required.
+    /// When the service is unreachable a graceful error prints to stderr (exit 1).
+    Weather(crate::commands::weather::WeatherArgs),
 }

@@ -38,10 +38,20 @@
 //! without ever hitting the live network. Unset in normal use → the real
 //! Open-Meteo origins.
 
+use anyhow::Context;
 use clap::{Args, ValueEnum};
+use owo_colors::OwoColorize;
 use serde::Deserialize;
 
 use crate::commands::RunCommand;
+use crate::core::output::is_color_on;
+
+/// Default (real) Open-Meteo geocoding origin.
+const GEOCODE_ORIGIN: &str = "https://geocoding-api.open-meteo.com";
+/// Default (real) Open-Meteo forecast origin.
+const FORECAST_ORIGIN: &str = "https://api.open-meteo.com";
+/// Env var that overrides BOTH origins for deterministic offline testing.
+const BASE_URL_ENV: &str = "BOX_WEATHER_BASE_URL";
 
 /// Unit system for the forecast (D-10). `Metric` is the default (and Open-Meteo's
 /// own API default → the no-flag path sends no unit params). `Imperial` appends
@@ -72,11 +82,99 @@ pub struct WeatherArgs {
 
 impl RunCommand for WeatherArgs {
     fn run(self) -> anyhow::Result<()> {
-        // Placeholder until Task 2 wires the geocode + forecast orchestration. The
-        // network behavior integration tests (offline → exit 1) are RED until then.
-        let _ = &self.location;
-        anyhow::bail!("not implemented")
+        // Parse-shape disambiguation (D-12): a range-checked `lat,lon` is used
+        // directly; anything else is geocoded as a city name.
+        let (lat, lon, label) = match parse_lat_lon(&self.location) {
+            Some((lat, lon)) => (lat, lon, format!("{lat:.4},{lon:.4}")),
+            None => geocode(&self.location)?,
+        };
+
+        // Echo the resolved location to stderr so a wrong geocode match is visible
+        // (D-12). messages → stderr (never stdout, which stays clean for the data).
+        eprintln!(
+            "Resolved \"{}\" → {label} ({lat:.2}, {lon:.2})",
+            self.location
+        );
+
+        // Forecast: server-side unit params on imperial only (D-11/D-13).
+        let url = build_forecast_url(lat, lon, self.units);
+        let forecast: ForecastResp = fetch(&url)?;
+
+        let conditions = wmo_to_str(forecast.current.weather_code);
+        // AUTHORITATIVE unit labels from current_units — NEVER hardcoded (D-11).
+        // The imperial wind label is "mp/h", not the "mph" request param.
+        let temp_unit = &forecast.current_units.temperature_2m;
+        let wind_unit = &forecast.current_units.wind_speed_10m;
+        let temp = forecast.current.temperature_2m;
+        let wind = forecast.current.wind_speed_10m;
+        let humidity = forecast.current.relative_humidity_2m;
+
+        // Aligned labeled block → stdout (data). Conditions are optionally colored,
+        // gated SOLELY on is_color_on() so piped output is byte-identical minus
+        // ANSI (D-00/D-13). No second color path, no global override.
+        if is_color_on() {
+            println!("  Conditions  : {}", conditions.cyan());
+        } else {
+            println!("  Conditions  : {conditions}");
+        }
+        println!("  Temperature : {temp}{temp_unit}");
+        println!("  Wind        : {wind} {wind_unit}");
+        println!("  Humidity    : {humidity}%");
+        Ok(())
     }
+}
+
+/// Geocode a city `name` to `(lat, lon, "City, Region, Country")` via the
+/// Open-Meteo geocoding API (D-12). The name is URL-encoded so reserved
+/// characters (`&`/`=`/spaces) cannot inject extra query params
+/// (T-05-WTHR-INJ). A no-match response OMITS the `results` key entirely
+/// (Pitfall WTHR-2 — `#[serde(default)]` deserializes that to an empty Vec), so
+/// an empty/absent `results` → `no location found` (exit 1).
+fn geocode(name: &str) -> anyhow::Result<(f64, f64, String)> {
+    let url = format!(
+        "{}/v1/search?name={}&count=1&language=en&format=json",
+        geocode_origin(),
+        url_encode(name),
+    );
+    let resp: GeoResp = fetch(&url)?;
+    let hit = resp
+        .results
+        .into_iter()
+        .next()
+        .with_context(|| format!("no location found for \"{name}\""))?;
+    let label = format_geo_label(&hit);
+    Ok((hit.latitude, hit.longitude, label))
+}
+
+/// The single most important weather pattern: one blocking GET whose result is
+/// classified by ureq 3.x's DEFAULT status-as-error behavior (Pitfall WTHR-1).
+/// `Ok` is ALWAYS 2xx → deserialize the body via `serde_json::from_reader` over
+/// `into_body().into_reader()` (D-13; no ureq `json` feature). Non-2xx arrives as
+/// `Err(Error::StatusCode(code))` → a clean exit-1 status message (NOT a
+/// post-success `resp.status()` check). Everything else (Io / ConnectionFailed /
+/// HostNotFound / catch-all) is the offline/DNS family → the graceful offline
+/// error. Both error arms are plain `anyhow::bail!` → exit 1.
+fn fetch<T: serde::de::DeserializeOwned>(url: &str) -> anyhow::Result<T> {
+    match ureq::get(url).call() {
+        Ok(resp) => serde_json::from_reader(resp.into_body().into_reader())
+            .context("parse weather response"),
+        Err(ureq::Error::StatusCode(code)) => {
+            anyhow::bail!("weather service returned {code}")
+        }
+        Err(_) => anyhow::bail!("could not reach weather service (offline?)"),
+    }
+}
+
+/// The geocoding origin: `BOX_WEATHER_BASE_URL` if set (offline test seam), else
+/// the real Open-Meteo geocoding host.
+fn geocode_origin() -> String {
+    std::env::var(BASE_URL_ENV).unwrap_or_else(|_| GEOCODE_ORIGIN.to_string())
+}
+
+/// The forecast origin: `BOX_WEATHER_BASE_URL` if set (offline test seam), else
+/// the real Open-Meteo forecast host.
+fn forecast_origin() -> String {
+    std::env::var(BASE_URL_ENV).unwrap_or_else(|_| FORECAST_ORIGIN.to_string())
 }
 
 /// Map a WMO weather code to a short `&'static str` description (D-13). No alloc;
@@ -85,12 +183,12 @@ impl RunCommand for WeatherArgs {
 fn wmo_to_str(code: u32) -> &'static str {
     match code {
         0 => "Clear sky",
-        1 | 2 | 3 => "Partly cloudy",
+        1..=3 => "Partly cloudy",
         45 | 48 => "Fog",
         51 | 53 | 55 => "Drizzle",
         61 | 63 | 65 => "Rain",
         71 | 73 | 75 => "Snow",
-        80 | 81 | 82 => "Rain showers",
+        80..=82 => "Rain showers",
         95 => "Thunderstorm",
         _ => "Unknown",
     }
@@ -110,15 +208,17 @@ fn parse_lat_lon(s: &str) -> Option<(f64, f64)> {
 /// Build the Open-Meteo forecast URL for `(lat, lon)`. The base `current=...` set
 /// is always requested; the imperial server-side unit params
 /// (`&temperature_unit=fahrenheit&wind_speed_unit=mph`) are appended ONLY for
-/// `Units::Imperial` (D-11/D-13) — the metric path omits them entirely. Pure →
-/// the imperial branch is unit-testable without a network call.
+/// `Units::Imperial` (D-11/D-13) — the metric path omits them entirely. Pure
+/// (aside from reading the origin env seam) → the imperial branch is unit-testable
+/// without a network call.
 ///
-/// Uses the real Open-Meteo forecast origin; Task 2 routes it through the
-/// `BOX_WEATHER_BASE_URL` test seam.
+/// The forecast origin comes from [`forecast_origin`] (the real Open-Meteo host,
+/// or `BOX_WEATHER_BASE_URL` when the offline test seam is set).
 fn build_forecast_url(lat: f64, lon: f64, units: Units) -> String {
     let mut url = format!(
-        "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}\
+        "{}/v1/forecast?latitude={lat}&longitude={lon}\
          &current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m",
+        forecast_origin(),
     );
     if matches!(units, Units::Imperial) {
         url.push_str("&temperature_unit=fahrenheit&wind_speed_unit=mph");
@@ -263,8 +363,9 @@ mod tests {
             "metric must NOT request mph: {metric}"
         );
         assert!(
-            metric
-                .contains("current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m"),
+            metric.contains(
+                "current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m"
+            ),
             "metric must request the current set: {metric}"
         );
 
