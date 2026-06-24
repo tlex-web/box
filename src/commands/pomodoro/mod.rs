@@ -44,11 +44,16 @@ use std::io::Write;
 use std::time::{Duration, Instant};
 
 use clap::Args;
-use crossterm::cursor;
+use crossterm::cursor::{self, MoveToColumn};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use crossterm::queue;
+use crossterm::style::Print;
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType};
+use owo_colors::OwoColorize;
+use tauri_winrt_notification::Toast;
 
 use crate::commands::RunCommand;
+use crate::core::output::is_color_on;
 
 /// Default work-session length in minutes (D-08).
 const WORK_MINUTES: u64 = 25;
@@ -94,12 +99,97 @@ impl Drop for RawGuard {
     }
 }
 
+/// The bright green used for the countdown digits when color is on (D-08
+/// discretion). Gated on `is_color_on()` so piped output is byte-identical minus
+/// ANSI — the locked color contract (D-00).
+const DIGITS_RGB: (u8, u8, u8) = (120, 255, 120);
+
 impl RunCommand for PomodoroArgs {
     fn run(self) -> anyhow::Result<()> {
-        // Placeholder — the real raw-mode loop lands in Task 2. The pure helpers
-        // (resolve_duration / fmt_mmss / is_cancel) below are already real and
-        // unit-tested; only the terminal-bound loop is RED until then.
-        anyhow::bail!("not implemented")
+        let total = resolve_duration(self.minutes, self.break_, self.long_break);
+
+        // Enable raw mode FIRST, then arm the guard THE INSTANT raw mode is on,
+        // BEFORE the fallible `cursor::Hide` execute! (matrix CR-01 ordering). If
+        // `Hide` fails, its `?` early-returns from `run()` — but the guard already
+        // exists, so its `Drop` runs `disable_raw_mode()` and the terminal is
+        // restored. Were the guard armed AFTER `Hide`, a failure there would
+        // early-return with raw mode still on and no guard to undo it.
+        enable_raw_mode()?;
+        let _guard = RawGuard;
+        let mut out = std::io::stdout();
+        // No EnterAlternateScreen — the in-place countdown lives on the NORMAL
+        // screen (discretion); the guard restores Show + disable_raw_mode only.
+        crossterm::execute!(out, cursor::Hide)?;
+
+        let end = Instant::now() + total;
+        // `cancelled` is the loop's break value: true on a cancel key, false when
+        // the countdown reaches zero (COMPLETION). The toast fires ONLY on the
+        // false (completion) path, AFTER this loop and AFTER the guard restores the
+        // terminal — the cancel path NEVER reaches `show()` (D-07 / T-05-POMO-CANCEL).
+        let cancelled = loop {
+            let remaining = end.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                break false; // COMPLETION — loop fell through.
+            }
+
+            // Render the MM:SS line IN PLACE: return to column 0, clear the line,
+            // print the digits, then ONE flush per tick (the matrix flush-once
+            // discipline — NEVER per character, D-07). Color is gated on
+            // is_color_on() so piped output is byte-identical minus ANSI (D-00).
+            let label = fmt_mmss(remaining.as_secs());
+            queue!(out, MoveToColumn(0), Clear(ClearType::CurrentLine))?;
+            if is_color_on() {
+                queue!(
+                    out,
+                    Print(label.truecolor(DIGITS_RGB.0, DIGITS_RGB.1, DIGITS_RGB.2))
+                )?;
+            } else {
+                queue!(out, Print(&label))?;
+            }
+            out.flush()?;
+
+            // poll(min(1s, remaining)) IS the ~1s countdown timer AND the keypress
+            // gate (D-07). The `min` makes the final partial second exact instead
+            // of overshooting a fixed 1s poll (Pitfall POMO-2).
+            let tick = remaining.min(Duration::from_secs(1));
+            if event::poll(tick)? {
+                if let Event::Key(key) = event::read()? {
+                    // Press-only filter inside is_cancel: Windows fires Press AND
+                    // Release, so an un-filtered cancel key would double-count.
+                    if is_cancel(&key) {
+                        break true; // CANCEL — exit 1, NO toast.
+                    }
+                }
+            }
+        };
+
+        // Restore the terminal BEFORE any message or toast (D-07). Drop runs
+        // cursor::Show + disable_raw_mode; the explicit drop makes the ordering
+        // visible (the guard would otherwise drop at end of scope anyway).
+        drop(_guard);
+        // Move off the (now-restored) countdown line so stderr / the next prompt
+        // start cleanly.
+        println!();
+
+        if cancelled {
+            // Message → stderr, exit 1, and the toast below is NEVER reached on
+            // this path (T-05-POMO-CANCEL: `show()` sits after this guard).
+            eprintln!("cancelled");
+            std::process::exit(1);
+        }
+
+        // COMPLETION → fire the Windows toast (owned-self builder; POWERSHELL_APP_ID
+        // needs no AUMID registration, D-09) and exit 0. A toast that fails to show
+        // after a COMPLETED timer must NOT fail the run — log to stderr and still
+        // exit 0 (RESEARCH A3 / D-07 "completion → exit 0").
+        if let Err(e) = Toast::new(Toast::POWERSHELL_APP_ID)
+            .title("Pomodoro")
+            .text1("Time's up!")
+            .show()
+        {
+            eprintln!("note: could not show toast notification: {e}");
+        }
+        Ok(())
     }
 }
 

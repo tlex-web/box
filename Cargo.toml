@@ -75,6 +75,15 @@ qrcode = { version = "0.14.1", default-features = false }
 # CF_UNICODETEXT via the Win32 API directly (compatible with +crt-static, no DLL
 # / no async runtime) — the reason for bypassing clip.exe's Unicode mangling.
 arboard = { version = "3.6.1", default-features = false }
+# pomodoro toast (POMO-01 / D-09). The actively maintained drop-in fork of
+# winrt-notification (this OVERRIDES CLAUDE.md's stack pick per D-09 — same
+# `ToastNotificationManager` API, but modern `windows 0.61` vs the stale crate's
+# abandoned `windows 0.24` + dead `syn 1.x`). `Toast::POWERSHELL_APP_ID` fires a
+# toast with NO AUMID registration. Cargo only builds it on the msvc target
+# (it brings windows 0.61 + quick-xml + windows-version). Fallback ladder if it
+# ever fails to build (all hit the same WinRT API, swap localized to this module):
+# winrt-notification 0.5.1 → winrt-toast-reborn 0.3.8 → PowerShell shell-out.
+tauri-winrt-notification = "0.7.2"
 # NOTE: no `rand_core` yet — verify `use rand::TryRngCore` resolves through rand
 # 0.9 re-exports during the passgen plan (RESEARCH A1); not needed here.
 # NOTE: no `filetime` — use std::fs::FileTimes (Rust 1.75+).

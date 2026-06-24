@@ -93,7 +93,14 @@ pub enum Commands {
     /// on the clipboard; on paste the text is emitted byte-exact.
     Clip(crate::commands::clip::ClipArgs),
     /// Run a focus timer with Windows toast notifications
-    Pomodoro,
+    ///
+    /// `box pomodoro` runs a blocking in-place `MM:SS` countdown: 25 minutes by
+    /// default, `--break` for 5, `--long-break` for 15, or a positional `[MINUTES]`
+    /// to override. Press Ctrl+C, q, or Esc to cancel — "cancelled" prints to
+    /// stderr, the command exits 1, and NO toast fires. On completion a Windows
+    /// toast notification appears and the command exits 0; the cursor and terminal
+    /// are restored on every exit path.
+    Pomodoro(crate::commands::pomodoro::PomodoroArgs),
     /// Fetch the weather for a location
     Weather,
 }
