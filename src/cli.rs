@@ -67,7 +67,7 @@ pub enum Commands {
     /// Rainbow-colorize piped text
     Lolcat(crate::commands::lolcat::LolcatArgs),
     /// Run the Matrix digital-rain screensaver effect
-    Matrix,
+    Matrix(crate::commands::matrix::MatrixArgs),
     /// Render an image as ASCII art
     Ascii(crate::commands::ascii::AsciiArgs),
     /// Pretty-print and validate JSON

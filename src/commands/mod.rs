@@ -18,6 +18,7 @@ pub mod fortune;
 pub mod hash;
 pub mod json;
 pub mod lolcat;
+pub mod matrix;
 pub mod passgen;
 pub mod roast;
 pub mod stub;

@@ -74,7 +74,7 @@ fn main() -> ExitCode {
         Commands::Dupes(args) => args.run(),
         Commands::BulkRename(args) => args.run(),
         Commands::Lolcat(args) => args.run(),
-        Commands::Matrix => Err(not_implemented("matrix")),
+        Commands::Matrix(args) => args.run(),
         Commands::Ascii(args) => args.run(),
         Commands::Json(args) => args.run(),
         Commands::Qr => Err(not_implemented("qr")),
