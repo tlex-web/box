@@ -36,7 +36,7 @@ Requirements for initial release. All 23 commands are in v1 scope. Each maps to 
 ### Dev Utilities
 
 - [x] **UUID-01**: User can generate one or more UUIDs (v4 default), lowercase by default, one per line
-- [ ] **JSON-01**: User can pretty-print JSON from stdin or a file with color, validate it (exit 0 valid / 1 invalid with line/column on error), and minify with `--compact`
+- [x] **JSON-01**: User can pretty-print JSON from stdin or a file with color, validate it (exit 0 valid / 1 invalid with line/column on error), and minify with `--compact`
 - [x] **B64-01**: User can base64-encode and `--decode` data from a file or stdin, no line-wrapping by default, with a URL-safe option
 - [x] **EPOC-01**: User can convert a Unix timestamp to a human date (local + UTC) and a date string back to a timestamp; running with no args prints the current timestamp
 - [x] **COLR-01**: User can convert colors between hex and RGB, see all representations at once, and view an in-terminal swatch of the color
@@ -135,7 +135,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | LOL-01 | Phase 4 | Pending |
 | MTRX-01 | Phase 4 | Pending |
 | ASCI-01 | Phase 4 | Pending |
-| JSON-01 | Phase 4 | Pending |
+| JSON-01 | Phase 4 | Complete (04-01) |
 | QR-01 | Phase 5 | Pending |
 | CLIP-01 | Phase 5 | Pending |
 | POMO-01 | Phase 5 | Pending |

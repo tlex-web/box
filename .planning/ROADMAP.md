@@ -138,7 +138,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — `json`: serde_json (preserve_order) parse/validate (1-based line+col→exit 1) + 2-space pretty + hand-rolled is_color_on()-gated colorizer over Value + `--compact` minify (D-04/05/06) (JSON-01)
+- [x] 04-01-PLAN.md — `json`: serde_json (preserve_order) parse/validate (1-based line+col→exit 1) + 2-space pretty + hand-rolled is_color_on()-gated colorizer over Value + `--compact` minify (D-04/05/06) (JSON-01) ✓ (2 tasks, TDD RED→GREEN; 5/5 JSON-01 integration + 4 colorize unit tests + json.trycmd green; serde_json 1.0.150 preserve_order added, arbitrary_precision OFF; full suite 102 unit + all integration + clippy -D + fmt clean; json stub gone — 3 phase-4 stubs remain: lolcat/matrix/ascii)
 
 **Wave 2** *(blocked on Wave 1 — shares cli.rs/main.rs/mod.rs registry)*
 
@@ -174,7 +174,7 @@ Plans:
 | 1. Foundation + Flatten | 4/4 | Complete    | 2026-06-22 |
 | 2. Pure Transform Utilities | 5/5 | Complete   | 2026-06-22 |
 | 3. Filesystem Power Tools | 5/5 | Complete    | 2026-06-22 |
-| 4. Terminal Visuals | 0/4 | Planned | - |
+| 4. Terminal Visuals | 1/4 | In Progress | - |
 | 5. Windows Platform Integration | 0/? | Not started | - |
 
 ## Coverage
@@ -201,3 +201,4 @@ Plans:
 *Last updated: 2026-06-22 — Phase 3 Plan 03-04 (dupes) COMPLETE: live `box dupes` (size pre-filter HashMap<u64,Vec<PathBuf>> → rayon par_iter BLAKE3 content hash reusing the 03-01 update_reader path, D-13 → sort (hash,path) before grouping for determinism, RESEARCH Pitfall 6 → groups ≥2 + wasted-space summary via human_size); strictly read-only, NO write/rename/delete path (T-03-13), reuses is_hidden + follow_links(false), no noise list / no ignore crate (D-06/D-07); DUPE-01 satisfied; 4/4 DUPE-01 tests + 6 unit tests + full suite (87 unit + all integration) + clippy -D warnings + fmt --check green; dupes stub gone (1 phase-3 stub remains: bulk-rename)*
 *Last updated: 2026-06-24 — Phase 4 PLANNED: 4 plans across 4 waves (json → lolcat → ascii → matrix), one vertical MVP slice per command; the four commands are independent but share the cli.rs/main.rs/commands/mod.rs registry so they sequence by wave (zero same-wave file overlap); all 15 CONTEXT decisions D-00..D-14 covered; matrix carries the only human-verify checkpoint*
 *Last updated: 2026-06-22 — Phase 3 Plan 03-05 (bulk-rename) COMPLETE → PHASE 3 FEATURE-COMPLETE (5/5 plans): live `box bulk-rename` (regex first-match `replace` over the FULL base name, D-16/D-17 → in-memory ABORT-ALL-BEFORE-ANY-RENAME pre-flight detecting collisions/cycles/path-separator injection, the ONLY backstop vs std::fs::rename's silent overwrite, D-18 → dry-run preview is the DEFAULT, --force executes, D-19); the pre-flight is a PURE I/O-free preflight()->Vec<Conflict> unit-tested for every rule; reuses flatten's format_row/arrow_col + case-folded occupied set + encode_no_separator invariant VERBATIM; every abort path snapshot-asserts the directory byte-for-byte unchanged; RENM-01 satisfied; 7/7 RENM-01 tests + 9 unit tests + full suite (96 unit + all integration) + clippy -D warnings + fmt --check green; ALL 5 Phase-3 not_implemented arms gone — phase ready for verification (8 stubs remain: Phase-4 lolcat/matrix/ascii/json + Phase-5 qr/clip/pomodoro/weather)*
+*Last updated: 2026-06-24 — Phase 4 Plan 04-01 (json) COMPLETE: live `box json` (JSON-01) — serde_json::from_str::<Value> with preserve_order (input key order kept, arbitrary_precision OFF) → invalid `bail!`s with 1-based line/column (exit 1) → `--compact` minify (to_string) / plain 2-space pretty (to_string_pretty) / colored TTY via a pure hand-rolled colorize(&Value) walker gated SOLELY on is_color_on() so piped output is byte-identical minus ANSI (D-04/05/06); 6-variant walker + 4 unit tests; 5/5 JSON-01 integration + json.trycmd green; full suite 102 unit + all integration + clippy -D warnings + fmt --check clean; serde_json 1.0.150 transitively pulls dtolnay's `zmij` (verified-legitimate ryu-successor float crate); json stub gone (3 phase-4 stubs remain: lolcat/matrix/ascii)*

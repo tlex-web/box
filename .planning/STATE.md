@@ -2,22 +2,22 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: Not started
+current_plan: 2
 status: executing
-stopped_at: Phase 4 planned (4 plans)
-last_updated: "2026-06-24T12:21:21.905Z"
+stopped_at: Phase 4 Plan 04-01 (json) complete
+last_updated: "2026-06-24T12:31:01.000Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 18
-  completed_plans: 14
-  percent: 60
+  completed_plans: 15
+  percent: 63
 ---
 
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-24
-**Updated by:** plan-phase orchestrator (Phase 4 planned — 4 plans)
+**Updated by:** plan-04-01 executor (json shipped — JSON-01)
 
 ---
 
@@ -25,7 +25,7 @@ progress:
 
 **Core Value:** The toolbox must be globally available and instantly usable from PowerShell 7 — type `box <command>` from anywhere and the tool just works.
 
-**Current Focus:** Phase 4 — terminal visuals
+**Current Focus:** Phase 04 — terminal-visuals
 
 **Milestone:** v1 (all 23 commands)
 
@@ -33,20 +33,21 @@ progress:
 
 ## Current Position
 
-Phase: 03 (filesystem-power-tools) — ✓ COMPLETE & VERIFIED (5/5 plans; 24/24 must-haves; human-UAT cleared; code-review BLOCKER+5 warnings fixed)
+Phase: 04 (terminal-visuals) — EXECUTING
+Plan: 2 of 4 (04-01 json ✓ complete)
 **Phase:** 4 (terminal-visuals)
-**Current Plan:** Not started
+**Current Plan:** 2
 **Total Plans in Phase:** 4
-**Status:** Ready to execute
+**Status:** Executing Phase 04
 
 **Progress:**
 
 ```
-[██████░░░░] 60% (3 / 5 phases complete)
+[██████░░░░] 63% (3 / 5 phases complete; Phase 4: 1 / 4 plans)
 Phase 1 [██████████] 4 / 4 plans ✓ complete
 Phase 2 [██████████] 5 / 5 plans ✓ complete (verified, human-UAT cleared)
 Phase 3 [██████████] 5 / 5 plans ✓ complete (verified 24/24, human-UAT cleared) — 03-01 hash ✓ (HASH-01), 03-02 tree ✓ (TREE-01), 03-03 du ✓ (DU-01), 03-04 dupes ✓ (DUPE-01), 03-05 bulk-rename ✓ (RENM-01)
-Phase 4 [          ] Not started
+Phase 4 [██░░░░░░░░] 1 / 4 plans — 04-01 json ✓ (JSON-01); next: 04-02 lolcat, 04-03 ascii, 04-04 matrix
 Phase 5 [          ] Not started
 
 Overall: 3 / 5 phases complete
@@ -61,17 +62,17 @@ Overall: 3 / 5 phases complete
 | 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | ✓ Complete (4/4 plans) |
 | 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | ✓ Complete (5/5 plans, verified, human-UAT cleared) |
 | 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | ✓ Complete (5/5 plans, verified 24/24, human-UAT cleared) — 03-01 hash ✓ HASH-01, 03-02 tree ✓ TREE-01, 03-03 du ✓ DU-01, 03-04 dupes ✓ DUPE-01, 03-05 bulk-rename ✓ RENM-01 |
-| 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Not started |
+| 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | Executing (1/4 plans) — 04-01 json ✓ JSON-01 |
 | 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | Not started |
 
 ---
 
 ## Performance Metrics
 
-**Plans executed:** 14
-**Plans succeeded:** 14
+**Plans executed:** 15
+**Plans succeeded:** 15
 **Plans failed:** 0
-**Phases completed:** 3 / 5 (Phase 3 complete — 5/5 plans, verified 24/24, human-UAT cleared)
+**Phases completed:** 3 / 5 (Phase 3 complete — 5/5 plans, verified 24/24, human-UAT cleared; Phase 4 in progress — 1/4 plans)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -89,6 +90,7 @@ Overall: 3 / 5 phases complete
 | 03 | P03 | 7min | 2 (TDD-style) | 5 |
 | 03 | P04 | 4min | 2 (TDD-style) | 5 |
 | 03 | P05 | 6min | 2 (TDD-style) | 5 |
+| 04 | P01 | 5min | 2 (TDD RED→GREEN) | 8 |
 
 ---
 
@@ -151,6 +153,9 @@ Overall: 3 / 5 phases complete
 | [03-04] `dupes` is STRICTLY READ-ONLY (T-03-13, locked Out of Scope): NO `safe_copy`/rename/delete/`File::create` — the only fs handle is a read-only `File::open` for hashing; the `dupes_never_writes` test snapshots the fixture's file set + contents + mtimes and asserts byte-for-byte unchanged after a run | Determinism by `sort_by((hash, path))` BEFORE grouping (consecutive-equal-hash runs ≥2 → groups; RESEARCH Pitfall 6 / T-03-16) with distinct-content test fixtures making the order total. Wasted space = Σ `(group_len - 1) * file_size` via `core::output::human_size` (fourth consumer). Reuses `core::fs::is_hidden` + `follow_links(false)` + `normalize_path` VERBATIM, NO noise list / NO `ignore` crate (D-06/D-07); single `.yellow()` accent gated on `is_color_on()` |
 | [03-05] `bulk-rename`'s safety is a PURE I/O-free `preflight(&[Rename], &[existing]) -> Vec<Conflict>` implementing all four D-18 rules; a thin `preflight_plan` wrapper partitions the plan per parent dir (collision scope is per-dir, D-14) and `read_dir`-seeds each occupied set. This is the ENTIRE safety story because `std::fs::rename` SILENTLY OVERWRITES on Windows (no `create_new` analog for moves) — a missed collision is silent data loss. `Conflict` is a 3-variant enum (Collision/Cycle/Separator) so the abort summary explains each clash and the preview stamps the right inline reason. 9 unit tests cover every rule (incl. full-Unicode fold WR-01, renamed-away exclusion, swap-cycle) | Dry-run is the DEFAULT (writes nothing), `--force` executes only after a clean pre-flight (D-19) — INVERTING flatten's plan→preview→execute split while reusing `format_row`/`arrow_col`/`RowStatus::{Rename,Skip}` VERBATIM. Case-only rename (foo→Foo) is correct by construction: byte-exact no-ops are filtered to `(unchanged)` BEFORE preflight, so any rename whose target folds to its own source key is necessarily a real case-only change (Pitfall 5 closed, no special case). Regex `replace` is FIRST-match-only over the FULL base name (D-16/D-17); `${1}abc` vs `$1abc` foot-gun documented in `--help`. Every abort path snapshot-asserts the dir byte-for-byte unchanged. ⚠️ Rule-1 test-side fix: 2 tests asserted via case-EXACT `read_dir` listing not `Path::exists()` (NTFS is case-insensitive/preserving, so exists() falsely matched `IMG_*.jpg` vs `img_*.jpg`) |
 | [03-post-review] Phase-3 code-review fixes — CR-01 BLOCKER + WR-01..05 (9f4cf08/518f5b6/a147ab7/5dba60d/42da3db/f4114d8) | CR-01: bulk-rename pre-flight `injects()` now folds `..`/`.`/pure-dots/whitespace-only targets into the SAME rule-4 `Conflict::Separator` refusal as `/`/`\` — closes a path-escape outside the target dir on the ONLY destructive command (std::fs::rename silently overwrites on Windows, no create_new for moves). WR-01: hash `algo` is now `Option<Algo>` so `--verify` length auto-detect fires ONLY when `--algo` is unset (explicit `--algo sha256 --verify <32hex>` no longer mis-verifies as md5). WR-02: tree/du/dupes `bail!` on a file (non-dir) arg. WR-03: friendly "no such directory" pre-check before normalize_path. WR-04: du `--depth`/`--top` + tree `--depth` reject 0 at parse (RangedU64ValueParser, exit 2). WR-05: recursive cross-dir rename test. Each fix has a covering test; 4 INFO findings deferred (03-REVIEW.md). Full suite 98 green + clippy -D warnings + fmt clean |
+| [04-01] json coloring is a pure hand-rolled `colorize(&Value, depth)->String` walker gated SOLELY on `is_color_on()` — NO colored_json crate, NO set_override toggle, NO second color stack | D-05. The walker always emits ANSI and is reached only when the caller already checked `is_color_on()`; `--compact`→`serde_json::to_string` and plain→`serde_json::to_string_pretty` delegate to serde's own serializers, so piped (plain) output is byte-identical to the colored output minus the ANSI escapes (verified by `json_piped_no_ansi` byte-scan + `cat -A` LF-only/no-`^[` end-to-end). Token colors (RESEARCH OQ-3 discretion): key=blue, string=green, number=yellow, bool+null=magenta, punctuation plain. `to_string_pretty` is fixed at 2-space, so no `PrettyFormatter` needed. The `is_color_on()`-gated pure-walker template carries forward to lolcat (04-02) and matrix (04-03) |
+| [04-01] serde_json added with `preserve_order` ON and `arbitrary_precision` OFF | D-04. `preserve_order` makes the parsed `Value` object map an insertion-ordered IndexMap so `{"b":1,"a":2}` keeps `b` before `a` (never alphabetized) — proven by both a unit test and the `preserves_input_key_order` integration test. `arbitrary_precision` is deliberately OFF: it breaks `Value` round-tripping/Display for numbers (the documented D-04 landmine, serde-rs/json #505/#721/#845). serde comes transitively (Value needs no derive → NO direct `serde` dep) |
+| [04-01] serde_json 1.0.150 transitively pulls dtolnay's `zmij` (NOT a slopsquat) | Package-legitimacy check during the json build: `serde_json 1.0.150` resolves `zmij v1.0.21` (replacing the historically-expected `ryu`) plus `serde_core` (serde's recent split) and `indexmap`→`hashbrown` (from preserve_order). Verified against the OFFICIAL crates.io sparse-index manifest (checksum e8014e44…) which lists `zmij` req `^1.0` as a declared normal dep — i.e. serde_json itself adopted it, not a substitution. `zmij`'s on-disk Cargo.toml shows `authors = ["David Tolnay <dtolnay@gmail.com>"]`, repo github.com/dtolnay/zmij, "double-to-string conversion based on Schubfach" — same author as serde_json/ryu/anyhow. Legitimate; no checkpoint required |
 
 ### Critical Pitfalls to Remember
 
@@ -190,11 +195,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-23T15:27:43.044Z
-**Stopped At:** Phase 4 context gathered
-**Resume File:** .planning/phases/04-terminal-visuals/04-CONTEXT.md
+**Last session:** 2026-06-24T12:31:01.000Z
+**Stopped At:** Phase 4 Plan 04-01 (json) complete
+**Resume File:** .planning/phases/04-terminal-visuals/04-02-PLAN.md
 
-**Next action:** Phase 4 context gathered (04-CONTEXT.md, 14 decisions across lolcat/matrix/ascii/json). Next: `/gsd-plan-phase 4`. Phase-4 new Cargo deps decided: `image` 0.25.10 (ascii, hand-roll — artem rejected), `serde_json` 1.0.150 + `preserve_order` (json), `unicode-width` 0.2 + `strip-ansi-escapes` 0.2 (lolcat — actions the pre-existing strip-ansi todo); crossterm/owo-colors already present (matrix katakana + colors). `box` remains binary-only — unit tests via `cargo test --bin box`, NOT `--lib`.
+**Next action:** `box json` shipped (JSON-01) — Phase 4 plan 1/4 complete. Next: execute 04-02 (lolcat). Phase-4 remaining deps still to add when their plan runs: `image` 0.25.10 (ascii), `unicode-width` 0.2 + `strip-ansi-escapes` 0.2 (lolcat — actions the standing strip-ansi todo); crossterm/owo-colors already present (matrix). serde_json 1.0.150 + preserve_order is now IN (added by 04-01). `box` remains binary-only — unit tests via `cargo test --bin box`, NOT `--lib`. The `is_color_on()`-gated pure-colorizer template (04-01) is the reusable color path for lolcat/matrix.
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
@@ -209,3 +214,4 @@ None.
 *Updated: 2026-06-22 by plan-03-04 executor — `box dupes` shipped (DUPE-01): size pre-filter (HashMap<u64,Vec<PathBuf>>, candidates = same-size buckets ≥2, most files never hashed) → rayon par_iter BLAKE3 content hash reusing the 03-01 update_reader native streaming path (lifted as hash_reader_blake3 since hash::hash_blake3 is private; same b"box" known vector, D-13) → sort_by (hash,path) BEFORE grouping (consecutive-equal-hash runs ≥2 → groups; RESEARCH Pitfall 6 / T-03-16, first hash error short-circuits the collect → exit 1, T-03-17) → groups + wasted-space summary (Σ (group_len-1)*size) via core::output::human_size (fourth consumer); STRICTLY READ-ONLY — only fs handle is a read-only File::open, NO write/rename/delete (T-03-13), the dupes_never_writes test snapshots file set + contents + mtimes unchanged; reuses core::fs::is_hidden + follow_links(false) + normalize_path VERBATIM, NO noise list / NO ignore crate (D-06/D-07); single .yellow() accent gated on is_color_on(); 4/4 DUPE-01 tests + 6 unit tests + full suite (87 unit + all integration) + clippy -D warnings + fmt --check all green; dupes stub gone (1 phase-3 stub remains: bulk-rename)*
 *Updated: 2026-06-22 by plan-03-05 executor — `box bulk-rename` shipped (RENM-01) → PHASE 3 FEATURE-COMPLETE (5/5 plans): regex first-match `replace` over the FULL base name (D-16/D-17) → in-memory ABORT-ALL-BEFORE-ANY-RENAME pre-flight, a PURE I/O-free preflight()->Vec<Conflict> implementing all four D-18 rules (per-dir case-folded occupied set seeded from on-disk names NOT renamed away, target-vs-target + target-vs-existing collision, cycle/swap = target equals another item's source, path-separator refusal) — the ONLY backstop vs std::fs::rename's silent Windows overwrite, no create_new for moves → dry-run preview is the DEFAULT (writes nothing), --force executes only after a clean pre-flight (D-19); reuses flatten's format_row/arrow_col + case-folded occupied set + encode_no_separator invariant VERBATIM; case-only rename correct by construction (byte-exact no-ops filtered to (unchanged) before preflight, Pitfall 5); ${1}abc foot-gun + full-base-name match documented in --help; every abort path snapshot-asserts the dir byte-for-byte unchanged; one Rule-1 test-side fix (case-exact read_dir listing not Path::exists — NTFS case-insensitive/preserving); 7/7 RENM-01 tests + 9 unit tests + full suite (96 unit + all integration) + clippy -D warnings + fmt --check all green; ALL 5 Phase-3 not_implemented arms gone — phase ready for verification (8 stubs remain: Phase-4 + Phase-5)*
 *Updated: 2026-06-23 by execute-phase orchestrator — Phase 3 VERIFIED (24/24 must-haves) + COMPLETE; post-execution code review fixed CR-01 BLOCKER (bulk-rename `..`/`.` path-escape) + WR-01..05 with covering tests (98 tests green, clippy -D warnings + fmt clean, 4 INFO deferred); human-UAT cleared (tree/du/dupes color confirmed in PS7); ROADMAP/STATE/REQUIREMENTS updated — next = Phase 4 (terminal-visuals: LOL-01/MTRX-01/ASCI-01/JSON-01)*
+*Updated: 2026-06-24 by plan-04-01 executor — `box json` shipped (JSON-01): serde_json::from_str::<Value> with preserve_order (key order kept, arbitrary_precision OFF) → invalid `bail!`s with 1-based line/column (exit 1) → `--compact` minify / plain 2-space pretty / colored TTY via a pure hand-rolled colorize(&Value) walker gated SOLELY on is_color_on() so piped output is byte-identical minus ANSI (D-04/05/06); 6-variant walker + 4 unit tests + 5/5 JSON-01 integration + json.trycmd; full suite 102 unit + all integration + clippy -D warnings + fmt --check clean (no regression in the 98 prior tests); serde_json 1.0.150 transitively pulls dtolnay's verified-legitimate `zmij` (ryu-successor float crate, NOT a slopsquat) + serde_core + indexmap; json stub gone — 3 Phase-4 stubs remain (lolcat/matrix/ascii)*
