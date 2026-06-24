@@ -24,6 +24,8 @@ findings:
   info: 4
   total: 6
 status: issues_found
+warnings_resolved: 2
+warnings_resolved_ids: [WR-01, WR-02]
 ---
 
 # Phase 5: Code Review Report
@@ -78,6 +80,13 @@ Critical issues.
 
 ### WR-01: `pomodoro [MINUTES]` can panic on an absurd argument (no-panic invariant)
 
+**Status:** Resolved (commit `4363177`) — `minutes` is bounded at clap parse time to
+`1..=MAX_MINUTES` via `RangedU64ValueParser` (the du/tree pattern), so an out-of-range
+value (`0` or an absurd `u64`) is rejected as a usage error (exit 2) before `run()`;
+`resolve_duration` additionally clamps to `MAX_MINUTES` so `mins * 60` can never wrap.
+Covered by `pomodoro_absurd_minutes_exits_2_no_panic`, `pomodoro_zero_minutes_exits_2`,
+and `resolve_duration_clamps_absurd_minutes`.
+
 **File:** `src/commands/pomodoro/mod.rs:213` (and `:124`)
 **Issue:** `resolve_duration` computes `mins * 60` on a `u64`, and `run()` then
 evaluates `Instant::now() + total`. The release profile (`Cargo.toml:114-119`)
@@ -106,6 +115,14 @@ and/or replace `Instant::now() + total` with
 `Instant::now().checked_add(total)` and bail cleanly (exit 1) when `None`.
 
 ### WR-02: clipboard read error message is misleading when the clipboard holds no text
+
+**Status:** Resolved (commit `3f800b0`) — `--paste` now matches
+`arboard::Error::ContentNotAvailable` and reports "clipboard is empty or contains no
+text" (exit 1, unchanged); all other arboard errors keep the generic "read clipboard"
+context. The success path and byte-exact write are untouched. A `#[ignore]`d local test
+(`clip_paste_empty_reports_no_text`) pins the message; it cannot be auto-run because the
+`box` binary has no way to deterministically put the OS clipboard into the
+`ContentNotAvailable` state (no clear-clipboard/copy-image subcommand).
 
 **File:** `src/commands/clip/mod.rs:70`
 **Issue:** `cb.get_text().context("read clipboard")?` maps every `arboard`
