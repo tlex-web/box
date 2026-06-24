@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_plan: 4
-status: ready_for_verification
-stopped_at: Phase 4 Plan 04-04 (matrix) complete — Phase 4 feature-complete (4/4 plans)
-last_updated: "2026-06-24T13:09:51.516Z"
+status: ready_to_plan
+stopped_at: Phase 04 complete (4/4) — ready to discuss Phase 5
+last_updated: 2026-06-24T14:08:25.659Z
 progress:
   total_phases: 5
   completed_phases: 4
@@ -17,7 +17,7 @@ progress:
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-24
-**Updated by:** plan-04-04 executor (matrix shipped — MTRX-01; Phase 4 feature-complete)
+**Updated by:** execute-phase orchestrator (Phase 4 COMPLETE & VERIFIED — 4/4 must-haves; code-review CR-01 BLOCKER + 6 warnings fixed)
 
 ---
 
@@ -25,7 +25,7 @@ progress:
 
 **Core Value:** The toolbox must be globally available and instantly usable from PowerShell 7 — type `box <command>` from anywhere and the tool just works.
 
-**Current Focus:** Phase 04 — terminal-visuals
+**Current Focus:** Phase 5 — windows platform integration
 
 **Milestone:** v1 (all 23 commands)
 
@@ -33,12 +33,12 @@ progress:
 
 ## Current Position
 
-Phase: 04 (terminal-visuals) — FEATURE-COMPLETE (4/4 plans), ready for verification
+Phase: 04 (terminal-visuals) — ✓ COMPLETE & VERIFIED (4/4 plans; 4/4 must-haves; matrix human-verified; code-review BLOCKER CR-01 + 6 warnings fixed)
 Plan: 4 of 4 (04-01 json ✓, 04-02 lolcat ✓, 04-03 ascii ✓, 04-04 matrix ✓ complete)
-**Phase:** 4 (terminal-visuals)
-**Current Plan:** 4
+**Phase:** 5
+**Current Plan:** Not started
 **Total Plans in Phase:** 4
-**Status:** Phase 4 feature-complete — all 4 plans shipped; ready for verification
+**Status:** Ready to plan
 
 **Progress:**
 
@@ -47,7 +47,7 @@ Plan: 4 of 4 (04-01 json ✓, 04-02 lolcat ✓, 04-03 ascii ✓, 04-04 matrix �
 Phase 1 [██████████] 4 / 4 plans ✓ complete
 Phase 2 [██████████] 5 / 5 plans ✓ complete (verified, human-UAT cleared)
 Phase 3 [██████████] 5 / 5 plans ✓ complete (verified 24/24, human-UAT cleared) — 03-01 hash ✓ (HASH-01), 03-02 tree ✓ (TREE-01), 03-03 du ✓ (DU-01), 03-04 dupes ✓ (DUPE-01), 03-05 bulk-rename ✓ (RENM-01)
-Phase 4 [██████████] 4 / 4 plans ✓ feature-complete — 04-01 json ✓ (JSON-01), 04-02 lolcat ✓ (LOL-01), 04-03 ascii ✓ (ASCI-01), 04-04 matrix ✓ (MTRX-01); ready for verification
+Phase 4 [██████████] 4 / 4 plans ✓ complete & verified (4/4 must-haves) — 04-01 json ✓ (JSON-01), 04-02 lolcat ✓ (LOL-01), 04-03 ascii ✓ (ASCI-01), 04-04 matrix ✓ (MTRX-01)
 Phase 5 [          ] Not started
 
 Overall: 4 / 5 phases complete (18 / 18 mapped plans done)
@@ -62,7 +62,7 @@ Overall: 4 / 5 phases complete (18 / 18 mapped plans done)
 | 1 | Foundation + Flatten | FOUND-01..08, FLAT-01..04 (12 reqs) | ✓ Complete (4/4 plans) |
 | 2 | Pure Transform Utilities | UUID-01, B64-01, EPOC-01, COLR-01, PASS-01, COW-01, FORT-01, 8BAL-01, ROST-01 (9 reqs) | ✓ Complete (5/5 plans, verified, human-UAT cleared) |
 | 3 | Filesystem Power Tools | HASH-01, TREE-01, DU-01, DUPE-01, RENM-01 (5 reqs) | ✓ Complete (5/5 plans, verified 24/24, human-UAT cleared) — 03-01 hash ✓ HASH-01, 03-02 tree ✓ TREE-01, 03-03 du ✓ DU-01, 03-04 dupes ✓ DUPE-01, 03-05 bulk-rename ✓ RENM-01 |
-| 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | ✓ Feature-complete (4/4 plans), ready for verification — 04-01 json ✓ JSON-01, 04-02 lolcat ✓ LOL-01, 04-03 ascii ✓ ASCI-01, 04-04 matrix ✓ MTRX-01 |
+| 4 | Terminal Visuals | LOL-01, MTRX-01, ASCI-01, JSON-01 (4 reqs) | ✓ Complete (4/4 plans, verified 4/4, matrix human-verified) — 04-01 json ✓ JSON-01, 04-02 lolcat ✓ LOL-01, 04-03 ascii ✓ ASCI-01, 04-04 matrix ✓ MTRX-01 |
 | 5 | Windows Platform Integration | QR-01, CLIP-01, POMO-01, WTHR-01 (4 reqs) | Not started |
 
 ---
@@ -72,7 +72,7 @@ Overall: 4 / 5 phases complete (18 / 18 mapped plans done)
 **Plans executed:** 18
 **Plans succeeded:** 18
 **Plans failed:** 0
-**Phases completed:** 4 / 5 (Phase 3 complete — 5/5 plans, verified 24/24, human-UAT cleared; Phase 4 feature-complete — 4/4 plans, ready for verification)
+**Phases completed:** 4 / 5 (Phase 3 — 5/5 plans, verified 24/24, human-UAT cleared; Phase 4 — 4/4 plans, verified 4/4, matrix human-verified, code-review BLOCKER+6 warnings fixed)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -208,11 +208,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then read `.planning/STATE.md` (this file) for current position and context.
 
-**Last session:** 2026-06-24T13:09:51.000Z
-**Stopped At:** Phase 4 Plan 04-04 (matrix) complete — Phase 4 feature-complete (4/4 plans)
-**Resume File:** .planning/ROADMAP.md (Phase 4 ready for verification; Phase 5 not yet planned)
+**Last session:** 2026-06-24T14:08:25.000Z
+**Stopped At:** Phase 4 COMPLETE & VERIFIED (4/4 plans, 4/4 must-haves) — ready to discuss/plan Phase 5
+**Resume File:** .planning/ROADMAP.md (Phase 5 — Windows Platform Integration — not yet planned)
 
-**Next action:** `box matrix` shipped (MTRX-01) and human-verify APPROVED → PHASE 4 FEATURE-COMPLETE (4/4 plans: json/lolcat/ascii/matrix; all four reqs JSON-01/LOL-01/ASCI-01/MTRX-01 satisfied). ALL FOUR Phase-4 not_implemented stubs are gone; four stubs remain (all Phase-5: qr/clip/pomodoro/weather). Next: VERIFY Phase 4 (run the phase verifier against the 24 must-haves / 4 success criteria), then plan Phase 5 (Windows Platform Integration). Before Phase-5 planning, resolve the standing todos: spike `winrt-notification 0.5` compile, decide pomodoro blocking-vs-non-blocking, decide weather default units. Reusable into Phase 5: the matrix RAII `RawGuard` terminal-restore pattern + the single-flush-per-frame poll-as-timer loop are the references for `pomodoro` (in-place countdown + clean Ctrl+C cancel). `box` remains binary-only — unit tests via `cargo test --bin box`, NOT `--lib`.
+**Next action:** PHASE 4 COMPLETE & VERIFIED (4/4 plans json/lolcat/ascii/matrix; all four reqs JSON-01/LOL-01/ASCI-01/MTRX-01 satisfied + verified 4/4; matrix human-verified in PS7; post-exec code review fixed CR-01 BLOCKER [matrix raw-mode restore ordering] + 6 warnings with covering tests — 125 unit + all integration green, clippy -D + fmt clean). ALL FOUR Phase-4 stubs gone; four stubs remain (all Phase-5: qr/clip/pomodoro/weather). Next: discuss or plan Phase 5 (Windows Platform Integration). Before Phase-5 planning, resolve the standing todos: spike `winrt-notification 0.5` compile, decide pomodoro blocking-vs-non-blocking, decide weather default units. Reusable into Phase 5: the matrix RAII `RawGuard` terminal-restore pattern + the single-flush-per-frame poll-as-timer loop are the references for `pomodoro` (in-place countdown + clean Ctrl+C cancel). `box` remains binary-only — unit tests via `cargo test --bin box`, NOT `--lib`.
 
 ---
 *State initialized: 2026-06-22 by roadmapper*
@@ -231,3 +231,4 @@ None.
 *Updated: 2026-06-24 by plan-04-02 executor — `box lolcat` shipped (LOL-01): read_input → `strip_ansi_escapes::strip_str` UNCONDITIONALLY (D-13 / T-04L-01 terminal-escape-injection mitigation, actions the standing strip-ansi todo) → per-Unicode-scalar emit over split_inclusive('\n'), per-line phase seed `line_idx·SPREAD` (SPREAD=3.0) → diagonal, phase advances by `UnicodeWidthChar::width(c)` (wide/CJK=2, combining=0; D-12 never byte-split) → pure `rgb_at(phase)` classic sine-wave RGB (freq 0.1, 120°/240° offsets, floor 128; `·127+128` maps `[-1,1]`→`[1,255]` so `as u8` never wraps) gated SOLELY on is_color_on() (D-14, piped = clean plain UTF-8 byte-identical minus color); whitespace uncolored but phase-advancing, newlines raw via println!(); NO --freq/--seed/--animate (VIS-V2-01); 4 unit tests (rgb_at range/phase-0/120°-spacing + strip_str) + 3/3 LOL-01 integration (piped-plain round-trip, héllo→世界 UTF-8 intact, incoming-ANSI stripped); unicode-width 0.2.2 + strip-ansi-escapes 0.2.1 (+ vte 0.14.1) added — threat-register-verified legitimate; one Rule-3 blocking auto-fix (`print!("\n")`→`println!()` for clippy print_with_newline); full suite 106 unit + all integration + clippy -D warnings + fmt --check clean (no regression); lolcat stub gone — 2 Phase-4 stubs remain (matrix/ascii)*
 *Updated: 2026-06-24 by plan-04-03 executor — `box ascii` shipped (ASCI-01): hand-rolled `image` 0.25.10 pipeline (the single sanctioned image-decoding exception, D-01; artem rejected) — `image::open(path)` [extension-based, Pitfall 2] → `resize_exact(cols, rows, Triangle)` → `to_luma8()` → `as_raw()` row-major luma → pure `luma_to_char(byte, b" .:-=+*#%@")` dark→light ramp loop → `println!` per row; cols = `core::output::terminal_width()` (80 piped, INTENTIONALLY diverging from cowsay's fixed width — a visual render fills the terminal, D-02), rows = `(cols*src_h/src_w/2).max(1)` (the `/2` aspect-corrects the ~2:1 cell, `.max(1)` no zero-height); monochrome v1 — NO color path (D-03), the ramp emit is the VIS-V2-01 seam; 0-dimension image guarded with `bail!` (no divide-by-zero); decode error → `.with_context(...)?` → exit-1 no-panic (FOUND-05 / T-04A-02); `image` added `default-features=false, features=["png","jpeg"]` (RESEARCH A2 trim, verified to resolve the full path); 5 unit tests (luma_to_char extremes/monotonic+bounds, compute_rows square/aspect/clamp) + 4/4 ASCI-01 integration (PNG render, JPEG render, valid-UTF-8 no-ANSI, missing-file exit-1 no-panic) against tiny 8x8 grayscale-gradient PNG/JPEG fixtures (140 B / 340 B, committed binary); one Rule-3 blocking auto-fix (cargo fmt reflow of two long assert! lines for the fmt --check gate); full suite 111 unit + all integration + clippy -D warnings + fmt --check clean (no regression in the 106 prior); ascii stub gone — 1 Phase-4 stub remains (matrix)*
 *Updated: 2026-06-24 by plan-04-04 executor (continuation, human-verify close-out) — `box matrix` shipped (MTRX-01) → PHASE 4 FEATURE-COMPLETE (4/4 plans): full-terminal halfwidth-katakana (U+FF66–FF9D, all single-cell, D-07) green digital-rain on crossterm 0.29 — per-column drop state (negative-staggered head, random trail 6–20, per-column speed, reset to a fresh negative start after clearing bottom+trail), the WHOLE frame buffered with queue! then `stdout.flush()` EXACTLY ONCE per frame (D-08, the STATE.md per-character-flush ~5-FPS pitfall HONORED), head cell bright + trail green→dark by distance + cell past tail erased; `event::poll(Duration::from_millis(50))` IS the ~20-FPS frame timer AND the keypress read (D-09, single-threaded no background thread); RAII `RawGuard` (Drop = Show + LeaveAlternateScreen + disable_raw_mode, errors ignored) armed immediately after enter restores terminal state on every exit path (D-10, T-04M-01) — first command to OWN raw-mode state, NO ctrlc/signal crate; exit on Ctrl+C (Char('c')+CONTROL, a KeyEvent in raw mode NOT SIGINT) / q / Esc with a `KeyEventKind::Press`-only filter (Windows double-fire pitfall closed, T-04M-02); loop kept panic-free so the Drop guard is the real restore path under panic=abort; CJK-font note (tofu on bare Cascadia Mono = documented cosmetic limitation, NOT a bug, RESEARCH Pitfall 7) surfaced in `--help` (Rule-2 fix, commit 7f40936); NO Cargo.toml change (crossterm/owo-colors/rand/unicode-width all already present); 8 unit tests (drop/fade model head-advance/bright→dark/reset, katakana table range+width-1, quit-key Press-only + plain-c-not-quit + Release/Repeat-not-quit) + 1 integration smoke (enter/exit non-hanging, no panic) green; full suite per prior agent 119 unit + 20 integration green, matrix slice re-verified intact this session; human-verify gate APPROVED in PS7 (rain fills width, animates smoothly ~20 FPS, bright head + fading green trail with changing glyphs, Ctrl+C/q/Esc each restore cleanly with no artifacts — NOT a self-approval); ALL FOUR Phase-4 not_implemented stubs gone — Phase 4 ready for verification (4 stubs remain, all Phase-5: qr/clip/pomodoro/weather)*
+*Updated: 2026-06-24 by execute-phase orchestrator — Phase 4 VERIFIED (4/4 must-haves) + COMPLETE; sequential wave execution (json→lolcat→ascii→matrix, one plan per wave — shared cli.rs/main.rs/commands/mod.rs registry serialized them), matrix human-verify APPROVED in PS7; post-execution code review found 1 BLOCKER + 6 warnings + 4 INFO → fixed CR-01 (matrix RawGuard armed immediately after enable_raw_mode()? and BEFORE the fallible EnterAlternateScreen execute! — closes a raw-mode-stuck terminal on setup failure), WR-02 (ascii cols*src_h u32 overflow → u64 + u16::MAX clamp, large-image regression test), WR-03 (matrix erase_band clears the full speed-row vacated band, not one cell — stale-glyph smear at speed≥2), WR-04 (lolcat single BufWriter flush, byte-identical preserved), WR-05 (json colorize_stripped_equals_pretty byte-equality test, D-05 verified), WR-06 (lolcat lone-CR already removed by strip_str, locked by test); WR-01 KEPT (json invalid→exit-1 is the JSON-01/D-06 contract, documented carve-out, not a bug); 4 INFO deferred; 125 box-bin unit + all integration green, clippy -D warnings + fmt --check clean; ROADMAP/STATE/REQUIREMENTS updated — next = Phase 5 (windows-platform-integration: QR-01/CLIP-01/POMO-01/WTHR-01)*
