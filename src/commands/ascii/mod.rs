@@ -75,7 +75,11 @@ impl RunCommand for AsciiArgs {
         for y in 0..rows {
             let mut line = String::with_capacity(cols as usize);
             for x in 0..cols {
-                let luma = buf[(y * cols + x) as usize];
+                // Index in `usize` (WR-02): `y * cols + x` in `u32` can overflow
+                // for a large `rows`×`cols` render (debug-build panic, release
+                // silent wrap). `usize` is wide enough for any real buffer.
+                let idx = y as usize * cols as usize + x as usize;
+                let luma = buf[idx];
                 line.push(luma_to_char(luma, RAMP) as char);
             }
             println!("{line}");
@@ -104,9 +108,17 @@ fn luma_to_char(luma: u8, ramp: &[u8]) -> u8 {
 /// row — never a zero-height render. `src_w` is assumed non-zero (the caller
 /// guards a zero-dimension image before calling).
 ///
+/// `cols`/`src_w`/`src_h` come from an untrusted, user-supplied image, so the
+/// `cols * src_h` product is computed in `u64` to avoid a `u32` overflow (WR-02:
+/// a crafted-but-decodable large image could push `cols * src_h` past `u32::MAX`,
+/// which panics in a debug/test build and silently wraps in release). The result
+/// is clamped to `u16::MAX` rows — far more than any real terminal — so the
+/// downstream `resize_exact`/buffer math also stays in a sane range.
+///
 /// Pure and crate-free so it is unit-testable without a terminal.
 fn compute_rows(cols: u32, src_w: u32, src_h: u32) -> u32 {
-    ((cols * src_h / src_w) / 2).max(1)
+    let rows = (cols as u64 * src_h as u64 / src_w as u64 / 2).max(1);
+    rows.min(u16::MAX as u64) as u32
 }
 
 #[cfg(test)]
@@ -183,5 +195,29 @@ mod tests {
         assert_eq!(compute_rows(80, 1000, 1), 1);
         // Degenerate cols=1 still yields >= 1.
         assert_eq!(compute_rows(1, 1000, 1), 1);
+    }
+
+    /// WR-02 — adversarial-but-decodable large dimensions must NOT overflow.
+    /// `cols * src_h` here is `65535 * 100000 = 6_553_500_000`, which exceeds
+    /// `u32::MAX` (4_294_967_295). The old plain-`u32` math panicked here in a
+    /// debug/test build (overflow checks on); the `u64` intermediate computes it
+    /// cleanly. The result is also clamped to `u16::MAX` rows so the downstream
+    /// render math stays in a sane range — no panic for any decodable image.
+    #[test]
+    fn compute_rows_no_overflow_on_large_dimensions() {
+        // cols and src_h both large: the u32 product would wrap/panic.
+        let rows = compute_rows(u16::MAX as u32, 1, 100_000);
+        assert!(
+            rows <= u16::MAX as u32,
+            "rows must be clamped to a sane (<= u16::MAX) value, got {rows}"
+        );
+        assert!(rows >= 1, "rows must still be at least 1, got {rows}");
+        // The most extreme decodable case: cols, src_h, src_w all at u32::MAX.
+        // u32 arithmetic would overflow on the very first multiply; u64 does not.
+        let extreme = compute_rows(u32::MAX, u32::MAX, u32::MAX);
+        assert!(
+            extreme >= 1 && extreme <= u16::MAX as u32,
+            "extreme dimensions must clamp without panicking, got {extreme}"
+        );
     }
 }
