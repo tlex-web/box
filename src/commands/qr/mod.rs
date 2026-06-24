@@ -73,9 +73,18 @@ impl RunCommand for QrArgs {
 ///
 /// Oversized input exceeding the QR capacity is returned as an `Err` via the `?`
 /// on `with_error_correction_level` (clean exit 1, never a panic — T-05-QR-DoS).
-fn render_qr(_input: &str) -> anyhow::Result<String> {
-    // Scaffold stub (RED) — real implementation lands in Task 2 (GREEN).
-    anyhow::bail!("not implemented")
+fn render_qr(input: &str) -> anyhow::Result<String> {
+    // M = the qrcode default EC level (15% recovery), FIXED for v1 (D-02). The `?`
+    // propagates a capacity-overflow on oversized input → clean exit 1, never a
+    // panic (FOUND-05 / T-05-QR-DoS).
+    let code = QrCode::with_error_correction_level(input.as_bytes(), EcLevel::M)?;
+    // Dense1x2's `Pixel::Image = String`, so `.build()` returns an owned String of
+    // pure half-block glyphs (`▀▄█`/space) with NO ANSI (D-01). `.quiet_zone(true)`
+    // emits the full ISO-18004 4-module border (D-02). To force dark-on-light
+    // polarity if a phone-scan fails, insert
+    // `.dark_color(Dense1x2::Dark).light_color(Dense1x2::Light)` here (Pitfall QR-1).
+    let rendered = code.render::<Dense1x2>().quiet_zone(true).build();
+    Ok(rendered)
 }
 
 #[cfg(test)]

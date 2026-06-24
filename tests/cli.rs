@@ -61,12 +61,15 @@ fn bare_box_exits_2() {
 }
 
 /// D-06 / FOUND-03 — invoking an unbuilt command exits 1 with the message on
-/// stderr only; stdout stays empty so pipes are never corrupted.
+/// stderr only; stdout stays empty so pipes are never corrupted. Uses `weather`
+/// as the representative stub: `qr` became real in plan 05-01, so this points at
+/// a command that is still a stub (clip/pomodoro/weather remain until plans
+/// 05-02..05-04); `weather` is the last to be built, so it stays a stub longest.
 #[test]
 fn stub_exits_1_to_stderr() {
     Command::cargo_bin("box")
         .unwrap()
-        .arg("qr")
+        .arg("weather")
         .assert()
         .failure()
         .code(1)

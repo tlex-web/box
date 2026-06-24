@@ -83,7 +83,7 @@ pub enum Commands {
     /// Pretty-print and validate JSON
     Json(crate::commands::json::JsonArgs),
     /// Render a QR code for text or a URL in the terminal
-    Qr,
+    Qr(crate::commands::qr::QrArgs),
     /// Read from or write to the system clipboard
     Clip,
     /// Run a focus timer with Windows toast notifications
