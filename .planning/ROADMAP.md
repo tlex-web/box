@@ -12,7 +12,7 @@
 - [x] **Phase 2: Pure Transform Utilities** — Nine zero-external-dependency commands proving the RunCommand pattern: uuid, base64, epoch, color, passgen, cowsay, fortune, 8ball, roast (completed 2026-06-22)
 - [x] **Phase 3: Filesystem Power Tools** — Five commands sharing walkdir: hash, tree, du, dupes, bulk-rename (completed 2026-06-22)
 - [x] **Phase 4: Terminal Visuals** — Four commands sharing crossterm and rendering libraries: lolcat, matrix, ascii, json (completed 2026-06-24)
-- [ ] **Phase 5: Windows Platform Integration** — Four commands with the highest external/API risk: qr, clip, pomodoro, weather
+- [x] **Phase 5: Windows Platform Integration** — Four commands with the highest external/API risk: qr, clip, pomodoro, weather (completed 2026-06-24)
 
 ## Phase Details
 
@@ -169,19 +169,19 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 05-01-PLAN.md — `qr`: qrcode Dense1x2 Unicode half-block render (no ANSI), read_input arg/stdin, EcLevel::M + quiet_zone, phone-scan human-verify (QR-01 / D-01/D-02/D-03)
+- [x] 05-01-PLAN.md — `qr`: qrcode Dense1x2 Unicode half-block render (no ANSI), read_input arg/stdin, EcLevel::M + quiet_zone, phone-scan human-verify (QR-01 / D-01/D-02/D-03)
 
 **Wave 2** *(blocked on Wave 1 — shares cli.rs/main.rs/commands/mod.rs/Cargo.toml registry)*
 
-- [ ] 05-02-PLAN.md — `clip`: arboard copy (raw stdin, single-trailing-newline trim, NOT core::input) / `--paste` (byte-exact), main-thread single-shot, copy→paste human-verify (CLIP-01 / D-04/D-05/D-06)
+- [x] 05-02-PLAN.md — `clip`: arboard copy (raw stdin, single-trailing-newline trim, NOT core::input) / `--paste` (byte-exact), main-thread single-shot, copy→paste human-verify (CLIP-01 / D-04/D-05/D-06)
 
 **Wave 3** *(blocked on Wave 2 — shares the registry)*
 
-- [ ] 05-03-PLAN.md — `pomodoro`: matrix-family RawGuard + poll-as-timer countdown (default 25 / `--break` 5 / `--long-break` 15 / `[MINUTES]`) + tauri-winrt-notification completion toast; cancel→exit-1-no-toast; live human-verify (POMO-01 / D-07/D-08/D-09)
+- [x] 05-03-PLAN.md — `pomodoro`: matrix-family RawGuard + poll-as-timer countdown (default 25 / `--break` 5 / `--long-break` 15 / `[MINUTES]`) + tauri-winrt-notification completion toast; cancel→exit-1-no-toast; live human-verify (POMO-01 / D-07/D-08/D-09)
 
 **Wave 4** *(blocked on Wave 3 — shares the registry; LAST plan → removes the dead stub import)*
 
-- [ ] 05-04-PLAN.md — `weather`: Open-Meteo geocode+forecast via ureq (non-2xx=Err(StatusCode) split), parse-shape lat/lon vs city, server-side units + authoritative current_units label, WMO match, graceful offline; checked-in JSON fixtures (WTHR-01 / D-10/D-11/D-12/D-13)
+- [x] 05-04-PLAN.md — `weather`: Open-Meteo geocode+forecast via ureq (non-2xx=Err(StatusCode) split), parse-shape lat/lon vs city, server-side units + authoritative current_units label, WMO match, graceful offline; checked-in JSON fixtures (WTHR-01 / D-10/D-11/D-12/D-13)
 
 ## Progress
 
@@ -191,7 +191,7 @@ Plans:
 | 2. Pure Transform Utilities | 5/5 | Complete   | 2026-06-22 |
 | 3. Filesystem Power Tools | 5/5 | Complete    | 2026-06-22 |
 | 4. Terminal Visuals | 4/4 | Complete   | 2026-06-24 |
-| 5. Windows Platform Integration | 0/4 | Planned | - |
+| 5. Windows Platform Integration | 4/4 | Complete   | 2026-06-24 |
 
 ## Coverage
 
