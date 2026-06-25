@@ -77,7 +77,7 @@ Plans:
 **Requirements**: SPINE-02, SPINE-04
 **Success Criteria** (what must be TRUE):
 
-  1. `box base64`, `epoch`, `color`, `passgen`, `8ball`, `fortune`, `roast`, `cowsay`, `du`, `tree`, `dupes`, `flatten`, `bulk-rename`, `json`, `qr`, and `weather` each accept `--json` and emit exactly one parseable JSON document (`box du C:\proj --json | ConvertFrom-Json` yields one object whose `entries` array of PSCustomObjects carries size fields; `box tree --json` yields a recursive object).
+  1. `box base64`, `epoch`, `color`, `passgen`, `8ball`, `fortune`, `roast`, `cowsay`, `du`, `tree`, `dupes`, `flatten`, `bulk-rename`, `json`, `qr`, and `weather` each accept `--json` and emit exactly one parseable JSON document (`box du C:\proj --json | ConvertFrom-Json` yields one object whose `results` array of PSCustomObjects carries size fields, with a sibling `count`; `box tree --json` yields a recursive object).
   2. `box passgen`, `uuid`, `color`, `hash`, `base64`, `epoch`, `json`, and `qr` each accept `--clip`, copying the primary textual result to the Windows clipboard while still printing it.
   3. Every newly `--json`-enabled command keeps the v1 "byte-identical minus ANSI when piped" contract — stdout under `--json` contains no `0x1B` byte and parses as a single value (the per-command JSON-purity test passes for all of them).
   4. Display-only commands (`matrix`, `pomodoro`, `lolcat`, `ascii`, `clip`) correctly omit `--json`/`--clip` rather than emitting a malformed or meaningless document.
@@ -87,7 +87,7 @@ Plans:
 Plans:
 
 - [ ] 07-01: TBD — Wave 7a pure transforms: `base64`, `epoch`, `color`, `passgen`, `8ball`, `fortune`, `roast`, `cowsay` (`--json` + `--clip` where applicable).
-- [ ] 07-02: TBD — Wave 7b filesystem buffered-rows: `du`, `tree`, `dupes`, `flatten`, `bulk-rename` (single-document `{…, entries:[…]}` / recursive-tree shape).
+- [ ] 07-02: TBD — Wave 7b filesystem buffered-rows: `du`, `tree`, `dupes`, `flatten`, `bulk-rename` (single-document `{…, results:[…], count}` / recursive-tree shape).
 - [ ] 07-03: TBD — Wave 7c remaining: `json`, `qr`, `weather` (`--json` + `--clip` where applicable).
 
 ### Phase 8: Filesystem Depth
