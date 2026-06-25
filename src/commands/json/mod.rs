@@ -59,18 +59,34 @@ impl RunCommand for JsonArgs {
             // returns a `Result` (T-04J-02). Pinned by `tests/json.rs`.
             Err(e) => anyhow::bail!("at line {} column {}: {e}", e.line(), e.column()),
             Ok(value) => {
+                // D-16 identity passthrough (the ONE sanctioned direct-serde
+                // command, a root-rule EXCEPTION alongside tree): under --json emit
+                // the parsed `Value` VERBATIM via `emit_json` — pure (no BOM,
+                // trailing \n), NOT wrapped in {results,count}, and it tees the
+                // whole document to the clipboard under `--json --clip`. The fork
+                // is FIRST (Pitfall 1) and wins over `--compact` (the machine
+                // document is always the pretty serde form).
+                if crate::core::output::is_json_on() {
+                    return crate::core::output::emit_json(&value);
+                }
+
                 if self.compact {
-                    // Minified single line — delegate to serde_json (D-06).
-                    println!("{}", serde_json::to_string(&value)?);
+                    // Minified single line — delegate to serde_json (D-06). Route
+                    // through out_line so `--compact --clip` tees the compact form
+                    // (SPINE-04).
+                    crate::core::output::out_line(&serde_json::to_string(&value)?);
                 } else if is_color_on() {
                     // The ONE color path: a hand-rolled walker, gated on the
                     // single color decision (D-05). Piped/NO_COLOR never reaches
-                    // here, so the plain branch is byte-identical minus ANSI.
+                    // here, so the plain branch is byte-identical minus ANSI. Under
+                    // --clip, init_output forces COLOR_ON=false so this branch is
+                    // never taken (the plain branch below tees instead).
                     print!("{}", colorize(&value, 0));
                 } else {
                     // Plain 2-space pretty — delegate so the bytes match the
-                    // colorized layout exactly minus the escapes (D-05/D-06).
-                    println!("{}", serde_json::to_string_pretty(&value)?);
+                    // colorized layout exactly minus the escapes (D-05/D-06). Route
+                    // through out_line so `--clip` tees the pretty form (SPINE-04).
+                    crate::core::output::out_line(&serde_json::to_string_pretty(&value)?);
                 }
                 Ok(())
             }

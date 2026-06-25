@@ -121,3 +121,150 @@ fn json_piped_no_ansi() {
         "piped json output must contain no ANSI escape (\\x1b[)"
     );
 }
+
+// --- Scriptable spine (SPINE-02 / SPINE-04) — D-16 identity passthrough --------
+//
+// json is a Wave-7c odd-fit and the ONE sanctioned direct-serde command: under
+// --json it emits the parsed `Value` VERBATIM (D-16 identity passthrough), NOT
+// wrapped in {results,count} — a documented root-rule exception alongside tree.
+//   - `json_identity_passthrough` — --json emits the document verbatim (top-level
+//                                   object with the input keys, no wrapper).
+//   - `json_purity`               — one JSON value, no 0x1B, no BOM.
+//   - `clip_roundtrip`            — #[ignore]d: --clip copies the pretty form;
+//                                   --compact --clip copies the compact form.
+
+/// Capture `box json --json` raw stdout bytes + exit status, feeding `input` via
+/// stdin, for the JSON-purity assertions (raw bytes for ANSI/BOM). NO_COLOR=1.
+fn json_passthrough_output(input: &str, extra: &[&str]) -> std::process::Output {
+    let mut cmd = Command::cargo_bin("box").unwrap();
+    cmd.arg("json");
+    cmd.args(extra);
+    cmd.env("NO_COLOR", "1").write_stdin(input);
+    cmd.output().expect("run box json")
+}
+
+/// D-16 — `box json '{"b":1,"a":2}' --json` emits the parsed document VERBATIM:
+/// a top-level object whose members are `a` and `b` (NOT a `{results,count}`
+/// wrapper), with input key order preserved (`b` before `a`). This is the
+/// identity-passthrough root-rule exception. Runnable via
+/// `cargo test --test json json_identity_passthrough`.
+#[test]
+fn json_identity_passthrough() {
+    let out = json_passthrough_output("{\"b\":1,\"a\":2}", &["--json"]);
+    assert!(out.status.success(), "box json --json should exit 0");
+
+    // stdout is exactly one JSON value — the parsed document, emitted verbatim.
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+
+    // Identity passthrough: the top level is the INPUT object (keys a, b), NOT a
+    // {results,count} wrapper.
+    let obj = v.as_object().expect("the document is a top-level object");
+    assert!(obj.contains_key("a"), "passthrough keeps the input key `a`");
+    assert!(obj.contains_key("b"), "passthrough keeps the input key `b`");
+    assert!(
+        !obj.contains_key("results"),
+        "identity passthrough must NOT wrap in `results` (D-16)"
+    );
+    assert!(
+        !obj.contains_key("count"),
+        "identity passthrough must NOT wrap in `count` (D-16)"
+    );
+    assert_eq!(obj.len(), 2, "exactly the two input members, nothing added");
+
+    // preserve_order keeps the input key order (`b` before `a`) in the raw bytes.
+    let stdout = String::from_utf8(out.stdout).expect("stdout is UTF-8");
+    let b_at = stdout.find("\"b\"").expect("`b` present");
+    let a_at = stdout.find("\"a\"").expect("`a` present");
+    assert!(b_at < a_at, "input key order preserved (b before a): {stdout:?}");
+
+    // D-16 — the `--json` fork wins over `--compact`: `emit_json` is ALWAYS the
+    // pretty `to_writer_pretty` document (not the minified compact form). This is
+    // the decisive proof the command routes through `emit_json` under `--json`
+    // (the pre-spine human path would have honored `--compact` and minified).
+    let pretty = json_passthrough_output("{\"b\":1,\"a\":2}", &["--json", "--compact"]);
+    assert!(pretty.status.success(), "box json --json --compact should exit 0");
+    let pretty_str = String::from_utf8(pretty.stdout).expect("stdout is UTF-8");
+    assert!(
+        pretty_str.contains('\n') && pretty_str.contains("  \"b\""),
+        "--json forces the pretty emit_json document even with --compact (D-16): {pretty_str:?}"
+    );
+}
+
+/// SPINE-02 — `box json <doc> --json` emits EXACTLY one well-formed JSON document
+/// (the passthrough): no UTF-8 BOM, no ANSI escape, parses as a single value.
+/// Runnable via `cargo test --test json json_purity`.
+#[test]
+fn json_purity() {
+    let out = json_passthrough_output("{\"a\":[1,true,null]}", &["--json"]);
+    assert!(out.status.success(), "box json --json should exit 0");
+
+    // 1. stdout parses as EXACTLY one JSON value.
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    // The document is the parsed input (an object with key `a`), emitted verbatim.
+    assert!(
+        v.get("a").and_then(|a| a.as_array()).is_some(),
+        "`.a` is the input array, passed through verbatim"
+    );
+
+    // 2. PURITY — no ANSI escape (0x1B) anywhere.
+    assert!(
+        !out.stdout.contains(&0x1Bu8),
+        "no ANSI escape may appear in --json stdout"
+    );
+    // 3. PURITY — no UTF-8 BOM (EF BB BF) at the front.
+    assert_ne!(
+        &out.stdout[..3.min(out.stdout.len())],
+        b"\xEF\xBB\xBF",
+        "no UTF-8 BOM may prefix --json stdout"
+    );
+}
+
+/// SPINE-04 — live Windows-clipboard round-trip: `box json <doc> --clip` copies
+/// the printed pretty form AND prints it; reading the clipboard back equals the
+/// printed value. A `--compact --clip` variant proves the compact branch tees
+/// too. `#[ignore]`d (touches shared OS clipboard). Run locally with:
+///   cargo test --test json -- --ignored --test-threads=1
+#[test]
+#[ignore = "touches shared OS clipboard; run locally with --ignored --test-threads=1"]
+fn clip_roundtrip() {
+    const DOC: &str = "{\"b\":1,\"a\":2}";
+
+    // Helper: run `box json <doc> --clip [extra]`, return trimmed printed stdout.
+    let printed_with = |extra: &[&str]| -> String {
+        let mut args = vec!["--clip"];
+        args.extend_from_slice(extra);
+        let out = json_passthrough_output(DOC, &args);
+        assert!(out.status.success(), "box json --clip {extra:?} should exit 0");
+        String::from_utf8(out.stdout)
+            .expect("stdout is UTF-8")
+            .trim()
+            .to_string()
+    };
+    // Helper: read the clipboard back via `box clip --paste`, trimmed.
+    let paste = || -> String {
+        let out = Command::cargo_bin("box")
+            .unwrap()
+            .args(["clip", "--paste"])
+            .output()
+            .expect("run box clip --paste");
+        assert!(out.status.success(), "box clip --paste should exit 0");
+        String::from_utf8(out.stdout)
+            .expect("clipboard text is UTF-8")
+            .trim()
+            .to_string()
+    };
+
+    // Pretty (default) --clip: clipboard == the printed pretty form.
+    let printed_pretty = printed_with(&[]);
+    assert_eq!(paste(), printed_pretty, "--clip copies the pretty form");
+
+    // --compact --clip: clipboard == the printed compact form.
+    let printed_compact = printed_with(&["--compact"]);
+    assert_eq!(
+        paste(),
+        printed_compact,
+        "--compact --clip copies the compact form"
+    );
+}
