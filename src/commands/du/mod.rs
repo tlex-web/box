@@ -64,11 +64,30 @@ pub struct DuArgs {
 
 /// One immediate-child row: its display name, whether it is a directory, and its
 /// size (a file's own size, or a directory's recursive descendant sum).
+///
+/// `#[derive(serde::Serialize)]` for `box du --json` (SPINE-02, D-11): the SAME
+/// rows that feed the human render feed the JSON `.results` array (no-drift).
+/// `size` is a BARE `u64` (D-3) — the >2^53 precision caveat is documented; PS7
+/// (Int64) handles it.
+#[derive(serde::Serialize)]
 struct Row {
     /// The child's base name (no trailing `/` — that is added at render time).
     name: String,
     is_dir: bool,
     size: u64,
+}
+
+/// The `box du --json` document (D-11): the always-wrapped `{results,count}` shape
+/// plus the full-scan sibling totals (`total_bytes` = the full-scan sum,
+/// `total_children` = the immediate-child count) — both computed BEFORE the
+/// `--top` truncation so they reflect the full scan, exactly like the human
+/// summary line.
+#[derive(serde::Serialize)]
+struct DuOutput {
+    results: Vec<Row>,
+    count: usize,
+    total_bytes: u64,
+    total_children: usize,
 }
 
 impl RunCommand for DuArgs {
@@ -106,11 +125,26 @@ impl RunCommand for DuArgs {
         sort_rows(&mut rows);
 
         // --top N: post-sort truncation of the SHOWN list (does NOT change the
-        // summary total).
+        // summary total). Applies to BOTH paths — the JSON `.results` honor `--top`
+        // exactly like the printed rows, while the sibling totals stay full-scan.
         if let Some(top) = self.top {
             rows.truncate(top);
         }
         let shown = rows.len();
+
+        // Fork on `is_json_on()` FIRST (Pitfall 1): du has THREE human stdout
+        // writes (rows + blank line + summary), ALL of which must live behind the
+        // `else`. Under --json the ONLY stdout write is the single emit_json.
+        if crate::core::output::is_json_on() {
+            let doc = DuOutput {
+                count: shown,
+                results: rows,
+                total_bytes: total,
+                total_children,
+            };
+            crate::core::output::emit_json(&doc)?;
+            return Ok(());
+        }
 
         // Right-align the size column to the widest SHOWN human_size value (D-12).
         let size_strings: Vec<String> = rows.iter().map(|r| human_size(r.size)).collect();

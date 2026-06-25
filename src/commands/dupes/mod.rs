@@ -55,6 +55,26 @@ struct DupeGroup {
     paths: Vec<PathBuf>,
 }
 
+/// The serde projection of one [`DupeGroup`] for `box dupes --json` (SPINE-02,
+/// D-17). `paths` are `to_string_lossy()` STRINGS (D-4) — a non-UTF-8 NTFS path
+/// never panics and never reaches `to_str().unwrap()`, matching the human
+/// `path.display()` render (no-drift).
+#[derive(serde::Serialize)]
+struct DupeRow {
+    size: u64,
+    paths: Vec<String>,
+}
+
+/// The `box dupes --json` document (D-17): `{results, count, wasted_bytes}` where
+/// `count` is the number of duplicate groups and `wasted_bytes` is the redundant-
+/// copy total (the SAME `wasted_space` figure the human summary prints).
+#[derive(serde::Serialize)]
+struct DupesOutput {
+    results: Vec<DupeRow>,
+    count: usize,
+    wasted_bytes: u64,
+}
+
 impl RunCommand for DupesArgs {
     fn run(self) -> anyhow::Result<()> {
         // Pre-check the common typo path: a non-existent target gives a clear
@@ -104,6 +124,33 @@ impl RunCommand for DupesArgs {
 
         // Group consecutive equal hashes; keep only groups of >= 2 (the dupes).
         let groups = group_duplicates(hashed);
+
+        // Fork on `is_json_on()` FIRST (Pitfall 1): `render` has the empty-case
+        // human line + the per-group lines + the wasted summary — ALL human chrome
+        // that must NOT reach stdout under --json. The empty case maps to
+        // `{results:[], count:0, wasted_bytes:0}`, never the "No duplicate files
+        // found." line.
+        if crate::core::output::is_json_on() {
+            let doc = DupesOutput {
+                count: groups.len(),
+                wasted_bytes: wasted_space(&groups),
+                // Project each group, serializing paths via `to_string_lossy`
+                // (D-4) so non-UTF-8 NTFS paths never panic.
+                results: groups
+                    .iter()
+                    .map(|g| DupeRow {
+                        size: g.size,
+                        paths: g
+                            .paths
+                            .iter()
+                            .map(|p| p.to_string_lossy().into_owned())
+                            .collect(),
+                    })
+                    .collect(),
+            };
+            crate::core::output::emit_json(&doc)?;
+            return Ok(());
+        }
 
         render(&groups);
         Ok(())
