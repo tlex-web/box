@@ -24,6 +24,23 @@ use clap::Args;
 
 use crate::commands::RunCommand;
 
+/// The `box base64 --json` document (D-01 scalar → flat object, NOT
+/// `{results,count}`). Field names (discretion): `output` carries the printed
+/// primary result, `mode` is the `"encode"`/`"decode"` direction.
+///
+/// **A1 binary-safety (T-07a-01):** on the DECODE path the decoded bytes can be
+/// arbitrary non-UTF-8 binary — a JSON string can never hold raw non-UTF-8. So
+/// under `--json --decode`, `output` carries the decoded bytes **re-encoded as
+/// base64** (lossless, round-trippable): a consumer base64-decodes `.output` to
+/// recover the exact bytes. We therefore NEVER `String::from_utf8(...).unwrap()`
+/// the decoded bytes (that would panic on binary). On the ENCODE path `output`
+/// is the encoded ASCII string verbatim.
+#[derive(serde::Serialize)]
+struct Base64Output {
+    output: String,
+    mode: &'static str,
+}
+
 /// `box base64 [--decode] [--url-safe] [INPUT]` — encode or decode base64
 /// (B64-01). Reads INPUT from the argument or piped stdin (D-04).
 #[derive(Debug, Args)]
@@ -45,16 +62,41 @@ impl RunCommand for Base64Args {
         // read_input_bytes / the first path that constructs BoxError::MissingInput.
         let bytes = crate::core::input::read_input_bytes(self.input)?;
 
-        if self.decode {
+        // Fork on `is_json_on()` FIRST (Pitfall 1): the ONLY stdout write reachable
+        // under `--json` is `emit_json` — no stray raw bytes / encoded line leak.
+        if crate::core::output::is_json_on() {
+            let doc = if self.decode {
+                // A1 (T-07a-01): decoded bytes may be arbitrary non-UTF-8 binary.
+                // Re-encode them to base64 (lossless, round-trippable) for the JSON
+                // string field — NEVER `String::from_utf8(...).unwrap()` (would panic
+                // on binary). The field name `output` is reused but holds the
+                // base64-of-the-decoded-bytes for binary safety.
+                let decoded = decode(&bytes, self.url_safe)?;
+                Base64Output {
+                    output: STANDARD.encode(&decoded),
+                    mode: "decode",
+                }
+            } else {
+                Base64Output {
+                    output: encode(&bytes, self.url_safe),
+                    mode: "encode",
+                }
+            };
+            crate::core::output::emit_json(&doc)?;
+        } else if self.decode {
             let decoded = decode(&bytes, self.url_safe)?;
             // Write raw bytes straight to stdout — never through a String — so
             // arbitrary (incl. non-UTF-8) decoded bytes are byte-exact (T-02-04).
+            // The binary decode path is NOT line-oriented, so it does NOT route
+            // through `out_line`; `--clip` of a binary decode is unsupported (the
+            // line-oriented clip tee cannot carry arbitrary bytes).
             std::io::stdout()
                 .write_all(&decoded)
                 .context("failed to write decoded output")?;
         } else {
-            // Encode never wraps lines (B64-01); one line to stdout.
-            println!("{}", encode(&bytes, self.url_safe));
+            // Encode never wraps lines (B64-01); one line via `out_line` so the
+            // encoded string tees to the clipboard under `--clip` (SPINE-04).
+            crate::core::output::out_line(&encode(&bytes, self.url_safe));
         }
         Ok(())
     }

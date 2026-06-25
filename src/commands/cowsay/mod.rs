@@ -27,6 +27,15 @@ use clap::Args;
 
 use crate::commands::RunCommand;
 
+/// The `box cowsay --json` document (D-01 scalar → flat object). Field name
+/// (discretion, A6): `text` carries the raw spoken message — the ASCII bubble + cow
+/// art is a *visual* (like qr glyphs) and is deliberately NOT serialized. Not in
+/// SPINE-04 (no `--clip`), so the human bubble path keeps `println!`/`print!`.
+#[derive(serde::Serialize)]
+struct CowsayOutput {
+    text: String,
+}
+
 /// The classic cow art appended under every speech bubble. The four-space lead
 /// aligns the tether `\` under the bubble's right edge, matching the CONTEXT
 /// single-line target byte-for-byte.
@@ -54,6 +63,19 @@ impl RunCommand for CowsayArgs {
     fn run(self) -> anyhow::Result<()> {
         // arg → piped stdin → exit-2 on a no-arg interactive TTY (D-04 branch 3).
         let raw = crate::core::input::read_input(self.text)?;
+
+        // Fork on `is_json_on()` FIRST (Pitfall 1): under `--json` emit the flat
+        // `{text}` object carrying the raw spoken message (A6 — the bubble/cow is a
+        // visual, never serialized). The bubble's leading/trailing whitespace is
+        // trimmed to match the wrap input, but the message is otherwise verbatim.
+        if crate::core::output::is_json_on() {
+            let doc = CowsayOutput {
+                text: raw.trim().to_string(),
+            };
+            crate::core::output::emit_json(&doc)?;
+            return Ok(());
+        }
+
         let lines = wrap(raw.trim(), self.width);
         println!("{}", bubble(&lines));
         print!("{COW}");

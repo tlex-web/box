@@ -24,6 +24,15 @@ use rand::seq::IndexedRandom; // brings .choose() onto slices (unbiased selectio
 
 use crate::commands::RunCommand;
 
+/// The `box fortune --json` document (D-01 scalar → flat object). Field name
+/// (discretion): `text` carries the chosen aphorism — the **UNWRAPPED** single
+/// string verbatim (soft-wrapping is a human-render concern, not data — D-17).
+/// Not in SPINE-04 (no `--clip`).
+#[derive(serde::Serialize)]
+struct FortuneOutput {
+    text: String,
+}
+
 /// The embedded fortune list — one aphorism per line, public-domain / CC0 / orig.
 /// The macro below embeds the working-copy bytes at compile time; `.gitattributes`
 /// forces `eol=lf` so no `\r` leaks in on a CRLF checkout (the loader also trims).
@@ -42,14 +51,26 @@ impl RunCommand for FortuneArgs {
         let mut rng = rand::rng();
         let chosen = *list.choose(&mut rng).expect("fortune list is non-empty");
 
+        // Fork on `is_json_on()` FIRST (Pitfall 1), BEFORE the width/soft-wrap
+        // logic: the JSON path emits the UNWRAPPED `chosen` string verbatim
+        // (wrapping is human-only — D-17). The human branch keeps its soft-wrap.
+        if crate::core::output::is_json_on() {
+            let doc = FortuneOutput {
+                text: chosen.to_string(),
+            };
+            crate::core::output::emit_json(&doc)?;
+            return Ok(());
+        }
+
         // FORT-01 "fits the terminal": soft-wrap at word boundaries only if the
-        // chosen line is wider than the terminal; otherwise print verbatim.
+        // chosen line is wider than the terminal; otherwise print verbatim. Routed
+        // through `out_line` for spine consistency (fortune is not in SPINE-04).
         let width = crate::core::output::terminal_width();
         if chosen.chars().count() <= width {
-            println!("{chosen}");
+            crate::core::output::out_line(chosen);
         } else {
             for line in soft_wrap(chosen, width) {
-                println!("{line}");
+                crate::core::output::out_line(&line);
             }
         }
         Ok(())

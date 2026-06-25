@@ -21,6 +21,15 @@ use rand::seq::IndexedRandom; // brings .choose() onto slices (unbiased selectio
 
 use crate::commands::RunCommand;
 
+/// The `box roast --json` document (D-01 scalar → flat object, identical shape to
+/// fortune). Field name (discretion): `text` carries the chosen one-liner — the
+/// **UNWRAPPED** single string verbatim (wrapping is human-only — D-17). Not in
+/// SPINE-04 (no `--clip`).
+#[derive(serde::Serialize)]
+struct RoastOutput {
+    text: String,
+}
+
 /// The embedded roast list — one one-liner per line, self-authored / CC0.
 /// `.gitattributes` forces `eol=lf` so no `\r` leaks in via `include_str!` on a
 /// CRLF checkout (the loader also trims defensively).
@@ -38,12 +47,23 @@ impl RunCommand for RoastArgs {
         let mut rng = rand::rng();
         let chosen = *list.choose(&mut rng).expect("roast list is non-empty");
 
+        // Fork on `is_json_on()` FIRST (Pitfall 1), BEFORE the soft-wrap logic: the
+        // JSON path emits the UNWRAPPED `chosen` string verbatim (wrapping is
+        // human-only — D-17). The human branch keeps its soft-wrap.
+        if crate::core::output::is_json_on() {
+            let doc = RoastOutput {
+                text: chosen.to_string(),
+            };
+            crate::core::output::emit_json(&doc)?;
+            return Ok(());
+        }
+
         let width = crate::core::output::terminal_width();
         if chosen.chars().count() <= width {
-            println!("{chosen}");
+            crate::core::output::out_line(chosen);
         } else {
             for line in soft_wrap(chosen, width) {
-                println!("{line}");
+                crate::core::output::out_line(&line);
             }
         }
         Ok(())

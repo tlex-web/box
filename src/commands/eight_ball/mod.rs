@@ -23,6 +23,15 @@ use rand::seq::IndexedRandom; // brings .choose() onto slices (unbiased selectio
 
 use crate::commands::RunCommand;
 
+/// The `box 8ball --json` document (D-01 scalar → flat object). Field name
+/// (discretion): `text` carries the drawn answer. The question arg is display-only
+/// and is NEVER serialized (it does not affect the draw and has no scriptable
+/// value). Not in SPINE-04 (no `--clip`).
+#[derive(serde::Serialize)]
+struct EightBallOutput {
+    text: String,
+}
+
 /// The canonical 20 Magic 8-Ball answers, grouped by tone: 10 affirmative,
 /// 5 non-committal, 5 negative (D-09). Held in source (D-07) — small and readable;
 /// not padded beyond 20.
@@ -74,7 +83,18 @@ impl RunCommand for EightBallArgs {
         let answer = *EIGHT_BALL_ANSWERS
             .choose(&mut rng)
             .expect("EIGHT_BALL_ANSWERS is non-empty");
-        println!("{answer}");
+
+        // Fork on `is_json_on()` FIRST (Pitfall 1): under `--json` emit the flat
+        // `{text}` object; otherwise print the answer via `out_line` (consistent
+        // with the spine, though 8ball is not in SPINE-04).
+        if crate::core::output::is_json_on() {
+            let doc = EightBallOutput {
+                text: answer.to_string(),
+            };
+            crate::core::output::emit_json(&doc)?;
+        } else {
+            crate::core::output::out_line(answer);
+        }
         Ok(())
     }
 }
