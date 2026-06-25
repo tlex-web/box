@@ -315,16 +315,40 @@ impl RunCommand for BulkRenameArgs {
         let width = terminal_width();
 
         if !conflicts.is_empty() {
-            // Print the plan with `[collision]` inline reasons on offending rows so
-            // the user sees exactly what clashed, then the locked abort summary.
-            print_plan_with_conflicts(&plan, &conflicts, arrow_col, width);
-            println!();
+            // A3 / D-09: under --json the abort path must keep stdout EMPTY — the
+            // plan-with-conflicts is human chrome that would corrupt the machine
+            // channel, and there is NO {"error":…} envelope (D-09). Guard the
+            // stdout print behind `if !is_json_on()`; the `bail!` error always goes
+            // to stderr (main.rs maps it to exit 1), so under --json the conflict
+            // explanation still reaches the user via stderr.
+            if !crate::core::output::is_json_on() {
+                // Print the plan with `[collision]` inline reasons on offending
+                // rows so the user sees exactly what clashed, then the abort
+                // summary.
+                print_plan_with_conflicts(&plan, &conflicts, arrow_col, width);
+                println!();
+            }
             bail!("{}", abort_summary(&conflicts));
         }
 
         // (5) Dry-run is the DEFAULT: preview + summary, write nothing.
         let (to_rename, unchanged, skipped) = tally(&plan);
         if !self.force {
+            // Fork on `is_json_on()` FIRST (Pitfall 1): under --json emit the PLAN
+            // with `dry_run: true` (D-12 — --json is orthogonal to --force); all
+            // human chrome (rows + summary) is suppressed.
+            if crate::core::output::is_json_on() {
+                let doc = RenameOutput {
+                    count: plan.items.len(),
+                    results: rename_rows(&plan),
+                    dry_run: true,
+                    to_rename,
+                    unchanged,
+                    skipped,
+                };
+                crate::core::output::emit_json(&doc)?;
+                return Ok(());
+            }
             print_plan(&plan, arrow_col, width);
             println!();
             println!(
@@ -336,21 +360,27 @@ impl RunCommand for BulkRenameArgs {
 
         // --force: execute only AFTER a clean pre-flight. A predictable collision
         // already aborted above; here we stop on the first UNEXPECTED I/O error.
+        // Whether the rows are PRINTED depends on the fork: D-12 override — under
+        // --json the applied rename rows are EMITTED as one document, while the
+        // human --force path stays silent-on-success (only a "Done:" summary).
+        let json = crate::core::output::is_json_on();
         let mut renamed = 0usize;
         for item in &plan.items {
             match item.kind {
                 ItemKind::Skip => {
-                    println!(
-                        "{}",
-                        format_row(
-                            item.kind.status(),
-                            &item.src_label,
-                            None,
-                            item.reason.as_deref(),
-                            arrow_col,
-                            width,
-                        )
-                    );
+                    if !json {
+                        println!(
+                            "{}",
+                            format_row(
+                                item.kind.status(),
+                                &item.src_label,
+                                None,
+                                item.reason.as_deref(),
+                                arrow_col,
+                                width,
+                            )
+                        );
+                    }
                 }
                 ItemKind::Rename => {
                     let new_name = item
@@ -362,19 +392,37 @@ impl RunCommand for BulkRenameArgs {
                         format!("renaming {} -> {}", item.src.display(), dst.display())
                     })?;
                     renamed += 1;
-                    println!(
-                        "{}",
-                        format_row(
-                            item.kind.status(),
-                            &item.src_label,
-                            Some(new_name),
-                            item.reason.as_deref(),
-                            arrow_col,
-                            width,
-                        )
-                    );
+                    if !json {
+                        println!(
+                            "{}",
+                            format_row(
+                                item.kind.status(),
+                                &item.src_label,
+                                Some(new_name),
+                                item.reason.as_deref(),
+                                arrow_col,
+                                width,
+                            )
+                        );
+                    }
                 }
             }
+        }
+
+        // D-12 override: under --json emit the applied rename rows (the ONLY stdout
+        // write), `dry_run: false`. The human `--force` path stays silent-on-
+        // success with just the "Done:" summary.
+        if json {
+            let doc = RenameOutput {
+                count: plan.items.len(),
+                results: rename_rows(&plan),
+                dry_run: false,
+                to_rename,
+                unchanged,
+                skipped,
+            };
+            crate::core::output::emit_json(&doc)?;
+            return Ok(());
         }
 
         println!();
@@ -484,6 +532,58 @@ struct Plan {
     to_rename: usize,
     unchanged: usize,
     skipped: usize,
+}
+
+/// The serde projection of one [`PlanItem`] for `box bulk-rename --json` (SPINE-02,
+/// D-13): `{src, dst, action, reason}`. `src` is the source label (lossy string,
+/// D-4), `dst` the new base name (`None` for skips), `action` the lowercased
+/// [`RowStatus`] (`"rename"`/`"skip"`), `reason` the same inline reason the human
+/// row shows. The raw fields are serialized — NEVER the aligned `format_row`
+/// output.
+#[derive(serde::Serialize)]
+struct RenameRow {
+    src: String,
+    dst: Option<String>,
+    action: &'static str,
+    reason: Option<String>,
+}
+
+/// The `box bulk-rename --json` document (D-12/D-13): the always-wrapped
+/// `{results,count}` shape plus a `dry_run` boolean and the locked sibling summary
+/// counts (`to_rename`/`unchanged`/`skipped`).
+#[derive(serde::Serialize)]
+struct RenameOutput {
+    results: Vec<RenameRow>,
+    count: usize,
+    dry_run: bool,
+    to_rename: usize,
+    unchanged: usize,
+    skipped: usize,
+}
+
+/// The lowercased `action` string for a plan item (D-13) — the lowercased
+/// [`RowStatus`] spelling, reusing the same `status()` source of truth the human
+/// glyph derives from (no-drift). bulk-rename only ever produces `rename`/`skip`.
+fn action_str(kind: ItemKind) -> &'static str {
+    match kind.status() {
+        RowStatus::Copy => "copy",
+        RowStatus::Rename => "rename",
+        RowStatus::Skip => "skip",
+    }
+}
+
+/// Project the plan's items into the JSON `.results` rows (raw fields, not
+/// `format_row` layout, D-13).
+fn rename_rows(plan: &Plan) -> Vec<RenameRow> {
+    plan.items
+        .iter()
+        .map(|item| RenameRow {
+            src: item.src_label.clone(),
+            dst: item.new_name.clone(),
+            action: action_str(item.kind),
+            reason: item.reason.clone(),
+        })
+        .collect()
 }
 
 /// The base name of `path` as an owned `String`.

@@ -423,9 +423,9 @@ fn renm_recursive_cross_directory_independent() {
 //   - A3 / D-09: a CONFLICTING plan under --json keeps stdout EMPTY, errors to
 //     stderr, exits 1 — never an {"error":…} on stdout.
 
-/// Capture `box bulk-rename <dir> <pattern> <replacement> [args]` raw stdout/stderr
-/// + exit status, for the JSON assertions (raw bytes, not a trimmed String).
-/// Forces `NO_COLOR=1`.
+/// Capture `box bulk-rename <dir> <pattern> <replacement> [args]` raw
+/// stdout/stderr and exit status, for the JSON assertions (raw bytes, not a
+/// trimmed String). Forces `NO_COLOR=1`.
 fn bulk_rename_output(
     dir: &Path,
     pattern: &str,

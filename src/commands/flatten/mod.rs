@@ -90,6 +90,61 @@ struct Plan {
     skipped: usize,
 }
 
+/// The serde projection of one [`PlanItem`] for `box flatten --json` (SPINE-02,
+/// D-13): `{src, dst, action, reason}`. `src` is the source label (lossy string,
+/// D-4), `dst` the flat destination name (`None` for skips), `action` the
+/// lowercased [`RowStatus`] (`"copy"`/`"rename"`/`"skip"`), `reason` the same
+/// inline reason the human row shows. The raw fields are serialized — NEVER the
+/// aligned `format_row` output (that is human layout).
+#[derive(serde::Serialize)]
+struct FlattenRow {
+    src: String,
+    dst: Option<String>,
+    action: &'static str,
+    reason: Option<String>,
+}
+
+/// The `box flatten --json` document (D-12/D-13): the always-wrapped
+/// `{results,count}` shape plus a `dry_run` boolean (so a script can tell a preview
+/// from an applied run) and the locked sibling summary counts. On a dry-run,
+/// `copied`/`total_bytes` are 0 and the counts come from the plan; on a real run
+/// they reflect the actual copy.
+#[derive(serde::Serialize)]
+struct FlattenOutput {
+    results: Vec<FlattenRow>,
+    count: usize,
+    dry_run: bool,
+    copied: usize,
+    renamed: usize,
+    skipped: usize,
+    total_bytes: u64,
+}
+
+/// The lowercased `action` string for a plan item (D-13) — the lowercased
+/// [`RowStatus`] spelling, reusing the same `status()` source of truth the human
+/// glyph derives from (no-drift).
+fn action_str(kind: ItemKind) -> &'static str {
+    match kind.status() {
+        RowStatus::Copy => "copy",
+        RowStatus::Rename => "rename",
+        RowStatus::Skip => "skip",
+    }
+}
+
+/// Project the plan's items into the JSON `.results` rows (raw fields, not
+/// `format_row` layout, D-13).
+fn flatten_rows(plan: &Plan) -> Vec<FlattenRow> {
+    plan.items
+        .iter()
+        .map(|item| FlattenRow {
+            src: item.src_label.clone(),
+            dst: item.dst_name.clone(),
+            action: action_str(item.kind),
+            reason: item.reason.clone(),
+        })
+        .collect()
+}
+
 impl RunCommand for FlattenArgs {
     fn run(self) -> anyhow::Result<()> {
         // (1) Auto-create the output dir first (D-13), then canonicalize BOTH
@@ -136,6 +191,24 @@ impl RunCommand for FlattenArgs {
 
         // (5) Dry-run prints and writes nothing; real run copies.
         if self.dry_run {
+            // Fork on `is_json_on()` FIRST (Pitfall 1): under --json emit the PLAN
+            // (D-12 — --json is orthogonal to --force; dry-run+json = the plan),
+            // with `dry_run: true` and zeroed real-run counts. All human chrome
+            // (rows + blank + summary) is suppressed.
+            if crate::core::output::is_json_on() {
+                let doc = FlattenOutput {
+                    count: plan.items.len(),
+                    results: flatten_rows(&plan),
+                    dry_run: true,
+                    // A dry-run copies nothing; report the plan's intent counts.
+                    copied: 0,
+                    renamed: plan.renamed,
+                    skipped: plan.skipped,
+                    total_bytes: 0,
+                };
+                crate::core::output::emit_json(&doc)?;
+                return Ok(());
+            }
             print_plan(&plan);
             println!();
             println!(
@@ -145,6 +218,10 @@ impl RunCommand for FlattenArgs {
             return Ok(());
         }
 
+        // The real run always performs the copies; whether it PRINTS the rows
+        // depends on the fork (--json suppresses all human chrome and emits one
+        // document at the end instead — D-12 real+json = the executed result).
+        let json = crate::core::output::is_json_on();
         let arrow_col = arrow_col(&plan);
         let width = terminal_width();
         let mut copied = 0usize;
@@ -152,17 +229,19 @@ impl RunCommand for FlattenArgs {
         for item in &plan.items {
             match item.kind {
                 ItemKind::Skip => {
-                    println!(
-                        "{}",
-                        format_row(
-                            item.kind.status(),
-                            &item.src_label,
-                            None,
-                            item.reason.as_deref(),
-                            arrow_col,
-                            width,
-                        )
-                    );
+                    if !json {
+                        println!(
+                            "{}",
+                            format_row(
+                                item.kind.status(),
+                                &item.src_label,
+                                None,
+                                item.reason.as_deref(),
+                                arrow_col,
+                                width,
+                            )
+                        );
+                    }
                 }
                 ItemKind::Copy | ItemKind::Rename => {
                     let dst_name = item
@@ -174,19 +253,38 @@ impl RunCommand for FlattenArgs {
                         .with_context(|| format!("flattening {}", item.src.display()))?;
                     bytes_written += n;
                     copied += 1;
-                    println!(
-                        "{}",
-                        format_row(
-                            item.kind.status(),
-                            &item.src_label,
-                            Some(dst_name),
-                            item.reason.as_deref(),
-                            arrow_col,
-                            width,
-                        )
-                    );
+                    if !json {
+                        println!(
+                            "{}",
+                            format_row(
+                                item.kind.status(),
+                                &item.src_label,
+                                Some(dst_name),
+                                item.reason.as_deref(),
+                                arrow_col,
+                                width,
+                            )
+                        );
+                    }
                 }
             }
+        }
+
+        // Under --json, the ONLY stdout write is the single emit_json carrying the
+        // EXECUTED result (real copied / total_bytes captured above, `dry_run:
+        // false`). Otherwise the human blank line + real-run summary.
+        if json {
+            let doc = FlattenOutput {
+                count: plan.items.len(),
+                results: flatten_rows(&plan),
+                dry_run: false,
+                copied,
+                renamed: plan.renamed,
+                skipped: plan.skipped,
+                total_bytes: bytes_written,
+            };
+            crate::core::output::emit_json(&doc)?;
+            return Ok(());
         }
 
         println!();
