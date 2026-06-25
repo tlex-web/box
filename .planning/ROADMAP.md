@@ -82,13 +82,13 @@ Plans:
   3. Every newly `--json`-enabled command keeps the v1 "byte-identical minus ANSI when piped" contract — stdout under `--json` contains no `0x1B` byte and parses as a single value (the per-command JSON-purity test passes for all of them).
   4. Display-only commands (`matrix`, `pomodoro`, `lolcat`, `ascii`, `clip`) correctly omit `--json`/`--clip` rather than emitting a malformed or meaningless document.
 
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
 
-- [ ] 07-01: TBD — Wave 7a pure transforms: `base64`, `epoch`, `color`, `passgen`, `8ball`, `fortune`, `roast`, `cowsay` (`--json` + `--clip` where applicable).
-- [ ] 07-02: TBD — Wave 7b filesystem buffered-rows: `du`, `tree`, `dupes`, `flatten`, `bulk-rename` (single-document `{…, results:[…], count}` / recursive-tree shape).
-- [ ] 07-03: TBD — Wave 7c remaining: `json`, `qr`, `weather` (`--json` + `--clip` where applicable).
+- [ ] 07-01-PLAN.md — Wave 7a pure transforms: `--json` on `base64`, `epoch`, `color`, `passgen`, `8ball`, `fortune`, `roast`, `cowsay` + `--clip` on base64/color/epoch/passgen + A1 base64 decode policy + SC4 display-only omission + new `tests/cowsay.rs`. [wave 1]
+- [ ] 07-02-PLAN.md — Wave 7b filesystem: `--json` on `du`, `dupes`, `flatten`, `bulk-rename` (`{results,count,…}`) + `tree` recursive `{name,type,size?,children}` (A4) + bulk-rename --force-emits-rows / abort-empty-stdout forks (A3). [wave 2, depends_on 07-01]
+- [ ] 07-03-PLAN.md — Wave 7c odd-fits: `--json` on `json` (D-16 passthrough) / `qr` (D-14 metadata) / `weather` (current-only) + `--clip` on json/qr + new `core::output::clip_feed` primitive for qr D-15. [wave 3, depends_on 07-02]
 
 ### Phase 8: Filesystem Depth
 
@@ -190,7 +190,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Terminal Visuals | v1.0 | 4/4 | Complete | 2026-06-24 |
 | 5. Windows Platform Integration | v1.0 | 4/4 | Complete | 2026-06-24 |
 | 6. Scriptable-Core Foundation | v2.0 | 2/2 | Complete | 2026-06-25 |
-| 7. Spine Rollout | v2.0 | 0/3 | Not started | - |
+| 7. Spine Rollout | v2.0 | 0/3 | Planned | - |
 | 8. Filesystem Depth | v2.0 | 0/6 | Not started | - |
 | 9. Dev-Transform & Visual Depth | v2.0 | 0/3 | Not started | - |
 | 10. Fun & System Depth | v2.0 | 0/2 | Not started | - |
