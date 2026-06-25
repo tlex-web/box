@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
-status: executing
-stopped_at: Phase 6 COMPLETE (both waves) — uuid+hash spine pilots + BLAKE3-default flip
-last_updated: "2026-06-25T01:05:00.000Z"
+status: ready_to_plan
+stopped_at: Phase 06 complete (2/2) — ready to discuss Phase 7
+last_updated: 2026-06-25T00:42:31.178Z
 last_activity: 2026-06-25 -- 06-02 executed (uuid+hash --json/--clip pilots, BLAKE3 default, D-05 probe)
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 2
+  total_plans: 18
   completed_plans: 2
   percent: 11
 ---
@@ -25,7 +25,7 @@ progress:
 
 **Core Value:** The toolbox must be globally available and instantly usable from PowerShell 7 — type `box <command>` from anywhere and the tool just works.
 
-**Current Focus:** Phase 07 — spine-rollout (Phase 06 complete)
+**Current Focus:** Phase 7 — spine rollout
 
 **Milestone:** v2.0 Toolbox → Toolkit — EXECUTING. Phase 6 (scriptable-core foundation) complete. v1.0 Full Toolbox shipped & archived 2026-06-24 (all 23 commands; see `.planning/MILESTONES.md`).
 
@@ -35,10 +35,10 @@ See: .planning/PROJECT.md · .planning/ROADMAP.md · .planning/REQUIREMENTS.md (
 
 ## Current Position
 
-Phase: 06 (scriptable-core-foundation) — COMPLETE; Phase 07 (spine-rollout) — NOT STARTED
-Plan: 2 of 2 complete (06-01 + 06-02 done)
-Status: Phase 06 fully complete (both waves) — spine built (06-01) and proven on uuid+hash pilots (06-02)
-Last activity: 2026-06-25 -- 06-02 executed (uuid+hash --json/--clip pilots, BLAKE3-default flip, D-05 probe; full suite green)
+Phase: 7
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-25
 
 Progress: [█░░░░░░░░░] 11% (2/18 v2.0 plans)
 
