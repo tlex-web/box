@@ -344,3 +344,77 @@ fn json_purity() {
         "no UTF-8 BOM may prefix --json stdout"
     );
 }
+
+/// WR-02 — the documented D-4 lossy path-serialization (`to_string_lossy`) must
+/// never panic on an edge file name under `--json`, and must still emit exactly
+/// one well-formed JSON document (exit 0). This is the regression guard the
+/// review flagged as missing: the base64 decode path has `json_decode_non_utf8`,
+/// but the filesystem commands had no equivalent, so a regression that started
+/// emitting `to_str().unwrap()` on a non-UTF-8 name would go uncaught.
+///
+/// On Unix we build a GENUINELY non-UTF-8 file name (a lone 0x80 continuation
+/// byte) via `OsStrExt` — exactly the case `to_string_lossy` maps to U+FFFD.
+/// On Windows the std API cannot create a non-UTF-8 OS string from raw bytes
+/// (NTFS names are UTF-16), so we use a non-ASCII multibyte name (`café_dup`)
+/// which exercises the same `to_string_lossy` serialization path with multibyte
+/// content. Either way the contract is identical: `--json` exits 0, the document
+/// parses, and `.results[].paths` are strings (never a panic, D-4).
+#[test]
+fn json_lossy_path_name_no_panic() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+
+    // A duplicate pair so there is at least one group whose paths get serialized.
+    let payload = b"WR-02 lossy-name duplicate payload\n";
+
+    #[cfg(unix)]
+    let (name_a, name_b) = {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+        // 0x80 is a lone UTF-8 continuation byte → not valid UTF-8 → U+FFFD on
+        // to_string_lossy. The platform (Linux/macOS) allows it in a file name.
+        let a = OsStr::from_bytes(b"dup_\x80_a.bin").to_owned();
+        let b = OsStr::from_bytes(b"dup_\x80_b.bin").to_owned();
+        (a, b)
+    };
+    #[cfg(not(unix))]
+    let (name_a, name_b) = {
+        // Windows: a valid-but-multibyte non-ASCII name (UTF-16 on disk). This
+        // still drives the to_string_lossy projection, just without an invalid
+        // sequence (which the platform disallows here).
+        (
+            std::ffi::OsString::from("café_dup_a.bin"),
+            std::ffi::OsString::from("café_dup_b.bin"),
+        )
+    };
+
+    fs::write(root.join(&name_a), payload).unwrap();
+    fs::write(root.join(&name_b), payload).unwrap();
+
+    let out = dupes_output(root, &["--json"]);
+    // The core assertion: the run does NOT panic and exits 0 on the edge name.
+    assert!(
+        out.status.success(),
+        "box dupes --json must exit 0 on an edge file name (stderr: {})",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    // It still emits exactly one well-formed JSON document with string paths.
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .expect("`.results` must be an array");
+    assert_eq!(results.len(), 1, "the edge-named pair forms one group");
+    let paths = results[0]
+        .get("paths")
+        .and_then(|p| p.as_array())
+        .expect("`.results[0].paths` must be an array");
+    for p in paths {
+        assert!(
+            p.as_str().is_some(),
+            "every path is a (lossy) string, never a panic (D-4): {p}"
+        );
+    }
+}
