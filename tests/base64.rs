@@ -148,3 +148,102 @@ fn empty_arg_encodes_to_empty() {
         .success()
         .stdout(predicate::str::is_empty().or(predicate::str::is_match(r"^\s*$").unwrap()));
 }
+
+// --- Scriptable spine (SPINE-02 / SPINE-04) — copied from tests/uuid.rs ---------
+//
+// base64 is a SCALAR command → a flat `{output, mode}` object (NOT {results,count}).
+// `mode` is "encode"|"decode". The A1 surprise: under --json, decode emits the
+// decoded bytes as a base64 string (binary-safe, lossless, round-trippable) — it
+// NEVER `String::from_utf8(...).unwrap()`s arbitrary bytes (T-07a-01).
+
+/// Capture `box base64 <args>` raw stdout bytes + exit status for the purity
+/// assertions (which inspect raw bytes for ANSI/BOM, not a trimmed String).
+fn base64_output(args: &[&str]) -> std::process::Output {
+    let mut cmd = base64_cmd();
+    cmd.args(args);
+    cmd.output().expect("run box base64")
+}
+
+/// SPINE-02 / D-01 — `box base64 hello --json` emits EXACTLY one well-formed JSON
+/// document `{"output":…,"mode":"encode"}` on stdout: flat scalar object, no human
+/// chrome, no ANSI, no UTF-8 BOM. Copied from the frozen `tests/uuid.rs::json_purity`
+/// template, adapted to base64's flat `{output, mode}` schema.
+#[test]
+fn json_purity() {
+    let out = base64_output(&["hello", "--json"]);
+    assert!(out.status.success(), "box base64 hello --json should exit 0");
+
+    // 1. stdout parses as EXACTLY one JSON value (whole-buffer from_slice).
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+
+    // 2. The flat scalar schema: `mode` == "encode" and a non-empty `output`
+    //    (base64("hello") == "aGVsbG8="). NOT wrapped in {results,count}.
+    assert_eq!(
+        v.get("mode"),
+        Some(&serde_json::json!("encode")),
+        "`.mode` must be \"encode\""
+    );
+    assert_eq!(
+        v.get("output").and_then(|o| o.as_str()),
+        Some("aGVsbG8="),
+        "`.output` must be base64(\"hello\")"
+    );
+    assert!(
+        v.get("results").is_none(),
+        "base64 is scalar — no `results` wrapper"
+    );
+
+    // 3. PURITY — no ANSI escape (0x1B) anywhere (Pitfall 1).
+    assert!(
+        !out.stdout.contains(&0x1Bu8),
+        "no ANSI escape may appear in --json stdout"
+    );
+    // 4. PURITY — no UTF-8 BOM (EF BB BF) at the front (Pitfall 2).
+    assert_ne!(
+        &out.stdout[..3.min(out.stdout.len())],
+        b"\xEF\xBB\xBF",
+        "no UTF-8 BOM may prefix --json stdout"
+    );
+}
+
+/// SPINE-02 / A1 / T-07a-01 — `box base64 --decode <non-utf8-b64> --json` does NOT
+/// panic and emits valid JSON. The decoded bytes (0xFF 0xFE 0x80 — invalid UTF-8)
+/// are carried as a base64 string in `.output` (binary-safe), and `.mode` is
+/// "decode". The whole point: a JSON string can't hold raw non-UTF-8 bytes, so the
+/// decode path re-encodes to base64 rather than `from_utf8(...).unwrap()`.
+#[test]
+fn json_decode_non_utf8() {
+    // base64 of the non-UTF-8 byte sequence [0xFF, 0xFE, 0x80] (STANDARD): "//6A".
+    let non_utf8_b64 = "//6A";
+    let out = base64_output(&["--decode", non_utf8_b64, "--json"]);
+    assert!(
+        out.status.success(),
+        "decode of non-UTF-8 bytes under --json must exit 0 (no panic); stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    // stdout parses as exactly one JSON value (no panic, no corruption).
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    assert_eq!(
+        v.get("mode"),
+        Some(&serde_json::json!("decode")),
+        "`.mode` must be \"decode\""
+    );
+    // `.output` is the bytes re-encoded as base64 — for input "//6A" decoding to
+    // [0xFF,0xFE,0x80], re-encoding yields the same canonical "//6A".
+    assert_eq!(
+        v.get("output").and_then(|o| o.as_str()),
+        Some("//6A"),
+        "`.output` carries the decoded bytes re-encoded as base64 (binary-safe)"
+    );
+
+    // PURITY — no ANSI, no BOM.
+    assert!(!out.stdout.contains(&0x1Bu8), "no ANSI in --json stdout");
+    assert_ne!(
+        &out.stdout[..3.min(out.stdout.len())],
+        b"\xEF\xBB\xBF",
+        "no UTF-8 BOM"
+    );
+}

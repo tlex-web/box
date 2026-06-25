@@ -93,3 +93,60 @@ fn fortune_varies_across_runs() {
 fn collapse_ws(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
+
+// --- Scriptable spine (SPINE-02) — copied from tests/uuid.rs ---------------------
+//
+// fortune is a SCALAR command → a flat `{text}` object. The JSON `text` is the
+// UNWRAPPED single string (soft-wrapping is a human-render concern, never data —
+// D-17 discretion), so `.text` is verbatim-equal to a bundled entry (no
+// whitespace-collapse needed). Not in SPINE-04 (no clip).
+
+/// Capture `box fortune --json` raw stdout bytes + exit status.
+fn fortune_output() -> std::process::Output {
+    Command::cargo_bin("box")
+        .unwrap()
+        .arg("fortune")
+        .arg("--json")
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box fortune --json")
+}
+
+/// SPINE-02 / D-01 — `box fortune --json` emits EXACTLY one flat `{text}` object
+/// whose `text` is the UNWRAPPED aphorism (a verbatim member of the bundled list,
+/// no soft-wrap line breaks injected); no ANSI, no UTF-8 BOM.
+#[test]
+fn json_purity() {
+    let out = fortune_output();
+    assert!(out.status.success(), "box fortune --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+
+    let text = v
+        .get("text")
+        .and_then(|t| t.as_str())
+        .expect("`.text` must be a string");
+    // The UNWRAPPED string is a verbatim member of the bundled list (no wrap-induced
+    // newlines): assert exact membership, not a whitespace-collapsed match.
+    assert!(
+        !text.contains('\n'),
+        "`.text` must be the UNWRAPPED single line (no soft-wrap newlines): {text:?}"
+    );
+    let members: HashSet<&str> = entries().into_iter().collect();
+    assert!(
+        members.contains(text),
+        "`.text` {text:?} must be a verbatim member of the bundled list"
+    );
+    assert!(
+        v.get("results").is_none(),
+        "fortune is scalar — no `results` wrapper"
+    );
+
+    assert!(!out.stdout.contains(&0x1Bu8), "no ANSI in --json stdout");
+    assert_ne!(
+        &out.stdout[..3.min(out.stdout.len())],
+        b"\xEF\xBB\xBF",
+        "no UTF-8 BOM"
+    );
+}

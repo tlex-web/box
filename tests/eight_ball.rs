@@ -111,3 +111,59 @@ fn varies_across_runs() {
         seen.len()
     );
 }
+
+// --- Scriptable spine (SPINE-02) — copied from tests/uuid.rs ---------------------
+//
+// 8ball is a SCALAR command → a flat `{text}` object. The question arg is
+// display-only/ignored, so it NEVER appears in the JSON. Not in SPINE-04 (no clip).
+
+/// Capture `box 8ball <args>` raw stdout bytes + exit status for the purity
+/// assertions (which inspect raw bytes for ANSI/BOM, not a trimmed String).
+fn eight_ball_output(args: &[&str]) -> std::process::Output {
+    Command::cargo_bin("box")
+        .unwrap()
+        .arg("8ball")
+        .args(args)
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box 8ball")
+}
+
+/// SPINE-02 / D-01 — `box 8ball <q> --json` emits EXACTLY one flat `{text}` JSON
+/// object whose `text` is one of the canonical 20; the question arg never appears;
+/// no ANSI, no UTF-8 BOM. Adapted from `tests/uuid.rs::json_purity`.
+#[test]
+fn json_purity() {
+    let out = eight_ball_output(&["Will it work?", "--json"]);
+    assert!(out.status.success(), "box 8ball --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+
+    let text = v
+        .get("text")
+        .and_then(|t| t.as_str())
+        .expect("`.text` must be a string");
+    assert!(
+        CANONICAL_20.contains(&text),
+        "`.text` {text:?} must be one of the canonical 20"
+    );
+    assert!(
+        v.get("results").is_none(),
+        "8ball is scalar — no `results` wrapper"
+    );
+    // The question arg is display-only — it must NOT leak into the JSON anywhere.
+    assert!(
+        !out.stdout
+            .windows(b"Will it work?".len())
+            .any(|w| w == b"Will it work?"),
+        "the question arg must never appear in the JSON"
+    );
+
+    assert!(!out.stdout.contains(&0x1Bu8), "no ANSI in --json stdout");
+    assert_ne!(
+        &out.stdout[..3.min(out.stdout.len())],
+        b"\xEF\xBB\xBF",
+        "no UTF-8 BOM"
+    );
+}
