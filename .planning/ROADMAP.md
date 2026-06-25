@@ -39,7 +39,7 @@ Full phase details, decisions, and outcomes archived in [`milestones/v1.0-ROADMA
 **Milestone Goal:** Make the existing 23 commands deeper, scriptable, and frictionless in PowerShell 7 — `--json`/`--clip` everywhere applicable, comprehensive per-command depth, BLAKE3-default `hash`, config-file defaults, and PS7 completions. No new *tool* commands; only `config`/`completions` meta-commands.
 
 - [x] **Phase 6: Scriptable-Core Foundation** - Build the entire shared `--json`/`--clip`/config spine once, proven on the two simplest pilot commands (`uuid` + `hash`), and flip `hash` to BLAKE3-default with a config escape hatch. ✅ 2026-06-25
-- [ ] **Phase 7: Spine Rollout** - Apply the frozen Phase-6 template to roll `--json` and `--clip` across every remaining applicable value-producing command.
+- [x] **Phase 7: Spine Rollout** - Apply the frozen Phase-6 template to roll `--json` and `--clip` across every remaining applicable value-producing command. (completed 2026-06-25)
 - [ ] **Phase 8: Filesystem Depth** - Add the deferred depth flags to the six filesystem commands (`hash`, `flatten`, `dupes`, `bulk-rename`, `tree`, `du`), including the three destructive flags under adversarial review.
 - [ ] **Phase 9: Dev-Transform & Visual Depth** - Add depth to the dev-transform (`uuid`, `epoch`, `color`, `json`, `passgen`) and visual (`lolcat`, `matrix`, `qr`, `ascii`) commands.
 - [ ] **Phase 10: Fun & System Depth** - Add depth to the fun (`cowsay`, `fortune`, `8ball`, `roast`) and system (`pomodoro`, `weather`) commands.
@@ -96,7 +96,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 07-03-PLAN.md — Wave 7c odd-fits: `--json` on `json` (D-16 passthrough) / `qr` (D-14 metadata) / `weather` (current-only) + `--clip` on json/qr + new `core::output::clip_feed` primitive for qr D-15. [wave 3, depends_on 07-02]
+- [x] 07-03-PLAN.md — Wave 7c odd-fits: `--json` on `json` (D-16 passthrough) / `qr` (D-14 metadata) / `weather` (current-only) + `--clip` on json/qr + new `core::output::clip_feed` primitive for qr D-15. [wave 3, depends_on 07-02]
 
 ### Phase 8: Filesystem Depth
 
@@ -198,7 +198,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Terminal Visuals | v1.0 | 4/4 | Complete | 2026-06-24 |
 | 5. Windows Platform Integration | v1.0 | 4/4 | Complete | 2026-06-24 |
 | 6. Scriptable-Core Foundation | v2.0 | 2/2 | Complete | 2026-06-25 |
-| 7. Spine Rollout | v2.0 | 2/3 | In Progress|  |
+| 7. Spine Rollout | v2.0 | 3/3 | Complete   | 2026-06-25 |
 | 8. Filesystem Depth | v2.0 | 0/6 | Not started | - |
 | 9. Dev-Transform & Visual Depth | v2.0 | 0/3 | Not started | - |
 | 10. Fun & System Depth | v2.0 | 0/2 | Not started | - |

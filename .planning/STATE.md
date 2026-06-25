@@ -2,22 +2,22 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
-status: completed
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-06-25T14:01:59.065Z"
+status: verifying
+stopped_at: Completed 07-03-PLAN.md
+last_updated: "2026-06-25T14:21:09.454Z"
 last_activity: 2026-06-25
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
-  percent: 17
+  completed_plans: 5
+  percent: 33
 ---
 
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-25
-**Updated by:** execute-plan (06-02 complete — uuid+hash adopt the spine, BLAKE3 compute-default flipped with config/env escape hatch + D-05 verify probe; Phase 6 DONE, next: Phase 7 spine rollout)
+**Updated by:** execute-plan (07-03 complete — json/qr/weather Wave-7c odd-fits adopt the spine + clip_feed primitive added; SPINE-02 16/16 + SPINE-04 6/6 done, Phase 7 COMPLETE, next: Phase 8 filesystem depth)
 
 ---
 
@@ -37,10 +37,10 @@ See: .planning/PROJECT.md · .planning/ROADMAP.md · .planning/REQUIREMENTS.md (
 
 Phase: 07 (spine-rollout) — EXECUTING
 Plan: 3 of 3
-Status: 07-02 complete (Wave-7b filesystem --json done); 07-03 (json/qr/weather odd-fits) next
+Status: Phase complete — ready for verification
 Last activity: 2026-06-25
 
-Progress: [████████░░] 80%
+Progress: [██████████] 100%
 
 ## Phase Map
 
@@ -49,7 +49,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 | Phase | Name | Requirements | Status |
 |-------|------|-------------|--------|
 | 6 | Scriptable-Core Foundation | SPINE-01, SPINE-03, SPINE-05, HASH-V2-01 (4) | Complete (2/2 plans — all 4 reqs done) |
-| 7 | Spine Rollout | SPINE-02, SPINE-04 (2) | In Progress (2/3 plans — 07-01 Wave-7a + 07-02 Wave-7b filesystem done; --json on 13/16) |
+| 7 | Spine Rollout | SPINE-02, SPINE-04 (2) | Complete (3/3 plans — 07-01 Wave-7a + 07-02 Wave-7b + 07-03 Wave-7c done; --json on 16/16, --clip on 6/6 new; SPINE-02/SPINE-04 done) |
 | 8 | Filesystem Depth | HASH-V2-02, FLAT-V2-01/02, DUPE-V2-01/02, RENM-V2-01/02, TREE-V2-01, DU-V2-01/02 (10) | Not started |
 | 9 | Dev-Transform & Visual Depth | UUID-V2-01, EPOC-V2-01, COLR-V2-01, JSON-V2-01, PASS-V2-01, LOL-V2-01, MTRX-V2-01, QR-V2-01, ASCI-V2-01 (9) | Not started |
 | 10 | Fun & System Depth | COW-V2-01, FORT-V2-01, 8BAL-V2-01, ROST-V2-01, POMO-V2-01/02, WTHR-V2-01 (7) | Not started |
@@ -59,7 +59,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 
 ## Performance Metrics
 
-**Plans executed (v2.0):** 3 / 18 planned
+**Plans executed (v2.0):** 5 / 18 planned
 **v1.0 (archived):** 22 plans, 22 succeeded, 0 failed, 5/5 phases — see `.planning/MILESTONES.md`.
 
 | Phase | Plan | Duration | Tasks | Files |
@@ -68,6 +68,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 | 6 | 06-02 | ~35 min | 2 | 7 |
 | 7 | 07-01 | 19 min | 3 | 17 |
 | 7 | 07-02 | 12 min | 3 | 10 |
+| 7 | 07-03 | 13 min | 3 | 7 |
 
 ---
 
@@ -99,6 +100,9 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 | **D-23 (07-02) A4 RESOLVED — tree --json builds a REAL recursive node tree** via a NEW `build_node` recursion reusing the printer's `read_children`/`sort_children` (no-drift); `{name, type:"dir"\|"file", size?, children:[]}`, root-rule EXCEPTION (D-17) | The current flat printing recursion (`render_dir`) is untouched. `Node.type` renames `kind`; `size` is `skip_serializing_if=Option::is_none` (files only). `--depth` honored exactly like `render_dir`: `descend = depth <= max`, so a directory AT the cap appears with empty `children`. Locked by `json_recursive_shape`. |
 | **D-24 (07-02) flatten/bulk-rename --json = D-13 plan projection orthogonal to --force (D-12)** — `{results:[{src,dst,action,reason}],count,dry_run,…}`; dry-run+json=plan, real+json=executed | `action` = lowercased `RowStatus` via a shared `action_str()` reusing `kind.status()` (no-drift); the RAW fields are serialized, NEVER `format_row` output. `dry_run` flips with `--force`. Real-run captures actual `copied`/`bytes_written`. `--json` suppresses per-row human prints in the execute loop via a captured `let json = is_json_on()` guard, emitting one document after the loop. |
 | **D-25 (07-02) A3 RESOLVED — bulk-rename --force --json emits applied rows (D-12 override) + abort keeps stdout byte-empty (D-09)** | The human `--force` path stays silent-on-success; only `--json` emits rows (the whole plan projection, so non-empty). The conflict/abort path guards `print_plan_with_conflicts` behind `if !is_json_on()` — under `--json` the `bail!` error (→ stderr, exit 1 via main.rs) is the ONLY output; NO `{"error":…}` on stdout. Locked by `json_abort_empty_stdout` (tested under both dry-run and `--force`). |
+| **D-26 (07-03) A2 RESOLVED — core::output::clip_feed(&str) is the ONE sanctioned spine addition this phase** (the "print X, copy Y" tee out_line cannot express) | Mirrors out_line's tee half (push_str + '\n', gated on CLIP_ON) but omits the println!. qr keeps `println!` for the glyph block and calls `clip_feed(&input)` so `qr --clip` copies the SOURCE TEXT, not the ▀▄ glyphs (D-15); under `--json --clip` emit_json's own tee copies the document (no double-feed). Locked by `clip_feed_tees_only` + the #[ignore]d `clip_copies_source_text` (pasted==input). NO other core::output primitive added. |
+| **D-27 (07-03) json --json is D-16 identity passthrough** — emit_json(&value) on the parsed Value VERBATIM, NOT wrapped; the --json fork is FIRST and wins over --compact | json is the ONE direct-serde command (root-rule exception alongside tree). The machine document is always the pretty serde form (so `--json --compact` yields pretty — the decisive `json_identity_passthrough` discriminator). The plain `to_string_pretty` + `--compact` human branches route through `out_line` so `--clip`/`--compact --clip` tee the printed form; the colored `print!` branch is left as-is (never reached under --clip, COLOR_ON forced false). Invalid → bail! (exit 1, empty stdout) unchanged (D-09). |
+| **D-28 (07-03) weather --json is D-17 current-only**; unit/wind_unit read from forecast.current_units (never hardcoded — imperial wind label is "mp/h", Pitfall WTHR-3) | `WeatherOutput{location, temperature, unit, conditions, wind_speed, wind_unit, humidity}` built from the parsed `forecast`; f64 fields straight from `forecast.current` (finite real API data, never hand-computed NaN/Inf, Pitfall 2). Offline `json_purity` via a one-shot loopback `TcpListener` serving `forecast_imperial.json` + a `lat,lon` location (skips geocoding → only the forecast GET runs); asserts `unit=="°F"`/`wind_unit=="mp/h"` to prove the label is from current_units. The stderr resolved-location echo stays off the --json stdout channel. NO forecast/daily/hourly fields (Phase 10). |
 
 Full v1.0 decision log preserved in PROJECT.md Key Decisions + `.planning/milestones/v1.0-ROADMAP.md`.
 
@@ -136,11 +140,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then this file for position/context.
 
-**Last session:** 2026-06-25T14:01:59.029Z
-**Stopped at:** Completed 07-02-PLAN.md
+**Last session:** 2026-06-25T14:19:18Z
+**Stopped at:** Completed 07-03-PLAN.md (Phase 7 COMPLETE — SPINE-02 16/16, SPINE-04 6/6)
 **Resume file:** None
 
-**Next action:** `/gsd:execute-phase 7` — Spine Rollout (SPINE-02/SPINE-04). Copy the frozen Phase-6 template across the remaining applicable commands: the `{Row}/{Output}` serde struct + `is_json_on()` fork + `out_line` routing (uuid is the cleanest reference, hash adds the `path`-bearing variant), the `tests/uuid.rs::json_purity` JSON-purity test, and the `#[ignore]`d clip round-trip per command. `emit_json`/`out_line`/`is_json_on`/`config()` are all live (forward-compat allows removed). v1.0 context archived in `.planning/MILESTONES.md`.
+**Next action:** Phase 7 is complete and ready for verification (`/gsd:verify-phase 7` or equivalent). All 16 commands carry `--json` (SPINE-02) and the 6 new `--clip` commands are wired (SPINE-04); `clip_feed` is the only spine addition (D-26). Then Phase 8 (Filesystem Depth — HASH-V2-02, FLAT/DUPE/RENM/TREE/DU-V2 depth flags): the depth phases add fields/flags to the existing `{Output}` structs, never the fork mechanism. The full Phase-7 suite (all integration + 158 unit tests) is green and clippy is clean.
 
 ---
 *State reset to v2.0 phase map: 2026-06-25 by roadmapper (v1.0 plan-by-plan execution log archived with the milestone; v2.0 accumulated context — locked decisions D-1..D-7, v2 pitfalls, the v1→v2 architecture graft — preserved above).*
