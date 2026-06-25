@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
 status: executing
-stopped_at: Phase 6 Plan 01 complete (spine + config foundation)
-last_updated: "2026-06-25T00:12:00.000Z"
-last_activity: 2026-06-25 -- 06-01 executed (output spine + core::config + global flags)
+stopped_at: Phase 6 COMPLETE (both waves) — uuid+hash spine pilots + BLAKE3-default flip
+last_updated: "2026-06-25T01:05:00.000Z"
+last_activity: 2026-06-25 -- 06-02 executed (uuid+hash --json/--clip pilots, BLAKE3 default, D-05 probe)
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
-  percent: 6
+  completed_plans: 2
+  percent: 11
 ---
 
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-25
-**Updated by:** execute-plan (06-01 complete — output spine + core::config + global --json/--clip wired; next: 06-02 uuid/hash pilots)
+**Updated by:** execute-plan (06-02 complete — uuid+hash adopt the spine, BLAKE3 compute-default flipped with config/env escape hatch + D-05 verify probe; Phase 6 DONE, next: Phase 7 spine rollout)
 
 ---
 
@@ -25,9 +25,9 @@ progress:
 
 **Core Value:** The toolbox must be globally available and instantly usable from PowerShell 7 — type `box <command>` from anywhere and the tool just works.
 
-**Current Focus:** Phase 06 — scriptable-core-foundation
+**Current Focus:** Phase 07 — spine-rollout (Phase 06 complete)
 
-**Milestone:** v2.0 Toolbox → Toolkit — PLANNING (roadmap created, phases not yet planned). v1.0 Full Toolbox shipped & archived 2026-06-24 (all 23 commands; see `.planning/MILESTONES.md`).
+**Milestone:** v2.0 Toolbox → Toolkit — EXECUTING. Phase 6 (scriptable-core foundation) complete. v1.0 Full Toolbox shipped & archived 2026-06-24 (all 23 commands; see `.planning/MILESTONES.md`).
 
 See: .planning/PROJECT.md · .planning/ROADMAP.md · .planning/REQUIREMENTS.md (all current as of 2026-06-25)
 
@@ -35,12 +35,12 @@ See: .planning/PROJECT.md · .planning/ROADMAP.md · .planning/REQUIREMENTS.md (
 
 ## Current Position
 
-Phase: 06 (scriptable-core-foundation) — EXECUTING
-Plan: 2 of 2 (06-01 complete; 06-02 next)
-Status: Executing Phase 06 — wave 1 (06-01) done, wave 2 (06-02) ready
-Last activity: 2026-06-25 -- 06-01 executed (spine primitives + config foundation, full suite green)
+Phase: 06 (scriptable-core-foundation) — COMPLETE; Phase 07 (spine-rollout) — NOT STARTED
+Plan: 2 of 2 complete (06-01 + 06-02 done)
+Status: Phase 06 fully complete (both waves) — spine built (06-01) and proven on uuid+hash pilots (06-02)
+Last activity: 2026-06-25 -- 06-02 executed (uuid+hash --json/--clip pilots, BLAKE3-default flip, D-05 probe; full suite green)
 
-Progress: [█░░░░░░░░░] 6% (1/18 v2.0 plans)
+Progress: [█░░░░░░░░░] 11% (2/18 v2.0 plans)
 
 ## Phase Map
 
@@ -48,7 +48,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 
 | Phase | Name | Requirements | Status |
 |-------|------|-------------|--------|
-| 6 | Scriptable-Core Foundation | SPINE-01, SPINE-03, SPINE-05, HASH-V2-01 (4) | Executing (1/2 plans — 06-01 done) |
+| 6 | Scriptable-Core Foundation | SPINE-01, SPINE-03, SPINE-05, HASH-V2-01 (4) | Complete (2/2 plans — all 4 reqs done) |
 | 7 | Spine Rollout | SPINE-02, SPINE-04 (2) | Not started |
 | 8 | Filesystem Depth | HASH-V2-02, FLAT-V2-01/02, DUPE-V2-01/02, RENM-V2-01/02, TREE-V2-01, DU-V2-01/02 (10) | Not started |
 | 9 | Dev-Transform & Visual Depth | UUID-V2-01, EPOC-V2-01, COLR-V2-01, JSON-V2-01, PASS-V2-01, LOL-V2-01, MTRX-V2-01, QR-V2-01, ASCI-V2-01 (9) | Not started |
@@ -59,12 +59,13 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 
 ## Performance Metrics
 
-**Plans executed (v2.0):** 1 / 18 planned
+**Plans executed (v2.0):** 2 / 18 planned
 **v1.0 (archived):** 22 plans, 22 succeeded, 0 failed, 5/5 phases — see `.planning/MILESTONES.md`.
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 6 | 06-01 | ~10 min | 3 | 11 |
+| 6 | 06-02 | ~35 min | 2 | 7 |
 
 ---
 
@@ -85,6 +86,9 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 | Bare `u64` for large JSON numbers (D-3); `to_string_lossy()` for non-UTF-8 paths (D-4) | One rule for the whole spine; never `to_str().unwrap()` (panics on non-UTF-8 NTFS names) |
 | `config_path()` reads `%APPDATA%` env var FIRST, `dirs::config_dir()` only as fallback (06-01 Rule 1 deviation from the planned dirs-first form) | `dirs` 6.0 → `dirs-sys` 0.5 resolves `config_dir()` via `SHGetKnownFolderPath`, which IGNORES the `APPDATA` env var → per-process config isolation impossible (integration tests + any APPDATA-relocating CI couldn't point the lookup at a temp dir). The plan's "var_os(APPDATA) is the fallback only unless dirs resists" clause applies; dirs resists. Identical `%APPDATA%\box\config.toml` target. |
 | Env-tier spelling locked to `BOX_HASH_DEFAULT_ALGO`; `.or(env)` slot DEFERRED to 06-02 (06-01 Claude's Discretion) | 06-01 wires only the pure resolver + config tier; the live env→Algo parse lands with `hash`'s compute-default flip in 06-02 (reuses one FromStr/ValueEnum parse for env+config). Clipboard confirmation wording locked to `"Copied to clipboard"`. |
+| `BOX_HASH_DEFAULT_ALGO` env tier wired live in 06-02 via `parse_algo(s) = Algo::from_str(s,true).ok()` (clap ValueEnum, case-insensitive), reused for both env + config — single-sourced spelling table | The hash compute default now resolves `self.algo.or_else(env).or(config().default_hash_algo).unwrap_or(Blake3)` (CLI>env>config>builtin). An unrecognized env value returns None and falls through (never errors a normal `box hash`). `hash` uses this inline `.or()` chain, NOT `resolve_algo` (per the plan's line-162 spec); `resolve_algo` keeps its forward-compat allow. |
+| D-05 verify probe: capture the path string into `path_for_probe` BEFORE `read_file_or_stdin(self.path)` consumes it; re-open + blake3 on a 64-hex no-`--algo` mismatch (06-02) | `ResolvedInput.reader` is single-pass `Box<dyn Read>`. `path_for_probe` is `Some` only for a real path (`p != "-"`), `None` for stdin (no second read → static hint). Decisive hint when blake3 matches the file, static otherwise; stderr-only, suppressed under `--json`, exit STAYS 1. Hint token `--algo blake3` styled `.yellow()` when `is_color_on()`. |
+| `{Row}/{Output}` serde struct feeds BOTH human + JSON paths; always-wrapped `{results,count}` even for N=1 (06-02 pilot literals, frozen for Phase 7) | `uuid` → `{results:[{uuid,version:"v4"}],count}`; `hash` → `{results:[{path,algo,digest}],count}`. The pure renderer fills the struct, `is_json_on()` forks (emit_json | out_line) — no drift. Object never a bare array (Phase-8 multi-item compatible). `tests/uuid.rs::json_purity` is the copy-me JSON-purity test for all 23 commands. |
 
 Full v1.0 decision log preserved in PROJECT.md Key Decisions + `.planning/milestones/v1.0-ROADMAP.md`.
 
@@ -122,11 +126,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then this file for position/context.
 
-**Last session:** 2026-06-25 — execute-plan (06-01: output spine + core::config + global --json/--clip)
-**Stopped at:** Phase 6 Plan 01 complete (wave 1) — spine primitives + config foundation, full test suite green (25 binaries)
-**Resume file:** .planning/phases/06-scriptable-core-foundation/06-01-SUMMARY.md
+**Last session:** 2026-06-25 — execute-plan (06-02: uuid+hash spine pilots, BLAKE3-default flip, D-05 probe)
+**Stopped at:** Phase 6 COMPLETE (both waves) — spine built (06-01) and proven on uuid+hash (06-02); SPINE-01/SPINE-03/HASH-V2-01 done; full test suite green (25 binaries), clippy `-D warnings` + fmt clean
+**Resume file:** .planning/phases/06-scriptable-core-foundation/06-02-SUMMARY.md
 
-**Next action:** `/gsd:execute-phase 6` continues with 06-02 (wave 2) — first consumers `uuid` + `hash`: `UuidOutput`/`HashOutput` structs, `is_json_on()` fork, `out_line` clip tee, BLAKE3 compute-default flip with the config+env precedence tier (`.or(env)` slot, `Algo: Serialize` derive, D-05 verify probe). Hand-offs from 06-01: SPINE-01/SPINE-03 marked complete only once the pilots adopt the spine; the `BOX_HASH_DEFAULT_ALGO` env-tier `.or(env)` wiring; the `Algo: Serialize` derive. v1.0 context archived in `.planning/MILESTONES.md`.
+**Next action:** `/gsd:execute-phase 7` — Spine Rollout (SPINE-02/SPINE-04). Copy the frozen Phase-6 template across the remaining applicable commands: the `{Row}/{Output}` serde struct + `is_json_on()` fork + `out_line` routing (uuid is the cleanest reference, hash adds the `path`-bearing variant), the `tests/uuid.rs::json_purity` JSON-purity test, and the `#[ignore]`d clip round-trip per command. `emit_json`/`out_line`/`is_json_on`/`config()` are all live (forward-compat allows removed). v1.0 context archived in `.planning/MILESTONES.md`.
 
 ---
 *State reset to v2.0 phase map: 2026-06-25 by roadmapper (v1.0 plan-by-plan execution log archived with the milestone; v2.0 accumulated context — locked decisions D-1..D-7, v2 pitfalls, the v1→v2 architecture graft — preserved above).*

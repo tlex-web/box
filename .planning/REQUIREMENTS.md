@@ -32,9 +32,9 @@ Each maps to exactly one roadmap phase. REQ-IDs continue the per-command mnemoni
 
 ### Scriptable Output Spine (cross-cutting)
 
-- [ ] **SPINE-01**: `box <cmd> --json` emits exactly one well-formed JSON document on stdout — array for multi-item commands, object for scalar commands, recursive object for `tree`; `snake_case` fields; pretty-printed; UTF-8 with **no BOM**; **no ANSI, no progress, no human chrome** on stdout — established and contract-tested on the pilot commands (`uuid`, `hash`).
+- [x] **SPINE-01**: `box <cmd> --json` emits exactly one well-formed JSON document on stdout — array for multi-item commands, object for scalar commands, recursive object for `tree`; `snake_case` fields; pretty-printed; UTF-8 with **no BOM**; **no ANSI, no progress, no human chrome** on stdout — established and contract-tested on the pilot commands (`uuid`, `hash`). *(06-02: established on `uuid`+`hash`; `json_purity`/`json_shape` are the frozen Phase-7 template)*
 - [ ] **SPINE-02**: `--json` is available on every applicable value-producing command, all following the SPINE-01 house style: `base64`, `epoch`, `color`, `passgen`, `8ball`, `fortune`, `roast`, `cowsay`, `du`, `tree`, `dupes`, `flatten`, `bulk-rename`, `json`, `qr`, `weather`.
-- [ ] **SPINE-03**: `box <cmd> --clip` copies the primary result to the Windows clipboard (copy **and** print; "Copied to clipboard" confirmation to stderr, suppressed when not a TTY; raw text, or the JSON document under `--json --clip`) — established on the pilot commands.
+- [x] **SPINE-03**: `box <cmd> --clip` copies the primary result to the Windows clipboard (copy **and** print; "Copied to clipboard" confirmation to stderr, suppressed when not a TTY; raw text, or the JSON document under `--json --clip`) — established on the pilot commands. *(06-02: `uuid`/`hash` route through `out_line`/`emit_json`; `#[ignore]`d live round-trip + PS7 phase-gate human-verify)*
 - [ ] **SPINE-04**: `--clip` is available on every single-textual-result command: `passgen`, `uuid`, `color`, `hash`, `base64`, `epoch`, `json`, `qr` (text payload).
 - [x] **SPINE-05**: Config-file defaults resolve with strict precedence **CLI flag > env var > config file > built-in default**; a missing or malformed config file falls back to built-in defaults without erroring a normal command (hand-rolled `toml` + `dirs`, `%APPDATA%\box\config.toml`). *(06-01: precedence resolver + missing-silent + malformed-exit-2 integration-tested; env tier wires live in 06-02 hash)*
 
@@ -45,7 +45,7 @@ Each maps to exactly one roadmap phase. REQ-IDs continue the per-command mnemoni
 
 ### Hashing depth
 
-- [ ] **HASH-V2-01**: BLAKE3 is the default `hash` algorithm — **breaking change to the COMPUTE default only** (`box hash file` now emits BLAKE3; `--algo sha256` and the `hash.default_algo` config key preserve old behavior). **Verify resolution is unchanged**: a bare `--verify <64-hex>` still maps to SHA-256 (the length table 32→md5 / 64→sha256 / 128→sha512 is untouched), so stored SHA-256 baselines never silently break; `--algo blake3 --verify` is the explicit BLAKE3 verify path, and a 64-hex mismatch emits a BLAKE3-fallback diagnostic hint. *(Amended 2026-06-25 per Phase-6 discuss decision D-04/D-05 — the original "64-hex tie now maps to BLAKE3" wording would have silently broken the SHA-256 install base.)*
+- [x] **HASH-V2-01**: BLAKE3 is the default `hash` algorithm — **breaking change to the COMPUTE default only** (`box hash file` now emits BLAKE3; `--algo sha256` and the `hash.default_algo` config key preserve old behavior). **Verify resolution is unchanged**: a bare `--verify <64-hex>` still maps to SHA-256 (the length table 32→md5 / 64→sha256 / 128→sha512 is untouched), so stored SHA-256 baselines never silently break; `--algo blake3 --verify` is the explicit BLAKE3 verify path, and a 64-hex mismatch emits a BLAKE3-fallback diagnostic hint. *(Amended 2026-06-25 per Phase-6 discuss decision D-04/D-05 — the original "64-hex tie now maps to BLAKE3" wording would have silently broken the SHA-256 install base.)* *(06-02: compute default flipped with CLI>env>config>builtin precedence; `algo_from_len` UNCHANGED + `hash_verify_autodetect` passes UNCHANGED; D-05 probe live)*
 - [ ] **HASH-V2-02**: `hash` accepts multiple file arguments and prints coreutils `digest␣␣filename` (double-space) per line, with a stderr progress indicator for large inputs.
 
 ### Filesystem depth
@@ -121,10 +121,10 @@ Each requirement maps to exactly one roadmap phase (finalized 2026-06-25 by road
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SPINE-01 | 6 | In progress (primitives shipped 06-01; established/contract-tested on pilots in 06-02) |
-| SPINE-03 | 6 | In progress (primitives shipped 06-01; established on pilots in 06-02) |
+| SPINE-01 | 6 | Complete (06-02 — established/contract-tested on `uuid`+`hash` pilots) |
+| SPINE-03 | 6 | Complete (06-02 — `uuid`/`hash` route through `out_line`/`emit_json`) |
 | SPINE-05 | 6 | Complete (06-01) |
-| HASH-V2-01 | 6 | Pending |
+| HASH-V2-01 | 6 | Complete (06-02 — BLAKE3 compute-default flip + config/env escape hatch + D-05 probe; verify table UNCHANGED) |
 | SPINE-02 | 7 | Pending |
 | SPINE-04 | 7 | Pending |
 | HASH-V2-02 | 8 | Pending |

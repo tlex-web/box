@@ -38,7 +38,7 @@ Full phase details, decisions, and outcomes archived in [`milestones/v1.0-ROADMA
 
 **Milestone Goal:** Make the existing 23 commands deeper, scriptable, and frictionless in PowerShell 7 — `--json`/`--clip` everywhere applicable, comprehensive per-command depth, BLAKE3-default `hash`, config-file defaults, and PS7 completions. No new *tool* commands; only `config`/`completions` meta-commands.
 
-- [ ] **Phase 6: Scriptable-Core Foundation** - Build the entire shared `--json`/`--clip`/config spine once, proven on the two simplest pilot commands (`uuid` + `hash`), and flip `hash` to BLAKE3-default with a config escape hatch.
+- [x] **Phase 6: Scriptable-Core Foundation** - Build the entire shared `--json`/`--clip`/config spine once, proven on the two simplest pilot commands (`uuid` + `hash`), and flip `hash` to BLAKE3-default with a config escape hatch. ✅ 2026-06-25
 - [ ] **Phase 7: Spine Rollout** - Apply the frozen Phase-6 template to roll `--json` and `--clip` across every remaining applicable value-producing command.
 - [ ] **Phase 8: Filesystem Depth** - Add the deferred depth flags to the six filesystem commands (`hash`, `flatten`, `dupes`, `bulk-rename`, `tree`, `du`), including the three destructive flags under adversarial review.
 - [ ] **Phase 9: Dev-Transform & Visual Depth** - Add depth to the dev-transform (`uuid`, `epoch`, `color`, `json`, `passgen`) and visual (`lolcat`, `matrix`, `qr`, `ascii`) commands.
@@ -68,7 +68,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 06-02-PLAN.md — First consumers: `uuid` (`UuidOutput` + `is_json_on()` fork + `out_line`) and `hash` (`HashOutput`, BLAKE3 compute-default flip with config+env tier, `Algo` serde, D-05 BLAKE3 verify probe; verify table UNCHANGED) + the reusable JSON-purity/`--clip`-capture/BLAKE3-default/config-precedence test template. [wave 2, depends_on 06-01]
+- [x] 06-02-PLAN.md — First consumers: `uuid` (`UuidOutput` + `is_json_on()` fork + `out_line`) and `hash` (`HashOutput`, BLAKE3 compute-default flip with config+env tier, `Algo` serde, D-05 BLAKE3 verify probe; verify table UNCHANGED) + the reusable JSON-purity/`--clip`-capture/BLAKE3-default/config-precedence test template. [wave 2, depends_on 06-01] ✅ 2026-06-25
 
 ### Phase 7: Spine Rollout
 
@@ -189,7 +189,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. Filesystem Power Tools | v1.0 | 5/5 | Complete | 2026-06-23 |
 | 4. Terminal Visuals | v1.0 | 4/4 | Complete | 2026-06-24 |
 | 5. Windows Platform Integration | v1.0 | 4/4 | Complete | 2026-06-24 |
-| 6. Scriptable-Core Foundation | v2.0 | 1/2 | In progress | - |
+| 6. Scriptable-Core Foundation | v2.0 | 2/2 | Complete | 2026-06-25 |
 | 7. Spine Rollout | v2.0 | 0/3 | Not started | - |
 | 8. Filesystem Depth | v2.0 | 0/6 | Not started | - |
 | 9. Dev-Transform & Visual Depth | v2.0 | 0/3 | Not started | - |
