@@ -247,3 +247,36 @@ fn json_decode_non_utf8() {
         "no UTF-8 BOM"
     );
 }
+
+/// SPINE-04 / D-07 — live Windows-clipboard round-trip for `box base64 <text> --clip`
+/// (the encode path; binary decode is not clip-supported). `#[ignore]`d (touches
+/// shared OS clipboard). Run locally with:
+///   cargo test --test base64 -- --ignored clip_roundtrip
+#[test]
+#[ignore = "touches shared OS clipboard; run locally with --ignored --test-threads=1"]
+fn clip_roundtrip() {
+    let printed = {
+        let out = base64_output(&["hello", "--clip"]);
+        assert!(out.status.success(), "box base64 hello --clip should exit 0");
+        String::from_utf8(out.stdout)
+            .expect("stdout is UTF-8")
+            .trim()
+            .to_string()
+    };
+    let pasted = {
+        let out = Command::cargo_bin("box")
+            .unwrap()
+            .args(["clip", "--paste"])
+            .output()
+            .expect("run box clip --paste");
+        assert!(out.status.success(), "box clip --paste should exit 0");
+        String::from_utf8(out.stdout)
+            .expect("clipboard text is UTF-8")
+            .trim()
+            .to_string()
+    };
+    assert_eq!(
+        pasted, printed,
+        "--clip must copy exactly the printed base64 encoding to the clipboard"
+    );
+}

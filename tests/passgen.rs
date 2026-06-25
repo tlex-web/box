@@ -140,3 +140,108 @@ fn success_writes_nothing_to_stderr() {
     cmd.arg("passgen").env("NO_COLOR", "1");
     cmd.assert().success().stderr(predicate::str::is_empty());
 }
+
+// --- Scriptable spine (SPINE-02 / SPINE-04) — copied from tests/uuid.rs ----------
+//
+// passgen is MULTI-CAPABLE (`--count N` lines) → the always-wrapped
+// `{results:[{password}], count}` shape (EXACT uuid copy). SPINE-04: the password
+// tees to the clipboard via out_line.
+
+/// Capture `box passgen <args>` raw stdout bytes + exit status for purity/shape.
+fn passgen_output(args: &[&str]) -> std::process::Output {
+    let mut cmd = Command::cargo_bin("box").unwrap();
+    cmd.arg("passgen").args(args).env("NO_COLOR", "1");
+    cmd.output().expect("run box passgen")
+}
+
+/// SPINE-02 / D-01 — `box passgen --json` emits the always-wrapped
+/// `{results:[{password}], count}` shape even for N=1: `.count == 1`, a 1-element
+/// results array, each element carries a non-empty `password` string; no ANSI,
+/// no UTF-8 BOM. Adapted from `tests/uuid.rs::json_purity`.
+#[test]
+fn json_purity() {
+    let out = passgen_output(&["--json"]);
+    assert!(out.status.success(), "box passgen --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .expect("`.results` must be an array");
+    assert_eq!(results.len(), 1, "default → one result element");
+    assert_eq!(v.get("count"), Some(&serde_json::json!(1)), "`.count` == 1");
+    let pw = results[0]
+        .get("password")
+        .and_then(|p| p.as_str())
+        .expect("`.results[0].password` must be a string");
+    assert_eq!(pw.chars().count(), 16, "default password length is 16");
+
+    assert!(!out.stdout.contains(&0x1Bu8), "no ANSI in --json stdout");
+    assert_ne!(
+        &out.stdout[..3.min(out.stdout.len())],
+        b"\xEF\xBB\xBF",
+        "no UTF-8 BOM"
+    );
+}
+
+/// SPINE-02 — `box passgen --count 3 --json` → `.count == 3` and a 3-element
+/// `results` array of `{password}` objects, all distinct. Copied from
+/// `tests/uuid.rs::json_count_multi`.
+#[test]
+fn json_count_multi() {
+    let out = passgen_output(&["--count", "3", "--json"]);
+    assert!(out.status.success(), "box passgen --count 3 --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    assert_eq!(v.get("count"), Some(&serde_json::json!(3)), "`.count` == 3");
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .expect("`.results` must be an array");
+    assert_eq!(results.len(), 3, "`--count 3` → 3 result elements");
+    let mut seen = HashSet::new();
+    for elem in results {
+        let pw = elem
+            .get("password")
+            .and_then(|p| p.as_str())
+            .expect("every element carries a password string");
+        assert!(!pw.is_empty(), "password must be non-empty");
+        seen.insert(pw.to_string());
+    }
+    assert_eq!(seen.len(), 3, "3 passwords must be distinct");
+}
+
+/// SPINE-04 / D-07 — live Windows-clipboard round-trip for `box passgen --clip`.
+/// `#[ignore]`d (touches shared OS clipboard; also copies a SECRET — opt-in only).
+/// Run locally with: cargo test --test passgen -- --ignored --test-threads=1
+#[test]
+#[ignore = "touches shared OS clipboard; run locally with --ignored --test-threads=1"]
+fn clip_roundtrip() {
+    let printed = {
+        let out = passgen_output(&["--clip"]);
+        assert!(out.status.success(), "box passgen --clip should exit 0");
+        String::from_utf8(out.stdout)
+            .expect("stdout is UTF-8")
+            .trim()
+            .to_string()
+    };
+    let pasted = {
+        let out = Command::cargo_bin("box")
+            .unwrap()
+            .args(["clip", "--paste"])
+            .output()
+            .expect("run box clip --paste");
+        assert!(out.status.success(), "box clip --paste should exit 0");
+        String::from_utf8(out.stdout)
+            .expect("clipboard text is UTF-8")
+            .trim()
+            .to_string()
+    };
+    assert_eq!(
+        pasted, printed,
+        "--clip must copy exactly the printed password to the clipboard"
+    );
+}
