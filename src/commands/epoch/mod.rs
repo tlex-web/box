@@ -22,6 +22,19 @@ use clap::Args;
 
 use crate::commands::RunCommand;
 
+/// The `box epoch --json` document (D-17 LOCKED UNIFIED shape): the SAME
+/// `{epoch, utc, local}` object for EVERY input mode (now / integer / date string)
+/// — no branching on input direction (D-01 scalar → flat object). `epoch` is the
+/// Unix timestamp (i64); `utc` and `local` are the human-readable datetime strings
+/// derived from it. Not in SPINE-04 (no `--clip`), but the human path routes
+/// through `out_line` so a future clip adoption is free.
+#[derive(serde::Serialize)]
+struct EpochOutput {
+    epoch: i64,
+    utc: String,
+    local: String,
+}
+
 /// `box epoch [VALUE]` — Unix timestamp ↔ human date (EPOC-01).
 ///
 /// `VALUE` may be omitted (print now), an integer Unix timestamp (print the
@@ -40,21 +53,46 @@ impl RunCommand for EpochArgs {
         // is piped; an interactive TTY with no arg falls through to the now path.
         let value = resolve_value(self.value)?;
 
-        match value {
-            // No input at all → current Unix timestamp (single integer).
-            None => {
-                println!("{}", Utc::now().timestamp());
-            }
+        // Resolve the input to a single `epoch: i64` regardless of mode (the
+        // D-17 unification): now → now; integer → that integer; date string → the
+        // parsed timestamp. This collapses the three input directions into one
+        // value BEFORE the human/JSON fork, so the JSON shape never branches.
+        let epoch: i64 = match &value {
+            None => Utc::now().timestamp(),
             Some(s) => {
                 let s = s.trim();
                 if let Ok(secs) = s.parse::<i64>() {
+                    secs
+                } else {
+                    parse_date(s)?
+                }
+            }
+        };
+
+        // Fork on `is_json_on()` FIRST (Pitfall 1): under `--json` emit the ONE
+        // unified `{epoch, utc, local}` document for EVERY mode. The human path
+        // keeps its mode-specific lines (now → bare integer; otherwise the two
+        // labeled date lines), routed through `out_line`.
+        if crate::core::output::is_json_on() {
+            crate::core::output::emit_json(&epoch_output(epoch)?)?;
+            return Ok(());
+        }
+
+        match value {
+            // No input at all → current Unix timestamp (single integer).
+            None => {
+                crate::core::output::out_line(&epoch.to_string());
+            }
+            Some(s) => {
+                let s = s.trim();
+                if s.parse::<i64>().is_ok() {
                     // Integer → treat as a Unix timestamp, print local + UTC.
-                    let (local_line, utc_line) = format_timestamp(secs)?;
-                    println!("{local_line}");
-                    println!("{utc_line}");
+                    let (local_line, utc_line) = format_timestamp(epoch)?;
+                    crate::core::output::out_line(&local_line);
+                    crate::core::output::out_line(&utc_line);
                 } else {
                     // Otherwise a date string → print the timestamp.
-                    println!("{}", parse_date(s)?);
+                    crate::core::output::out_line(&epoch.to_string());
                 }
             }
         }
@@ -91,6 +129,24 @@ fn resolve_value(arg: Option<String>) -> anyhow::Result<Option<String>> {
             }
         }
     }
+}
+
+/// Build the unified `{epoch, utc, local}` JSON document from a Unix timestamp,
+/// reusing the SAME `DateTime::from_timestamp` / `with_timezone(&Local)` math as
+/// [`format_timestamp`] so the JSON `utc`/`local` can never disagree with the
+/// human lines (no-drift). Errors (never panics) when the timestamp is out of
+/// chrono's representable range (T-02-05). The datetime strings carry the same
+/// `%Y-%m-%d %H:%M:%S`-based formats the human lines use, MINUS the `Local:`/`UTC:`
+/// label prefixes (the JSON key names already convey which is which).
+fn epoch_output(epoch: i64) -> anyhow::Result<EpochOutput> {
+    let dt_utc: DateTime<Utc> = DateTime::from_timestamp(epoch, 0)
+        .ok_or_else(|| anyhow::anyhow!("timestamp {epoch} is out of range"))?;
+    let dt_local = dt_utc.with_timezone(&Local);
+    Ok(EpochOutput {
+        epoch,
+        utc: dt_utc.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+        local: dt_local.format("%Y-%m-%d %H:%M:%S %z").to_string(),
+    })
 }
 
 /// Format a Unix timestamp as the two human-date lines the command prints:

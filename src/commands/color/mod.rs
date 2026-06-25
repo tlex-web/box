@@ -21,6 +21,39 @@ use owo_colors::OwoColorize;
 use crate::commands::RunCommand;
 use crate::core::output::is_color_on;
 
+/// The `rgb` sub-object of `box color --json` (D-17 nested). Snake_case `r`/`g`/`b`
+/// (u8) so a PS7 script reads `.rgb.r`.
+#[derive(serde::Serialize)]
+struct Rgb {
+    r: u8,
+    g: u8,
+    b: u8,
+}
+
+/// The `hsl` sub-object of `box color --json` (D-17 nested). `h` in 0-359 (u16),
+/// `s`/`l` in 0-100 (u8) — matches the `rgb_to_hsl` return types.
+#[derive(serde::Serialize)]
+struct Hsl {
+    h: u16,
+    s: u8,
+    l: u8,
+}
+
+/// The `box color --json` document (D-17 LOCKED NESTED shape):
+/// `{hex, rgb:{r,g,b}, hsl:{h,s,l}}` (D-01 scalar → flat object with nested
+/// sub-objects). SPINE-04 (the human block tees to the clipboard via `out_line`).
+///
+/// **Hex case is LOCKED LOWERCASE** here (`#rrggbb` via `{:02x}`) so the
+/// `json_purity` test is deterministic — note the HUMAN render at the
+/// `Hex` line uses UPPERCASE `#{:02X}`; only the JSON `hex` field is lowercased.
+/// The swatch is display-only and is NOT serialized.
+#[derive(serde::Serialize)]
+struct ColorOutput {
+    hex: String,
+    rgb: Rgb,
+    hsl: Hsl,
+}
+
 /// `box color [INPUT]` — convert between hex and RGB (COLR-01).
 ///
 /// `INPUT` is auto-detected (D-13): hex (`#3b82f6`, `3b82f6`, short `#abc`) or
@@ -39,22 +72,45 @@ impl RunCommand for ColorArgs {
         let (r, g, b) = parse_color(raw.trim())?;
         let (h, s, l) = rgb_to_hsl(r, g, b);
 
+        // Fork on `is_json_on()` FIRST (Pitfall 1): under `--json` emit the nested
+        // `{hex, rgb, hsl}` document (hex LOWERCASE-locked) and omit the swatch
+        // (display-only). The `(r,g,b)`/`(h,s,l)` already computed above feed both
+        // paths, so the JSON can never drift from the printed block.
+        if crate::core::output::is_json_on() {
+            let doc = ColorOutput {
+                hex: format!("#{r:02x}{g:02x}{b:02x}"),
+                rgb: Rgb { r, g, b },
+                hsl: Hsl { h, s, l },
+            };
+            crate::core::output::emit_json(&doc)?;
+            return Ok(());
+        }
+
         // Aligned label block (D-10). Labels are padded to a fixed width so the
-        // `:` columns line up; the snapshot locks this exact layout.
-        println!("  Hex   : #{r:02X}{g:02X}{b:02X}");
-        println!("  RGB   : rgb({r}, {g}, {b})");
-        println!("  Tuple : {r} {g} {b}");
-        println!("  HSL   : hsl({h}, {s}%, {l}%)");
-        println!();
+        // `:` columns line up; the snapshot locks this exact layout. Routed through
+        // `out_line` so `--clip` tees the whole block (SPINE-04). The hex row keeps
+        // its UPPERCASE human spelling (only the JSON `hex` field is lowercased).
+        crate::core::output::out_line(&format!("  Hex   : #{r:02X}{g:02X}{b:02X}"));
+        crate::core::output::out_line(&format!("  RGB   : rgb({r}, {g}, {b})"));
+        crate::core::output::out_line(&format!("  Tuple : {r} {g} {b}"));
+        crate::core::output::out_line(&format!("  HSL   : hsl({h}, {s}%, {l}%)"));
+        crate::core::output::out_line("");
 
         // The ONLY color path: gate the truecolor swatch on the single Phase-1
         // decision. Piped/NO_COLOR → the plain glyphs survive, byte-identical
         // minus ANSI (D-10). No global-override call, no raw-SGR background fill.
+        // The swatch is part of the human render → route through `out_line` so
+        // `--clip` captures the full printed block (the styled variant is never
+        // reached under `--clip`, which forces COLOR_ON=false).
         let swatch = "██████████";
         if is_color_on() {
+            // Color is on only when NOT piped/--clip/--json; print the styled
+            // swatch directly (the ANSI must NOT enter the clip buffer, but
+            // is_color_on() is already false under --clip, so this branch is
+            // clip-unreachable — keep the styled print here, plain via out_line).
             println!("  {}", swatch.truecolor(r, g, b));
         } else {
-            println!("  {swatch}");
+            crate::core::output::out_line(&format!("  {swatch}"));
         }
         Ok(())
     }

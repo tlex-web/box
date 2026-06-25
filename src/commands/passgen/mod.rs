@@ -32,6 +32,23 @@ use rand::TryRngCore; // brings OsRng.unwrap_err(); resolves via rand 0.9 (plan 
 
 use crate::commands::RunCommand;
 
+/// One row of `box passgen --json` output. Field name (discretion): `password`
+/// carries the generated password or passphrase line. SAME value the human path
+/// prints (no-drift).
+#[derive(serde::Serialize)]
+struct PassgenRow {
+    password: String,
+}
+
+/// The `box passgen --json` document (D-01 multi-capable → always-wrapped
+/// `{results, count}`, EXACT uuid copy — passgen can return N lines via `--count`).
+/// SPINE-04 (the human path tees each password to the clipboard via `out_line`).
+#[derive(serde::Serialize)]
+struct PassgenOutput {
+    results: Vec<PassgenRow>,
+    count: usize,
+}
+
 /// The embedded EFF Large (Diceware) wordlist — 7776 words, one per line
 /// (dice codes already stripped). CC-BY 3.0 US, © Electronic Frontier
 /// Foundation (see LICENSE-THIRD-PARTY.md). `include_str!` is relative to THIS
@@ -98,32 +115,56 @@ impl RunCommand for PassgenArgs {
         // there is no fixed/manual seed anywhere (T-V6).
         let mut rng = OsRng.unwrap_err();
 
-        if let Some(n) = self.words {
+        // Build the rows ONCE (mirroring uuid's `.map().collect()`) so the SAME
+        // values feed the human and JSON paths (no-drift). Each generated line
+        // becomes one `PassgenRow`.
+        let rows: Vec<PassgenRow> = if let Some(n) = self.words {
             // Passphrase mode: draw `n` words per line, unbiased via `choose`.
             let wordlist = eff_wordlist();
-            for _ in 0..self.count {
-                let phrase: Vec<&str> = (0..n)
-                    .map(|_| {
-                        *wordlist
-                            .choose(&mut rng)
-                            .expect("EFF wordlist is non-empty")
-                    })
-                    .collect();
-                // Separator is discretion (D-14). A dot is paste-safe in PS7 and
-                // — unlike a hyphen — never appears inside an EFF word (some are
-                // hyphenated, e.g. `t-shirt`), so the phrase stays one token AND
-                // its word boundaries remain unambiguous.
-                println!("{}", phrase.join("."));
-            }
+            (0..self.count)
+                .map(|_| {
+                    let phrase: Vec<&str> = (0..n)
+                        .map(|_| {
+                            *wordlist
+                                .choose(&mut rng)
+                                .expect("EFF wordlist is non-empty")
+                        })
+                        .collect();
+                    // Separator is discretion (D-14). A dot is paste-safe in PS7
+                    // and — unlike a hyphen — never appears inside an EFF word
+                    // (some are hyphenated, e.g. `t-shirt`), so the phrase stays
+                    // one token AND its word boundaries remain unambiguous.
+                    PassgenRow {
+                        password: phrase.join("."),
+                    }
+                })
+                .collect()
         } else {
             // Character mode: build the requested charset, sample every char
             // unbiased via `choose` — never by modulo-indexing the charset (D-02).
             let charset = build_charset(self.no_symbols);
-            for _ in 0..self.count {
-                let pw: String = (0..self.length)
-                    .map(|_| *charset.choose(&mut rng).expect("charset is non-empty"))
-                    .collect();
-                println!("{pw}");
+            (0..self.count)
+                .map(|_| {
+                    let pw: String = (0..self.length)
+                        .map(|_| *charset.choose(&mut rng).expect("charset is non-empty"))
+                        .collect();
+                    PassgenRow { password: pw }
+                })
+                .collect()
+        };
+
+        // Fork on `is_json_on()` FIRST (Pitfall 1): under `--json` emit the
+        // always-wrapped `{results, count}` document; otherwise print each password
+        // via `out_line` (NOT println!) so `--clip` tees every line (SPINE-04).
+        if crate::core::output::is_json_on() {
+            let doc = PassgenOutput {
+                count: rows.len(),
+                results: rows,
+            };
+            crate::core::output::emit_json(&doc)?;
+        } else {
+            for r in &rows {
+                crate::core::output::out_line(&r.password);
             }
         }
         Ok(())
