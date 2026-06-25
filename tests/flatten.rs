@@ -279,3 +279,149 @@ fn make_file_symlink(target: &Path, link: &Path) -> bool {
 fn make_file_symlink(target: &Path, link: &Path) -> bool {
     std::os::unix::fs::symlink(target, link).is_ok()
 }
+
+// --- Scriptable spine (SPINE-02, Wave-7b, D-12/D-13) — from tests/uuid.rs:135 ---
+//
+// `box flatten <src> <out> --json` carries a `dry_run` boolean (D-13) and a
+// `{results:[{src,dst,action,reason}], count, dry_run, copied, renamed, skipped,
+// total_bytes}` document. `--json` is orthogonal to `--force`/dry-run (D-12):
+// dry-run+json emits the PLAN, real+json emits the EXECUTED result. Purity: one
+// JSON value, no 0x1B, no BOM.
+
+/// Capture `box flatten <src> <out> [args]` raw stdout bytes + exit status, for
+/// the JSON assertions (raw bytes, not a trimmed String). Forces `NO_COLOR=1`.
+fn flatten_output(src: &Path, out: &Path, args: &[&str]) -> std::process::Output {
+    let mut cmd = Command::cargo_bin("box").unwrap();
+    cmd.arg("flatten").arg(src).arg(out);
+    for a in args {
+        cmd.arg(a);
+    }
+    cmd.env("NO_COLOR", "1");
+    cmd.output().expect("run box flatten")
+}
+
+/// SPINE-02 — `box flatten <src> <out> --json` (dry-run by default here is a real
+/// run; we use --dry-run explicitly elsewhere) emits exactly one well-formed JSON
+/// document with `.results`, `.count`, and `.dry_run`, no ANSI, no BOM. Runnable
+/// via `cargo test --test flatten json_purity`.
+#[test]
+fn json_purity() {
+    let src = assert_fs::TempDir::new().unwrap();
+    let out = assert_fs::TempDir::new().unwrap();
+    src.child("one.txt").write_str("1").unwrap();
+    src.child("sub/two.txt").write_str("22").unwrap();
+
+    let output = flatten_output(src.path(), out.path(), &["--json"]);
+    assert!(output.status.success(), "box flatten --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("stdout must be exactly one JSON value");
+
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .expect("`.results` must be an array");
+    assert_eq!(results.len(), 2, "two files planned/copied");
+    assert_eq!(v.get("count"), Some(&serde_json::json!(2)));
+    assert!(
+        v.get("dry_run").and_then(|d| d.as_bool()).is_some(),
+        "`.dry_run` must be a boolean"
+    );
+    // Each row carries {src, action} (dst/reason may be null).
+    for row in results {
+        assert!(
+            row.get("src").and_then(|s| s.as_str()).is_some(),
+            "row carries a string `src`: {row}"
+        );
+        let action = row
+            .get("action")
+            .and_then(|a| a.as_str())
+            .expect("row carries a string `action`");
+        assert!(
+            ["copy", "rename", "skip"].contains(&action),
+            "action is the lowercased RowStatus, got: {action}"
+        );
+    }
+
+    assert!(
+        !output.stdout.contains(&0x1Bu8),
+        "no ANSI escape may appear in --json stdout"
+    );
+    assert_ne!(
+        &output.stdout[..3.min(output.stdout.len())],
+        b"\xEF\xBB\xBF",
+        "no UTF-8 BOM may prefix --json stdout"
+    );
+}
+
+/// SPINE-02 / D-12/D-13 — `box flatten --dry-run --json` yields `.dry_run == true`
+/// and a `.results` PLAN array, writing nothing. Runnable via
+/// `cargo test --test flatten json_dry_run`.
+#[test]
+fn json_dry_run() {
+    let src = assert_fs::TempDir::new().unwrap();
+    let out = assert_fs::TempDir::new().unwrap();
+    src.child("a/report.txt").write_str("aaa").unwrap();
+    src.child("b/report.txt").write_str("bbb").unwrap();
+    src.child("top.md").write_str("top").unwrap();
+
+    let output = flatten_output(src.path(), out.path(), &["--dry-run", "--json"]);
+    assert!(output.status.success(), "dry-run --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("stdout must be exactly one JSON value");
+    assert_eq!(
+        v.get("dry_run"),
+        Some(&serde_json::json!(true)),
+        "`.dry_run` must be true on a --dry-run"
+    );
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .expect("`.results` must be a plan array");
+    assert_eq!(results.len(), 3, "three files in the plan");
+    // A collision rename must be present in the plan.
+    assert!(
+        results
+            .iter()
+            .any(|r| r.get("action").and_then(|a| a.as_str()) == Some("rename")),
+        "the colliding report.txt produces a rename row: {v}"
+    );
+
+    // Dry-run wrote nothing.
+    assert_eq!(files_in(out.path()), 0, "dry-run must not write any files");
+}
+
+/// SPINE-02 / D-12 — `box flatten <src> <out> --json` (a REAL run, no --dry-run)
+/// yields `.dry_run == false` and real copied counts; the files are on disk.
+/// Runnable via `cargo test --test flatten json_force_run`.
+#[test]
+fn json_force_run() {
+    let src = assert_fs::TempDir::new().unwrap();
+    let out = assert_fs::TempDir::new().unwrap();
+    src.child("one.txt").write_str("1").unwrap();
+    src.child("sub/two.txt").write_str("22").unwrap();
+
+    let output = flatten_output(src.path(), out.path(), &["--json"]);
+    assert!(output.status.success(), "real --json run should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("stdout must be exactly one JSON value");
+    assert_eq!(
+        v.get("dry_run"),
+        Some(&serde_json::json!(false)),
+        "`.dry_run` must be false on a real run"
+    );
+    assert_eq!(
+        v.get("copied"),
+        Some(&serde_json::json!(2)),
+        "`.copied` reflects the real-run copy count"
+    );
+    assert!(
+        v.get("total_bytes").and_then(|t| t.as_u64()).is_some(),
+        "`.total_bytes` must be a number on a real run"
+    );
+
+    // The real run actually copied the files flat.
+    assert_eq!(files_in(out.path()), 2, "both files copied flat");
+}

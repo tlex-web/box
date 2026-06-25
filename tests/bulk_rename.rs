@@ -412,3 +412,207 @@ fn renm_recursive_cross_directory_independent() {
         "two/b.txt must keep two/'s original payload (no sibling bleed)"
     );
 }
+
+// --- Scriptable spine (SPINE-02, Wave-7b, D-12/A3) — from tests/uuid.rs:135 -----
+//
+// `box bulk-rename --json` carries a `dry_run` boolean and a
+// `{results:[{src,dst,action,reason}], count, dry_run, to_rename, unchanged,
+// skipped}` document. Two behavioral forks:
+//   - D-12 override: `--force --json` EMITS the applied rename rows (the human
+//     --force path is silent-on-success).
+//   - A3 / D-09: a CONFLICTING plan under --json keeps stdout EMPTY, errors to
+//     stderr, exits 1 — never an {"error":…} on stdout.
+
+/// Capture `box bulk-rename <dir> <pattern> <replacement> [args]` raw stdout/stderr
+/// + exit status, for the JSON assertions (raw bytes, not a trimmed String).
+/// Forces `NO_COLOR=1`.
+fn bulk_rename_output(
+    dir: &Path,
+    pattern: &str,
+    replacement: &str,
+    args: &[&str],
+) -> std::process::Output {
+    let mut cmd = Command::cargo_bin("box").unwrap();
+    cmd.arg("bulk-rename")
+        .arg(dir)
+        .arg(pattern)
+        .arg(replacement);
+    for a in args {
+        cmd.arg(a);
+    }
+    cmd.env("NO_COLOR", "1");
+    cmd.output().expect("run box bulk-rename")
+}
+
+/// SPINE-02 — `box bulk-rename <dir> <pat> <rep> --json` (dry-run default) emits
+/// exactly one well-formed JSON document with `.results`, `.count`, `.dry_run`, no
+/// ANSI, no BOM. Runnable via `cargo test --test bulk_rename json_purity`.
+#[test]
+fn json_purity() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    dir.child("IMG_0042.jpg").write_str("a").unwrap();
+    dir.child("IMG_0043.jpg").write_str("b").unwrap();
+
+    let output = bulk_rename_output(dir.path(), r"IMG_(\d+)", "img_$1", &["--json"]);
+    assert!(output.status.success(), "bulk-rename --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("stdout must be exactly one JSON value");
+
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .expect("`.results` must be an array");
+    assert_eq!(results.len(), 2, "two rename rows planned");
+    assert_eq!(v.get("count"), Some(&serde_json::json!(2)));
+    assert!(
+        v.get("dry_run").and_then(|d| d.as_bool()).is_some(),
+        "`.dry_run` must be a boolean"
+    );
+    for row in results {
+        assert!(
+            row.get("src").and_then(|s| s.as_str()).is_some(),
+            "row carries a string `src`: {row}"
+        );
+        let action = row
+            .get("action")
+            .and_then(|a| a.as_str())
+            .expect("row carries a string `action`");
+        assert!(
+            ["copy", "rename", "skip"].contains(&action),
+            "action is the lowercased RowStatus, got: {action}"
+        );
+    }
+
+    assert!(
+        !output.stdout.contains(&0x1Bu8),
+        "no ANSI escape may appear in --json stdout"
+    );
+    assert_ne!(
+        &output.stdout[..3.min(output.stdout.len())],
+        b"\xEF\xBB\xBF",
+        "no UTF-8 BOM may prefix --json stdout"
+    );
+}
+
+/// SPINE-02 / D-13 — `box bulk-rename --json` (no --force) yields `.dry_run == true`
+/// and a `.results` plan, writing nothing. Runnable via
+/// `cargo test --test bulk_rename json_dry_run`.
+#[test]
+fn json_dry_run() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    dir.child("IMG_0042.jpg").write_str("a").unwrap();
+
+    let before = snapshot_names(dir.path());
+
+    let output = bulk_rename_output(dir.path(), r"IMG_(\d+)", "img_$1", &["--json"]);
+    assert!(output.status.success(), "dry-run --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("stdout must be exactly one JSON value");
+    assert_eq!(
+        v.get("dry_run"),
+        Some(&serde_json::json!(true)),
+        "default (no --force) is a dry-run"
+    );
+    let results = v.get("results").and_then(|r| r.as_array()).unwrap();
+    assert_eq!(results.len(), 1, "one rename row");
+    assert_eq!(
+        results[0].get("action").and_then(|a| a.as_str()),
+        Some("rename")
+    );
+
+    // Dry-run wrote nothing.
+    assert_eq!(before, snapshot_names(dir.path()), "dry-run must not write");
+}
+
+/// SPINE-02 / D-12 override — `box bulk-rename --force --json` EMITS the applied
+/// rename rows (non-empty `.results`, `.dry_run == false`), even though the human
+/// `--force` path is silent-on-success. Runnable via
+/// `cargo test --test bulk_rename json_force_emits_rows`.
+#[test]
+fn json_force_emits_rows() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    dir.child("IMG_0042.jpg").write_str("a").unwrap();
+    dir.child("IMG_0043.jpg").write_str("b").unwrap();
+
+    let output = bulk_rename_output(dir.path(), r"IMG_(\d+)", "img_$1", &["--force", "--json"]);
+    assert!(output.status.success(), "--force --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("stdout must be exactly one JSON value");
+    assert_eq!(
+        v.get("dry_run"),
+        Some(&serde_json::json!(false)),
+        "`--force` is a real run"
+    );
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .expect("`.results` must be an array");
+    assert!(
+        !results.is_empty(),
+        "--force --json must EMIT the applied rename rows (D-12 override), got empty results"
+    );
+    assert!(
+        results
+            .iter()
+            .any(|r| r.get("action").and_then(|a| a.as_str()) == Some("rename")),
+        "the applied renames are present: {v}"
+    );
+
+    // The renames really happened on disk.
+    let names = listed_names(dir.path());
+    assert!(
+        names.iter().any(|n| n == "img_0042.jpg"),
+        "the rename was applied, got {names:?}"
+    );
+}
+
+/// SPINE-02 / A3 / D-09 — a CONFLICTING plan under `--json` keeps stdout
+/// byte-EMPTY, sends the error to stderr, and exits 1 (no plan-with-conflicts and
+/// no {"error":…} on stdout). Runnable via
+/// `cargo test --test bulk_rename json_abort_empty_stdout`.
+#[test]
+fn json_abort_empty_stdout() {
+    for force in [false, true] {
+        let dir = assert_fs::TempDir::new().unwrap();
+        // Both files collapse to `dup.txt` -> a collision aborts the batch.
+        dir.child("a1.txt").write_str("aaa").unwrap();
+        dir.child("b1.txt").write_str("bbb").unwrap();
+
+        let before = snapshot_names(dir.path());
+
+        let mut args: Vec<&str> = vec!["--json"];
+        if force {
+            args.push("--force");
+        }
+        let output = bulk_rename_output(dir.path(), r".+", "dup.txt", &args);
+
+        // Exit 1 (runtime error).
+        assert_eq!(
+            output.status.code(),
+            Some(1),
+            "a conflicting plan must exit 1 (force={force})"
+        );
+        // D-09: stdout must be byte-EMPTY (no plan, no {"error":…}).
+        assert!(
+            output.stdout.is_empty(),
+            "stdout must be byte-empty on a --json abort (force={force}), got: {:?}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        // The error explanation is on stderr.
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("Aborted") || stderr.contains("collision"),
+            "the conflict must be reported on stderr (force={force}), got: {stderr:?}"
+        );
+
+        // Nothing was written.
+        assert_eq!(
+            before,
+            snapshot_names(dir.path()),
+            "an aborted --json run must write nothing (force={force})"
+        );
+    }
+}
