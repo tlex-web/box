@@ -418,3 +418,48 @@ fn json_lossy_path_name_no_panic() {
         );
     }
 }
+
+/// WR-05 — the intra-group `.results[*].paths` ordering is a documented contract
+/// (the `(hash, path)` sort before grouping, RESEARCH Pitfall 6). This pins that
+/// a consumer may rely on a deterministic, ascending path order within each
+/// duplicate group, so the `DupeRow` doc's ordering guarantee has a CI gate.
+#[test]
+fn json_paths_sorted_within_group() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+
+    // Three byte-identical files whose names sort in a non-creation order, so a
+    // sorted result is distinguishable from insertion/walk order.
+    let payload = b"WR-05 sorted-paths duplicate payload\n";
+    fs::write(root.join("zeta.bin"), payload).unwrap();
+    fs::write(root.join("alpha.bin"), payload).unwrap();
+    fs::write(root.join("mid.bin"), payload).unwrap();
+
+    let out = dupes_output(root, &["--json"]);
+    assert!(out.status.success(), "box dupes --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .expect("`.results` must be an array");
+    assert_eq!(results.len(), 1, "the three identical files form one group");
+
+    let paths: Vec<&str> = results[0]
+        .get("paths")
+        .and_then(|p| p.as_array())
+        .expect("`.results[0].paths` must be an array")
+        .iter()
+        .map(|p| p.as_str().expect("each path is a string"))
+        .collect();
+    assert_eq!(paths.len(), 3, "the group has all three duplicate paths");
+
+    // The contract: paths are sorted ascending within the group.
+    let mut sorted = paths.clone();
+    sorted.sort_unstable();
+    assert_eq!(
+        paths, sorted,
+        "`.results[*].paths` must be sorted ascending within a group (WR-05): {paths:?}"
+    );
+}

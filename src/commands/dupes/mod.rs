@@ -59,6 +59,17 @@ struct DupeGroup {
 /// D-17). `paths` are `to_string_lossy()` STRINGS (D-4) — a non-UTF-8 NTFS path
 /// never panics and never reaches `to_str().unwrap()`, matching the human
 /// `path.display()` render (no-drift).
+///
+/// The content `hash` is INTENTIONALLY omitted (WR-05): the human render omits it
+/// too (no drift), and emitting it would change the locked D-17 group schema that
+/// `tests/dupes.rs::json_purity` pins. A consumer that needs to confirm byte
+/// identity can re-hash the listed paths; surfacing the hash is a deliberate v1
+/// non-goal, noted here so a future reviewer does not re-flag the omission.
+///
+/// Ordering guarantee: `paths` within a group are SORTED ascending (the
+/// `(hash, path)` sort in `run()` before grouping, RESEARCH Pitfall 6), so a
+/// consumer may rely on a deterministic intra-group path order — asserted by
+/// `tests/dupes.rs::json_paths_sorted_within_group`.
 #[derive(serde::Serialize)]
 struct DupeRow {
     size: u64,
