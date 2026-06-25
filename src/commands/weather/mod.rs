@@ -131,14 +131,21 @@ impl RunCommand for WeatherArgs {
         // Aligned labeled block → stdout (data). Conditions are optionally colored,
         // gated SOLELY on is_color_on() so piped output is byte-identical minus
         // ANSI (D-00/D-13). No second color path, no global override.
+        //
+        // The plain lines route through `out_line` so the human render tees to
+        // CLIP_BUF when `--clip` is on (WR-01) — matching every other spine
+        // command. The colored `Conditions` branch stays a direct `println!`
+        // because `is_color_on()` is forced false under `--clip` (init_output),
+        // so that branch is unreachable when clip is active and never needs to
+        // tee (mirrors the `color` swatch pattern).
         if is_color_on() {
             println!("  Conditions  : {}", conditions.cyan());
         } else {
-            println!("  Conditions  : {conditions}");
+            crate::core::output::out_line(&format!("  Conditions  : {conditions}"));
         }
-        println!("  Temperature : {temp}{temp_unit}");
-        println!("  Wind        : {wind} {wind_unit}");
-        println!("  Humidity    : {humidity}%");
+        crate::core::output::out_line(&format!("  Temperature : {temp}{temp_unit}"));
+        crate::core::output::out_line(&format!("  Wind        : {wind} {wind_unit}"));
+        crate::core::output::out_line(&format!("  Humidity    : {humidity}%"));
         Ok(())
     }
 }
