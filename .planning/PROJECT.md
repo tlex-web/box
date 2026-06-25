@@ -64,16 +64,20 @@ The toolbox must be **globally available and instantly usable from PowerShell 7*
 - [x] `pomodoro` — focus timer with a live in-place countdown + Windows 11 toast on completion (`--break` 5 / `--long-break` 15 / `[MINUTES]`); clean Ctrl+C/q/Esc cancel with no toast; human-verified in PS7
 - [x] `weather` — keyless current weather via Open-Meteo (city geocode or `lat,lon`; `--units metric|imperial`; graceful offline error); unit labels read from the response, never hardcoded
 
+**Scriptable-core foundation** *(validated in Phase 6 — Scriptable-Core Foundation, 2026-06-25)*
+- [x] Shared scriptable spine built once — `core::output` primitives (`emit_json`/`out_line`/`flush_clip`/`init_output`/`is_json_on`, JSON-purity: one document, no BOM, no ANSI, no chrome) + hand-rolled `core::config` resolver (precedence **CLI > env > config > built-in**; missing/malformed config never errors a normal command) + `BoxError::Config` (exit 2) + global `--json`/`--clip` flags. Proven end-to-end on the `uuid` + `hash` pilots; the `{results,count}` serde struct and `json_purity` test are the frozen copy-me template for the remaining 21 commands (rollout in Phases 7–10).
+- [x] BLAKE3-default `hash` (breaking change to the compute default only — `box hash file` now emits BLAKE3; `--algo sha256` and `hash.default_algo` config restore old behavior; `--verify` length table untouched so stored SHA-256 baselines never break; D-05 BLAKE3-fallback diagnostic on 64-hex mismatch).
+
 ### Active
 
 <!-- Current scope. Building toward these. All are hypotheses until shipped. -->
 
 **v2.0 Toolbox → Toolkit** *(scoped 2026-06-24; detailed REQ-IDs land in REQUIREMENTS.md)*
-- [ ] Scriptable spine — `--json` output + `--clip` clipboard across all applicable commands
+- [ ] Scriptable spine — `--json` output + `--clip` clipboard across all applicable commands *(foundation + uuid/hash pilots shipped in Phase 6; full rollout across remaining commands in Phases 7–10)*
 - [ ] Comprehensive per-command depth — the full deferred-V2 set (FLAT / HASH / DUPE / RENM / TREE / DU / DEV / VIS / FUN / SYS / PASS-V2)
-- [ ] BLAKE3-default `hash` (breaking; supersedes the `HASH-01` SHA-256 default)
+- [x] BLAKE3-default `hash` (breaking; supersedes the `HASH-01` SHA-256 default) *(delivered in Phase 6 — compute-default flip with config/env escape hatch; verify length table unchanged)*
 - [ ] PS7 shell completions (`completions` meta-command)
-- [ ] Config-file defaults (`config` meta-command + config file)
+- [ ] Config-file defaults (`config` meta-command + config file) *(resolver + `%APPDATA%\box\config.toml` defaults shipped in Phase 6; `config` meta-command lands in Phase 11)*
 
 ### Out of Scope
 
@@ -135,4 +139,6 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
+*Last updated: 2026-06-25 after Phase 6 (Scriptable-Core Foundation) completion — moved the shared `--json`/`--clip`/config spine foundation and the BLAKE3-default `hash` flip into Validated (proven on the `uuid`+`hash` pilots; `{results,count}`/`json_purity` frozen as the Phase-7 rollout template); annotated the milestone-level Active items with their Phase-6 progress. Next: Phase 7 — Spine Rollout (apply the template to the remaining applicable commands).*
+
 *Last updated: 2026-06-24 after v2.0 milestone kickoff (/gsd:new-milestone) — added Current Milestone (Toolbox → Toolkit); Active set to v2.0 scope (scriptable `--json`/`--clip` spine + comprehensive per-command depth + PS7 completions + config-file defaults); BLAKE3-default `hash` recorded as the breaking change; self-update & Scoop/winget packaging held out of scope. Next: research → REQUIREMENTS.md (REQ-IDs) → ROADMAP.md (phases continue numbering from v1's Phase 5).*
