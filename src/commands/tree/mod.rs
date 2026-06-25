@@ -70,6 +70,23 @@ struct Child {
     path: PathBuf,
 }
 
+/// One node of the `box tree --json` recursive document (SPINE-02, A4 / D-17 —
+/// the ROOT-RULE EXCEPTION: a recursive object, NOT `{results,count}`). `kind`
+/// serializes to the string `"dir"` or `"file"` under the JSON key `type`; `size`
+/// is `Some` for FILES only and OMITTED for directories (`skip_serializing_if`).
+/// `name` is a lossy string (D-4). This is a REAL node tree (the A4 surprise) — the
+/// current human printer never builds one, so [`build_node`] is new work that
+/// shares `read_children`/`sort_children` with the printer so the two cannot drift.
+#[derive(serde::Serialize)]
+struct Node {
+    name: String,
+    #[serde(rename = "type")]
+    kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size: Option<u64>,
+    children: Vec<Node>,
+}
+
 /// Running totals for the trailing summary line.
 #[derive(Default)]
 struct Counts {
@@ -97,9 +114,24 @@ impl RunCommand for TreeArgs {
             anyhow::bail!("{} is not a directory", self.path.display());
         }
 
-        // Print the root label as the path the user passed (not the canonical
-        // absolute path) so the render reads naturally, matching GNU `tree`.
+        // The root label is the path the user passed (not the canonical absolute
+        // path) so the render reads naturally, matching GNU `tree`.
         let root_label = self.path.to_string_lossy().to_string();
+
+        // Fork on `is_json_on()` FIRST (Pitfall 1): tree has FOUR human stdout
+        // writes (root label + tree + blank + summary), ALL of which must live
+        // behind the `else`. Under --json the ONLY stdout write is emit_json, of a
+        // REAL recursive node tree (A4) — NOT the {results,count} shape (D-17
+        // root-rule exception). The root node is the target dir; its children
+        // recurse with the SAME read_children/sort_children the printer uses, so
+        // JSON order matches human order (no-drift).
+        if crate::core::output::is_json_on() {
+            let root_node = build_node(&root, root_label, true, None, self.depth, 1)?;
+            crate::core::output::emit_json(&root_node)?;
+            return Ok(());
+        }
+
+        // Print the root label, then render the tree below it.
         println!("{}", color_dir(&root_label));
 
         let mut counts = Counts::default();
@@ -176,6 +208,61 @@ fn render_dir(
     }
 
     Ok(())
+}
+
+/// Build the recursive `box tree --json` [`Node`] for `dir` (A4 / D-17). `name` is
+/// the node's display label, `is_dir` whether this node is a directory, `size` its
+/// byte size (files only). For a directory, recurse into its children using the
+/// SAME `read_children` + `sort_children` helpers the human printer uses (so the
+/// JSON child order matches the rendered order — no-drift), honoring the `--depth`
+/// cap exactly like `render_dir`: a directory AT the cap depth still appears as a
+/// node but its children (one level deeper) are not descended.
+fn build_node(
+    dir: &Path,
+    name: String,
+    is_dir: bool,
+    size: Option<u64>,
+    max_depth: Option<usize>,
+    depth: usize,
+) -> anyhow::Result<Node> {
+    // A file is a leaf — it carries its size and no children.
+    if !is_dir {
+        return Ok(Node {
+            name,
+            kind: "file",
+            size,
+            children: Vec::new(),
+        });
+    }
+
+    // A directory: descend unless this child's subtree would exceed the displayed-
+    // depth cap (same boundary as render_dir, which stops once `depth > max`).
+    let descend = match max_depth {
+        Some(max) => depth <= max,
+        None => true,
+    };
+
+    let mut children = Vec::new();
+    if descend {
+        for child in read_children(dir)? {
+            children.push(build_node(
+                &child.path,
+                child.name,
+                child.is_dir,
+                child.size,
+                max_depth,
+                depth + 1,
+            )?);
+        }
+    }
+
+    Ok(Node {
+        name,
+        kind: "dir",
+        // Directories OMIT `.size` (D-17) — `None` is skipped on serialize.
+        size: None,
+        children,
+    })
 }
 
 /// Read `dir`'s immediate children (hidden pruned via the shared `is_hidden`,
