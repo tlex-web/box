@@ -409,6 +409,24 @@ impl RunCommand for BulkRenameArgs {
             }
         }
 
+        // WR-06: `count`/`results` are derived from the PLAN, not the executed
+        // loop. That is sound here because reaching this point means the loop ran
+        // to completion (any `std::fs::rename` error is `?`-propagated above →
+        // exit 1 with empty stdout, no JSON emitted), so plan == outcome: every
+        // `Rename` item was applied (`renamed == to_rename`) and the three tallies
+        // partition the plan. These debug assertions pin that coupling so a future
+        // executor/planner divergence trips in test/dev builds instead of silently
+        // misreporting the JSON.
+        debug_assert_eq!(
+            renamed, to_rename,
+            "executed renames must equal the planned rename count on a successful run"
+        );
+        debug_assert_eq!(
+            to_rename + unchanged + skipped,
+            plan.items.len(),
+            "the plan tallies must partition plan.items (count is plan.items.len())"
+        );
+
         // D-12 override: under --json emit the applied rename rows (the ONLY stdout
         // write), `dry_run: false`. The human `--force` path stays silent-on-
         // success with just the "Done:" summary.

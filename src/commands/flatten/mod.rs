@@ -270,6 +270,25 @@ impl RunCommand for FlattenArgs {
             }
         }
 
+        // WR-06: `count`/`results` are derived from the PLAN, not the executed
+        // loop. That is sound here because reaching this point means the loop ran
+        // to completion (any `safe_copy` error is `?`-propagated above → exit 1
+        // with empty stdout, no JSON emitted), so plan == outcome: every non-skip
+        // item was copied (`copied == to_copy + renamed`) and the three tallies
+        // partition the plan. These debug assertions pin that coupling so a future
+        // executor/planner divergence trips in test/dev builds instead of silently
+        // misreporting the JSON.
+        debug_assert_eq!(
+            copied,
+            plan.to_copy + plan.renamed,
+            "executed copies must equal the planned copy+rename count on a successful run"
+        );
+        debug_assert_eq!(
+            plan.to_copy + plan.renamed + plan.skipped,
+            plan.items.len(),
+            "the plan tallies must partition plan.items (count is plan.items.len())"
+        );
+
         // Under --json, the ONLY stdout write is the single emit_json carrying the
         // EXECUTED result (real copied / total_bytes captured above, `dry_run:
         // false`). Otherwise the human blank line + real-run summary.
