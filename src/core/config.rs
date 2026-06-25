@@ -1,8 +1,9 @@
 //! Config-file defaults for `box` (SPINE-05, D-1).
 //!
 //! `box` reads an optional TOML config from `%APPDATA%\box\config.toml`
-//! (resolved via [`dirs::config_dir`]) **once** at startup ([`init_config`]) and
-//! installs it as a process-global `OnceLock<Config>`. This mirrors
+//! (resolved by [`config_path`] — `%APPDATA%` env var first, [`dirs::config_dir`]
+//! as the fallback; see that fn for the Rule 1 rationale) **once** at startup
+//! ([`init_config`]) and installs it as a process-global `OnceLock<Config>`. This mirrors
 //! [`crate::core::output`]'s "decide once in `main()`" shape — the `COLOR_ON`
 //! atomic + `init_color` writer + `is_color_on` reader — promoted from an
 //! `AtomicBool` to an `OnceLock<Config>`.
@@ -50,8 +51,16 @@ static CONFIG: OnceLock<Config> = OnceLock::new();
 
 /// The loaded config. Panics if [`init_config`] has not run — it is called once in
 /// `main()` before dispatch, so any command that reaches this has a config.
+///
+/// Forward-compat `#[allow(dead_code)]` (allow-then-remove, mirroring errors.rs's
+/// `MissingInput` history): the spine lands in Plan 06-01, but its first consumer
+/// is `hash` in Plan 06-02 (wave 2). The allow is removed there once `hash` reads
+/// `config().default_hash_algo`.
+#[allow(dead_code)]
 pub fn config() -> &'static Config {
-    CONFIG.get().expect("init_config() must run before config()")
+    CONFIG
+        .get()
+        .expect("init_config() must run before config()")
 }
 
 /// Load the config once in `main()` BEFORE dispatch (and before `init_color`, per
@@ -83,10 +92,28 @@ fn load() -> anyhow::Result<Config> {
     }
 }
 
-/// `%APPDATA%\box\config.toml` on Windows, via [`dirs::config_dir`] (the locked
-/// resolver form). `std::env::var_os("APPDATA")` is the documented fallback only —
-/// not used unless `dirs` ever resists.
+/// `%APPDATA%\box\config.toml` on Windows.
+///
+/// Resolution order (Rule 1 deviation from the planned `dirs`-first form —
+/// documented in 06-01-SUMMARY): `%APPDATA%` env var FIRST, then [`dirs::config_dir`]
+/// as the fallback. The plan locked `dirs::config_dir()` with `var_os("APPDATA")`
+/// as "the documented fallback only — do not use it unless dirs resists." **dirs
+/// resists here:** on Windows `dirs` 6.0 → `dirs-sys` 0.5 resolves `config_dir()`
+/// via the `SHGetKnownFolderPath` Known-Folder API, which IGNORES the `APPDATA`
+/// environment variable. That makes per-process config isolation impossible — the
+/// integration tests (and any user/CI that relies on `APPDATA`) cannot point the
+/// lookup at a temp dir. Reading `APPDATA` first restores the standard,
+/// per-process-overridable Windows roaming-appdata location (identical
+/// `%APPDATA%\box\config.toml` target) while keeping `dirs` for the non-Windows /
+/// `APPDATA`-unset case.
 fn config_path() -> Option<std::path::PathBuf> {
+    if let Some(appdata) = std::env::var_os("APPDATA") {
+        return Some(
+            std::path::PathBuf::from(appdata)
+                .join("box")
+                .join("config.toml"),
+        );
+    }
     dirs::config_dir().map(|p| p.join("box").join("config.toml"))
 }
 
@@ -95,6 +122,10 @@ fn config_path() -> Option<std::path::PathBuf> {
 /// deterministic. Every Phase-7 config-overridable flag resolves through this exact
 /// `cli.or(env).or(cfg).unwrap_or(builtin)` shape — the builtin here is the
 /// BLAKE3-default (D-04).
+///
+/// Forward-compat `#[allow(dead_code)]`: exercised by the `precedence_matrix` unit
+/// test now; `hash` adopts it as the live resolver in Plan 06-02 (allow removed there).
+#[allow(dead_code)]
 pub fn resolve_algo(cli: Option<Algo>, env: Option<Algo>, cfg: Option<Algo>) -> Algo {
     cli.or(env).or(cfg).unwrap_or(Algo::Blake3)
 }
@@ -146,29 +177,31 @@ mod tests {
     fn malformed_maps_to_config_error() {
         // Mirror `load`'s mapping: toml::from_str error → BoxError::Config.
         let map = |toml_src: &str| -> anyhow::Error {
-            toml::from_str::<Config>(toml_src)
-                .map_err(|e| {
-                    BoxError::Config {
-                        path: "test/config.toml".to_string(),
-                        message: e.to_string(),
-                    }
-                    .into()
-                })
-                .err()
-                .expect("expected a parse error")
+            let parsed: Result<Config, _> = toml::from_str(toml_src);
+            let err = parsed.expect_err("expected a parse error");
+            anyhow::Error::from(BoxError::Config {
+                path: "test/config.toml".to_string(),
+                message: err.to_string(),
+            })
         };
 
         // Syntactically invalid TOML.
         let err = map("default_hash_algo = ");
         assert!(
-            matches!(err.downcast_ref::<BoxError>(), Some(BoxError::Config { .. })),
+            matches!(
+                err.downcast_ref::<BoxError>(),
+                Some(BoxError::Config { .. })
+            ),
             "malformed TOML must downcast to BoxError::Config, got: {err:#}"
         );
 
         // An unknown key under deny_unknown_fields.
         let err = map("bogus_key = 1");
         assert!(
-            matches!(err.downcast_ref::<BoxError>(), Some(BoxError::Config { .. })),
+            matches!(
+                err.downcast_ref::<BoxError>(),
+                Some(BoxError::Config { .. })
+            ),
             "unknown key must downcast to BoxError::Config, got: {err:#}"
         );
     }

@@ -66,36 +66,49 @@ fn main() -> ExitCode {
         }
     };
 
-    // Decide color once, before dispatch, from --no-color ∧ NO_COLOR ∧ TTY
-    // (FOUND-04, D-10). Installs a global owo-colors override so all decorations
-    // no-op when piped — plain output is byte-identical minus ANSI.
-    crate::core::output::init_color(cli.no_color);
-
-    let result = match cli.command {
-        Commands::Flatten(args) => args.run(),
-        Commands::Uuid(args) => args.run(),
-        Commands::Base64(args) => args.run(),
-        Commands::Epoch(args) => args.run(),
-        Commands::Color(args) => args.run(),
-        Commands::Passgen(args) => args.run(),
-        Commands::Cowsay(args) => args.run(),
-        Commands::Fortune(args) => args.run(),
-        Commands::EightBall(args) => args.run(),
-        Commands::Roast(args) => args.run(),
-        Commands::Hash(args) => args.run(),
-        Commands::Tree(args) => args.run(),
-        Commands::Du(args) => args.run(),
-        Commands::Dupes(args) => args.run(),
-        Commands::BulkRename(args) => args.run(),
-        Commands::Lolcat(args) => args.run(),
-        Commands::Matrix(args) => args.run(),
-        Commands::Ascii(args) => args.run(),
-        Commands::Json(args) => args.run(),
-        Commands::Qr(args) => args.run(),
-        Commands::Clip(args) => args.run(),
-        Commands::Pomodoro(args) => args.run(),
-        Commands::Weather(args) => args.run(),
-    };
+    // Spine wiring in the LOAD-BEARING order (Pitfall 7), all folded into a single
+    // `result` so config-load errors AND dispatch errors flow through the SAME
+    // exit-code downcast below (D-10 — a malformed config must still print the
+    // `error:` line, so we never `return ExitCode::from(2)` inline here):
+    //   1. init_config FIRST — its Err short-circuits the `and_then` chain and is
+    //      routed to exit 2 by the BoxError::Config downcast (config never reaches
+    //      `config()` on a malformed file, so dispatch never runs).
+    //   2. init_color (unconditional TTY/NO_COLOR decision).
+    //   3. init_output LAST so its json||clip force-off overwrites color's decision.
+    //   4. dispatch the subcommand.
+    //   5. flush_clip ONLY on the Ok dispatch branch (chained via `.and_then`, so a
+    //      failed command never clobbers the clipboard — D-08, Pitfall 6).
+    let result = crate::core::config::init_config()
+        .and_then(|()| {
+            crate::core::output::init_color(cli.no_color);
+            crate::core::output::init_output(cli.json, cli.clip);
+            match cli.command {
+                Commands::Flatten(args) => args.run(),
+                Commands::Uuid(args) => args.run(),
+                Commands::Base64(args) => args.run(),
+                Commands::Epoch(args) => args.run(),
+                Commands::Color(args) => args.run(),
+                Commands::Passgen(args) => args.run(),
+                Commands::Cowsay(args) => args.run(),
+                Commands::Fortune(args) => args.run(),
+                Commands::EightBall(args) => args.run(),
+                Commands::Roast(args) => args.run(),
+                Commands::Hash(args) => args.run(),
+                Commands::Tree(args) => args.run(),
+                Commands::Du(args) => args.run(),
+                Commands::Dupes(args) => args.run(),
+                Commands::BulkRename(args) => args.run(),
+                Commands::Lolcat(args) => args.run(),
+                Commands::Matrix(args) => args.run(),
+                Commands::Ascii(args) => args.run(),
+                Commands::Json(args) => args.run(),
+                Commands::Qr(args) => args.run(),
+                Commands::Clip(args) => args.run(),
+                Commands::Pomodoro(args) => args.run(),
+                Commands::Weather(args) => args.run(),
+            }
+        })
+        .and_then(|()| crate::core::output::flush_clip());
 
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -103,18 +116,23 @@ fn main() -> ExitCode {
             // Lowercase `error:` prefix (matches clap's style), stderr only so
             // stdout stays clean for pipes (FOUND-03, D-06).
             eprintln!("error: {e:#}");
-            // Two typed variants are *usage* errors and must surface as exit 2 —
-            // same single-owner mapping pattern as the clap parse-error path above:
+            // Three typed variants are *usage*/config errors and must surface as
+            // exit 2 — same single-owner mapping pattern as the clap parse-error
+            // path above:
             //   - `MissingInput`: no arg + interactive TTY (D-04 branch 3).
             //   - `UnsupportedHashLength`: a `box hash --verify <hex>` whose length
             //     matches no algorithm (D-04). A mismatched-but-valid `--verify` is
             //     a plain `anyhow` error → exit 1, NOT this variant (Pitfall 1).
+            //   - `Config`: a malformed/unknown-key `%APPDATA%\box\config.toml`
+            //     aborts BEFORE dispatch (D-10). A MISSING file is never this error
+            //     (it silently falls back to Config::default()).
             // All other errors keep exit 1. Downcast on the typed variants so a
             // plain `anyhow::bail!` elsewhere is unaffected.
             match e.downcast_ref::<crate::core::errors::BoxError>() {
                 Some(
                     crate::core::errors::BoxError::MissingInput
-                    | crate::core::errors::BoxError::UnsupportedHashLength { .. },
+                    | crate::core::errors::BoxError::UnsupportedHashLength { .. }
+                    | crate::core::errors::BoxError::Config { .. },
                 ) => ExitCode::from(2),
                 _ => ExitCode::from(1),
             }

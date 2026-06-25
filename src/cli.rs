@@ -23,6 +23,14 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub no_color: bool,
 
+    /// Emit machine-readable JSON on stdout (suppresses color/progress)
+    #[arg(long, global = true)]
+    pub json: bool,
+
+    /// Copy the command's output to the clipboard (also prints it)
+    #[arg(long, global = true)]
+    pub clip: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }

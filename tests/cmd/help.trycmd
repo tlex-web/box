@@ -32,6 +32,8 @@ Commands:
 
 Options:
       --no-color  Disable colored output (also honors NO_COLOR and non-TTY stdout)
+      --json      Emit machine-readable JSON on stdout (suppresses color/progress)
+      --clip      Copy the command's output to the clipboard (also prints it)
   -h, --help      Print help
   -V, --version   Print version
 
