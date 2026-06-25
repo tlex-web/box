@@ -86,8 +86,16 @@ Plans:
 
 Plans:
 
+**Wave 1**
+
 - [ ] 07-01-PLAN.md — Wave 7a pure transforms: `--json` on `base64`, `epoch`, `color`, `passgen`, `8ball`, `fortune`, `roast`, `cowsay` + `--clip` on base64/color/epoch/passgen + A1 base64 decode policy + SC4 display-only omission + new `tests/cowsay.rs`. [wave 1]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 07-02-PLAN.md — Wave 7b filesystem: `--json` on `du`, `dupes`, `flatten`, `bulk-rename` (`{results,count,…}`) + `tree` recursive `{name,type,size?,children}` (A4) + bulk-rename --force-emits-rows / abort-empty-stdout forks (A3). [wave 2, depends_on 07-01]
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 07-03-PLAN.md — Wave 7c odd-fits: `--json` on `json` (D-16 passthrough) / `qr` (D-14 metadata) / `weather` (current-only) + `--clip` on json/qr + new `core::output::clip_feed` primitive for qr D-15. [wave 3, depends_on 07-02]
 
 ### Phase 8: Filesystem Depth

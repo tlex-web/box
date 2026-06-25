@@ -371,22 +371,27 @@ if crate::core::output::is_json_on() {
 
 **If this table guides nothing else:** A1, A2, A3, A4 are the four items where "mechanical rollout" has a non-trivial decision. Everything else is genuinely copy-paste-adapt.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **`base64 --decode --json` binary output policy (A1).**
+> All three resolved during planning via the recommended option and locked into the plans (07-01/07-02/07-03).
+
+1. **`base64 --decode --json` binary output policy (A1). — RESOLVED**
    - What we know: encode → ASCII-safe flat object; decode → arbitrary bytes (binary-safe by design).
    - What's unclear: how to represent non-UTF-8 decoded bytes in a JSON string.
    - Recommendation: under `--json`, emit decode output as a base64 string field (lossless, round-trippable) — or document a `to_string_lossy` marker. Ask the user; default to base64-string-field as the safest.
+   - **Resolution:** base64-string-field adopted; never `String::from_utf8(...).unwrap()`. Implemented in 07-01 Task 1 (`json_decode_non_utf8` test).
 
-2. **`qr --clip` mechanism (A2).**
+2. **`qr --clip` mechanism (A2). — RESOLVED**
    - What we know: D-15 says copy the source text, not the glyphs; `out_line` prints+tees the same string.
    - What's unclear: whether to add a `core::output::clip_feed(&str)` primitive or have `qr` push to `CLIP_BUF` directly.
    - Recommendation: add a minimal `clip_feed(&str)` to `core::output` (the cleanest, reusable, testable). This is the only sanctioned `core::output` change in Phase 7 — confirm.
+   - **Resolution:** `core::output::clip_feed(&str)` added (the one sanctioned spine change). Implemented in 07-03 Task 1 (`clip_feed_tees_only` unit test), wired into qr.
 
-3. **`bulk-rename --force --json` row emission + abort-path stdout (A3 + D-12).**
+3. **`bulk-rename --force --json` row emission + abort-path stdout (A3 + D-12). — RESOLVED**
    - What we know: D-12 says `--force --json` emits applied renames (overriding silent-on-success); D-09 says failures keep stdout empty.
    - What's unclear: the exact JSON the abort path emits (nothing on stdout + stderr error is the safe read).
    - Recommendation: success → `{results, count, dry_run:false, …}`; abort → empty stdout, stderr error, exit 1. Lock in the plan.
+   - **Resolution:** success → `{results, count, dry_run:false, …}`; abort → empty stdout + stderr error + exit 1. Implemented in 07-02 Task 3 (`json_abort_empty_stdout` test).
 
 ## Environment Availability
 
