@@ -157,3 +157,130 @@ fn tree_zero_depth_rejected() {
     // The boundary value 1 is accepted (proving we only reject 0).
     tree(root, &["--depth", "1"]).success();
 }
+
+// --- Scriptable spine (SPINE-02, Wave-7b, A4) — copied from tests/uuid.rs:135 ---
+//
+// `box tree <dir> --json` is the ROOT-RULE EXCEPTION (D-17): NOT `{results,count}`
+// but a recursive node `{name, type:"dir"|"file", size?, children:[]}`. A real
+// `build_node` recursion (the A4 surprise) reuses the same read_children /
+// sort_children helpers as the printer so JSON order matches human order.
+
+/// Capture `box tree <path> [args]` raw stdout bytes + exit status, for the
+/// JSON-purity assertions (raw bytes, not a trimmed String). Forces `NO_COLOR=1`.
+fn tree_output(path: &Path, args: &[&str]) -> std::process::Output {
+    let mut cmd = Command::cargo_bin("box").unwrap();
+    cmd.arg("tree").arg(path);
+    for a in args {
+        cmd.arg(a);
+    }
+    cmd.env("NO_COLOR", "1");
+    cmd.output().expect("run box tree")
+}
+
+/// SPINE-02 — `box tree <dir> --json` emits exactly one well-formed JSON document
+/// that is a recursive object (NOT `{results,count}`): the root has
+/// `.type == "dir"` and a `.children` array, with no ANSI and no BOM. Runnable via
+/// `cargo test --test tree json_purity`.
+#[test]
+fn json_purity() {
+    let fixture = build_fixture();
+    let out = tree_output(fixture.path(), &["--json"]);
+    assert!(out.status.success(), "box tree --json should exit 0");
+
+    // 1. stdout parses as EXACTLY one JSON value (whole-buffer from_slice).
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+
+    // 2. The D-17 recursive shape: the root is a `dir` node with `children`.
+    assert_eq!(
+        v.get("type"),
+        Some(&serde_json::json!("dir")),
+        "the root node `.type` must be \"dir\""
+    );
+    assert!(
+        v.get("children").and_then(|c| c.as_array()).is_some(),
+        "the root node must carry a `.children` array"
+    );
+    assert!(
+        v.get("name").and_then(|n| n.as_str()).is_some(),
+        "the root node carries a string `name`"
+    );
+
+    // 3. PURITY — no ANSI escape (0x1B) anywhere.
+    assert!(
+        !out.stdout.contains(&0x1Bu8),
+        "no ANSI escape may appear in --json stdout"
+    );
+    // 4. PURITY — no UTF-8 BOM (EF BB BF) at the front.
+    assert_ne!(
+        &out.stdout[..3.min(out.stdout.len())],
+        b"\xEF\xBB\xBF",
+        "no UTF-8 BOM may prefix --json stdout"
+    );
+}
+
+/// SPINE-02 / D-17 — `box tree <nested-dir> --json` is a real recursive node tree:
+/// the root is a `dir`, a nested FILE node has `.type == "file"` and a numeric
+/// `.size`, and a directory node OMITS `.size`. Runnable via
+/// `cargo test --test tree json_recursive_shape`.
+#[test]
+fn json_recursive_shape() {
+    let fixture = build_fixture();
+    let out = tree_output(fixture.path(), &["--json"]);
+    assert!(out.status.success(), "box tree --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+
+    // Root is a directory and OMITS size (D-17: size for files only).
+    assert_eq!(v.get("type"), Some(&serde_json::json!("dir")));
+    assert!(
+        v.get("size").is_none(),
+        "a directory node must omit `.size` (D-17), got: {v}"
+    );
+
+    let children = v
+        .get("children")
+        .and_then(|c| c.as_array())
+        .expect("root `.children` must be an array");
+
+    // Find the `sub` directory child — it must be a `dir`, omit `.size`, and have
+    // its own `.children` (containing deep.txt).
+    let sub = children
+        .iter()
+        .find(|c| c.get("name").and_then(|n| n.as_str()) == Some("sub"))
+        .expect("a `sub` directory child");
+    assert_eq!(
+        sub.get("type"),
+        Some(&serde_json::json!("dir")),
+        "`sub` is a dir node"
+    );
+    assert!(
+        sub.get("size").is_none(),
+        "`sub` (a directory) must omit `.size`"
+    );
+    let sub_children = sub
+        .get("children")
+        .and_then(|c| c.as_array())
+        .expect("`sub` must carry its own `.children`");
+
+    // The nested file node `deep.txt` has type "file" and a numeric size (300).
+    let deep = sub_children
+        .iter()
+        .find(|c| c.get("name").and_then(|n| n.as_str()) == Some("deep.txt"))
+        .expect("`deep.txt` nested file node");
+    assert_eq!(
+        deep.get("type"),
+        Some(&serde_json::json!("file")),
+        "`deep.txt` is a file node"
+    );
+    assert_eq!(
+        deep.get("size").and_then(|s| s.as_u64()),
+        Some(300),
+        "`deep.txt` carries its numeric byte size (300)"
+    );
+    assert!(
+        deep.get("children").and_then(|c| c.as_array()).map(|a| a.is_empty()) != Some(false),
+        "a file node has no (or an empty) `.children`"
+    );
+}
