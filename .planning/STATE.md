@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
-status: executing
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-06-25T13:40:24.652Z"
+status: completed
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-06-25T14:01:59.065Z"
 last_activity: 2026-06-25
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 5
-  completed_plans: 3
-  percent: 60
+  completed_plans: 4
+  percent: 17
 ---
 
 # Project State: box — Rust CLI Toolbox
@@ -36,11 +36,11 @@ See: .planning/PROJECT.md · .planning/ROADMAP.md · .planning/REQUIREMENTS.md (
 ## Current Position
 
 Phase: 07 (spine-rollout) — EXECUTING
-Plan: 2 of 3
-Status: 07-01 complete (Wave-7a pure transforms); ready to execute 07-02
-Last activity: 2026-06-25 — 07-01 complete (SPINE-02/SPINE-04 partial, 8 of 16 / 4 of 6)
+Plan: 3 of 3
+Status: 07-02 complete (Wave-7b filesystem --json done); 07-03 (json/qr/weather odd-fits) next
+Last activity: 2026-06-25
 
-Progress: [██████░░░░] 60%
+Progress: [████████░░] 80%
 
 ## Phase Map
 
@@ -49,7 +49,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 | Phase | Name | Requirements | Status |
 |-------|------|-------------|--------|
 | 6 | Scriptable-Core Foundation | SPINE-01, SPINE-03, SPINE-05, HASH-V2-01 (4) | Complete (2/2 plans — all 4 reqs done) |
-| 7 | Spine Rollout | SPINE-02, SPINE-04 (2) | In Progress (1/3 plans — 07-01 Wave-7a pure transforms done) |
+| 7 | Spine Rollout | SPINE-02, SPINE-04 (2) | In Progress (2/3 plans — 07-01 Wave-7a + 07-02 Wave-7b filesystem done; --json on 13/16) |
 | 8 | Filesystem Depth | HASH-V2-02, FLAT-V2-01/02, DUPE-V2-01/02, RENM-V2-01/02, TREE-V2-01, DU-V2-01/02 (10) | Not started |
 | 9 | Dev-Transform & Visual Depth | UUID-V2-01, EPOC-V2-01, COLR-V2-01, JSON-V2-01, PASS-V2-01, LOL-V2-01, MTRX-V2-01, QR-V2-01, ASCI-V2-01 (9) | Not started |
 | 10 | Fun & System Depth | COW-V2-01, FORT-V2-01, 8BAL-V2-01, ROST-V2-01, POMO-V2-01/02, WTHR-V2-01 (7) | Not started |
@@ -67,6 +67,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 | 6 | 06-01 | ~10 min | 3 | 11 |
 | 6 | 06-02 | ~35 min | 2 | 7 |
 | 7 | 07-01 | 19 min | 3 | 17 |
+| 7 | 07-02 | 12 min | 3 | 10 |
 
 ---
 
@@ -94,6 +95,10 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 | **D-19 (07-01) color JSON hex locked LOWERCASE** (`#{:02x}` → `#rrggbb`); human `Hex` row stays UPPERCASE | Only the JSON `hex` field is lowercased so `json_purity` is deterministic (`.hex == "#ff0000"`); the existing human render (`#{:02X}`) is byte-stable (trycmd snapshot unchanged). Nested D-17 shape `{hex, rgb:{r,g,b}, hsl:{h,s,l}}`. |
 | **D-20 (07-01) epoch unified shape** — input resolved to one `epoch: i64` BEFORE the `is_json_on()` fork so `{epoch,utc,local}` JSON never branches on mode (D-17) | `epoch_output()` and `format_timestamp()` share the same `DateTime::from_timestamp`/`with_timezone(&Local)` math (no-drift). JSON datetime strings drop the `Local:`/`UTC:` label prefixes (the keys convey direction). Human path routes through `out_line` for a free future clip adoption. |
 | **D-21 (07-01) SC4 = parse-but-ignore** — `matrix`/`pomodoro`/`lolcat`/`ascii`/`clip` never call `emit_json`/`is_json_on`; the global flags parse but emit NO JSON document | `display_only_omit_json` (tests/cli.rs) asserts the runnable subset live (clip piped stdin, ascii `tiny.png` fixture, lolcat arg); matrix/pomodoro (loop/block) covered by source state + a grep gate (0 non-comment matches). Each module carries a `# Spine omission (SC4)` doc note. |
+| **D-22 (07-02) du/dupes --json from existing buffered models** — du `{results:[{name,is_dir,size}],count,total_bytes,total_children}`; dupes `{results:[{size,paths}],count,wasted_bytes}` (D-11/D-17) | du's `total_bytes`/`total_children` are the full-scan `total`/`rows.len()` captured BEFORE `--top` so they stay full-scan (the human summary's invariant); `--top` still truncates `.results`. dupes serializes `Vec<PathBuf>` via a `DupeRow{size,paths:Vec<String>}` projection (`to_string_lossy().into_owned()`, D-4) — `DupeGroup` keeps `PathBuf` for the human render; empty → `{results:[],count:0,wasted_bytes:0}`. |
+| **D-23 (07-02) A4 RESOLVED — tree --json builds a REAL recursive node tree** via a NEW `build_node` recursion reusing the printer's `read_children`/`sort_children` (no-drift); `{name, type:"dir"\|"file", size?, children:[]}`, root-rule EXCEPTION (D-17) | The current flat printing recursion (`render_dir`) is untouched. `Node.type` renames `kind`; `size` is `skip_serializing_if=Option::is_none` (files only). `--depth` honored exactly like `render_dir`: `descend = depth <= max`, so a directory AT the cap appears with empty `children`. Locked by `json_recursive_shape`. |
+| **D-24 (07-02) flatten/bulk-rename --json = D-13 plan projection orthogonal to --force (D-12)** — `{results:[{src,dst,action,reason}],count,dry_run,…}`; dry-run+json=plan, real+json=executed | `action` = lowercased `RowStatus` via a shared `action_str()` reusing `kind.status()` (no-drift); the RAW fields are serialized, NEVER `format_row` output. `dry_run` flips with `--force`. Real-run captures actual `copied`/`bytes_written`. `--json` suppresses per-row human prints in the execute loop via a captured `let json = is_json_on()` guard, emitting one document after the loop. |
+| **D-25 (07-02) A3 RESOLVED — bulk-rename --force --json emits applied rows (D-12 override) + abort keeps stdout byte-empty (D-09)** | The human `--force` path stays silent-on-success; only `--json` emits rows (the whole plan projection, so non-empty). The conflict/abort path guards `print_plan_with_conflicts` behind `if !is_json_on()` — under `--json` the `bail!` error (→ stderr, exit 1 via main.rs) is the ONLY output; NO `{"error":…}` on stdout. Locked by `json_abort_empty_stdout` (tested under both dry-run and `--force`). |
 
 Full v1.0 decision log preserved in PROJECT.md Key Decisions + `.planning/milestones/v1.0-ROADMAP.md`.
 
@@ -131,8 +136,8 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then this file for position/context.
 
-**Last session:** 2026-06-25T13:40:24.630Z
-**Stopped at:** Completed 07-01-PLAN.md
+**Last session:** 2026-06-25T14:01:59.029Z
+**Stopped at:** Completed 07-02-PLAN.md
 **Resume file:** None
 
 **Next action:** `/gsd:execute-phase 7` — Spine Rollout (SPINE-02/SPINE-04). Copy the frozen Phase-6 template across the remaining applicable commands: the `{Row}/{Output}` serde struct + `is_json_on()` fork + `out_line` routing (uuid is the cleanest reference, hash adds the `path`-bearing variant), the `tests/uuid.rs::json_purity` JSON-purity test, and the `#[ignore]`d clip round-trip per command. `emit_json`/`out_line`/`is_json_on`/`config()` are all live (forward-compat allows removed). v1.0 context archived in `.planning/MILESTONES.md`.

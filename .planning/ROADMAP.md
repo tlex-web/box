@@ -92,7 +92,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 07-02-PLAN.md — Wave 7b filesystem: `--json` on `du`, `dupes`, `flatten`, `bulk-rename` (`{results,count,…}`) + `tree` recursive `{name,type,size?,children}` (A4) + bulk-rename --force-emits-rows / abort-empty-stdout forks (A3). [wave 2, depends_on 07-01]
+- [x] 07-02-PLAN.md — Wave 7b filesystem: `--json` on `du`, `dupes`, `flatten`, `bulk-rename` (`{results,count,…}`) + `tree` recursive `{name,type,size?,children}` (A4) + bulk-rename --force-emits-rows / abort-empty-stdout forks (A3). [wave 2, depends_on 07-01]
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -198,7 +198,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Terminal Visuals | v1.0 | 4/4 | Complete | 2026-06-24 |
 | 5. Windows Platform Integration | v1.0 | 4/4 | Complete | 2026-06-24 |
 | 6. Scriptable-Core Foundation | v2.0 | 2/2 | Complete | 2026-06-25 |
-| 7. Spine Rollout | v2.0 | 1/3 | In Progress|  |
+| 7. Spine Rollout | v2.0 | 2/3 | In Progress|  |
 | 8. Filesystem Depth | v2.0 | 0/6 | Not started | - |
 | 9. Dev-Transform & Visual Depth | v2.0 | 0/3 | Not started | - |
 | 10. Fun & System Depth | v2.0 | 0/2 | Not started | - |
