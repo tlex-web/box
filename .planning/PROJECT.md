@@ -68,12 +68,16 @@ The toolbox must be **globally available and instantly usable from PowerShell 7*
 - [x] Shared scriptable spine built once — `core::output` primitives (`emit_json`/`out_line`/`flush_clip`/`init_output`/`is_json_on`, JSON-purity: one document, no BOM, no ANSI, no chrome) + hand-rolled `core::config` resolver (precedence **CLI > env > config > built-in**; missing/malformed config never errors a normal command) + `BoxError::Config` (exit 2) + global `--json`/`--clip` flags. Proven end-to-end on the `uuid` + `hash` pilots; the `{results,count}` serde struct and `json_purity` test are the frozen copy-me template for the remaining 21 commands (rollout in Phases 7–10).
 - [x] BLAKE3-default `hash` (breaking change to the compute default only — `box hash file` now emits BLAKE3; `--algo sha256` and `hash.default_algo` config restore old behavior; `--verify` length table untouched so stored SHA-256 baselines never break; D-05 BLAKE3-fallback diagnostic on 64-hex mismatch).
 
+**Scriptable spine rollout** *(validated in Phase 7 — Spine Rollout, 2026-06-25)*
+- [x] `--json` on all 16 applicable value-producing commands (SPINE-02) — base64, epoch, color, passgen, 8ball, fortune, roast, cowsay, du, tree, dupes, flatten, bulk-rename, json, qr, weather — each emits exactly one parseable JSON document via the frozen Phase-6 `is_json_on()` fork + `{results,count}` (or D-17 recursive `tree`) template; per-command `json_purity` test (no `0x1B`, no BOM, single value) passes for all 16. Edge policies locked: `base64 --decode --json` re-encodes non-UTF-8 bytes losslessly (A1); `bulk-rename` conflict/abort path keeps stdout byte-empty under `--json` (A3/D-09).
+- [x] `--clip` on the 6 new single-textual-result commands (SPINE-04) — color, base64, epoch, passgen, json, qr (joining the Phase-6 uuid/hash pilots) — copies the primary text to the Windows clipboard while still printing it; `qr --clip` copies the SOURCE TEXT, not glyphs (D-15), via the one sanctioned new `core::output::clip_feed` primitive. Display-only commands (matrix, pomodoro, lolcat, ascii, clip) correctly omit the spine flags (SC4). All 6 live clipboard round-trips human/machine-verified on Windows 2026-06-25.
+
 ### Active
 
 <!-- Current scope. Building toward these. All are hypotheses until shipped. -->
 
 **v2.0 Toolbox → Toolkit** *(scoped 2026-06-24; detailed REQ-IDs land in REQUIREMENTS.md)*
-- [ ] Scriptable spine — `--json` output + `--clip` clipboard across all applicable commands *(foundation + uuid/hash pilots shipped in Phase 6; full rollout across remaining commands in Phases 7–10)*
+- [x] Scriptable spine — `--json` output + `--clip` clipboard across all applicable commands *(foundation + uuid/hash pilots shipped in Phase 6; full rollout across the remaining 16/6 commands completed in Phase 7 — SPINE-02 + SPINE-04 done)*
 - [ ] Comprehensive per-command depth — the full deferred-V2 set (FLAT / HASH / DUPE / RENM / TREE / DU / DEV / VIS / FUN / SYS / PASS-V2)
 - [x] BLAKE3-default `hash` (breaking; supersedes the `HASH-01` SHA-256 default) *(delivered in Phase 6 — compute-default flip with config/env escape hatch; verify length table unchanged)*
 - [ ] PS7 shell completions (`completions` meta-command)
@@ -139,6 +143,8 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
+*Last updated: 2026-06-25 after Phase 7 (Spine Rollout) completion — moved the full `--json`/`--clip` rollout into Validated (SPINE-02 on all 16 value commands, SPINE-04 on the 6 new clip commands; A1/A3/D-09/D-15/SC4 edge policies locked; `clip_feed` added as the one sanctioned new primitive). The milestone-level "Scriptable spine" Active item is now fully shipped. Next: Phase 8 — Filesystem Depth (the deferred depth flags on the six filesystem commands, including the three destructive flags under adversarial review).*
+
 *Last updated: 2026-06-25 after Phase 6 (Scriptable-Core Foundation) completion — moved the shared `--json`/`--clip`/config spine foundation and the BLAKE3-default `hash` flip into Validated (proven on the `uuid`+`hash` pilots; `{results,count}`/`json_purity` frozen as the Phase-7 rollout template); annotated the milestone-level Active items with their Phase-6 progress. Next: Phase 7 — Spine Rollout (apply the template to the remaining applicable commands).*
 
 *Last updated: 2026-06-24 after v2.0 milestone kickoff (/gsd:new-milestone) — added Current Milestone (Toolbox → Toolkit); Active set to v2.0 scope (scriptable `--json`/`--clip` spine + comprehensive per-command depth + PS7 completions + config-file defaults); BLAKE3-default `hash` recorded as the breaking change; self-update & Scoop/winget packaging held out of scope. Next: research → REQUIREMENTS.md (REQ-IDs) → ROADMAP.md (phases continue numbering from v1's Phase 5).*
