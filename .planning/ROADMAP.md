@@ -64,7 +64,7 @@ Full phase details, decisions, and outcomes archived in [`milestones/v1.0-ROADMA
 Plans:
 **Wave 1**
 
-- [ ] 06-01-PLAN.md — Shared spine: `core::output` primitives (`JSON_ON`/`CLIP_ON`/`CLIP_BUF`, `init_output`, `is_json_on`, `emit_json`, `out_line`, `flush_clip`) + NEW `core::config` (`Config`, `load`, `OnceLock`, `config()`, `init_config`) + `BoxError::Config` (exit-2) + global `--json`/`--clip` on `Cli` + `main.rs` ordering/flush wiring + precedence/missing/malformed tests. [wave 1]
+- [x] 06-01-PLAN.md — Shared spine: `core::output` primitives (`JSON_ON`/`CLIP_ON`/`CLIP_BUF`, `init_output`, `is_json_on`, `emit_json`, `out_line`, `flush_clip`) + NEW `core::config` (`Config`, `load`, `OnceLock`, `config()`, `init_config`) + `BoxError::Config` (exit-2) + global `--json`/`--clip` on `Cli` + `main.rs` ordering/flush wiring + precedence/missing/malformed tests. [wave 1] ✅ 2026-06-25
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -189,7 +189,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. Filesystem Power Tools | v1.0 | 5/5 | Complete | 2026-06-23 |
 | 4. Terminal Visuals | v1.0 | 4/4 | Complete | 2026-06-24 |
 | 5. Windows Platform Integration | v1.0 | 4/4 | Complete | 2026-06-24 |
-| 6. Scriptable-Core Foundation | v2.0 | 0/2 | Not started | - |
+| 6. Scriptable-Core Foundation | v2.0 | 1/2 | In progress | - |
 | 7. Spine Rollout | v2.0 | 0/3 | Not started | - |
 | 8. Filesystem Depth | v2.0 | 0/6 | Not started | - |
 | 9. Dev-Transform & Visual Depth | v2.0 | 0/3 | Not started | - |

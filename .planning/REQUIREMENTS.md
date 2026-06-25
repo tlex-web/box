@@ -36,7 +36,7 @@ Each maps to exactly one roadmap phase. REQ-IDs continue the per-command mnemoni
 - [ ] **SPINE-02**: `--json` is available on every applicable value-producing command, all following the SPINE-01 house style: `base64`, `epoch`, `color`, `passgen`, `8ball`, `fortune`, `roast`, `cowsay`, `du`, `tree`, `dupes`, `flatten`, `bulk-rename`, `json`, `qr`, `weather`.
 - [ ] **SPINE-03**: `box <cmd> --clip` copies the primary result to the Windows clipboard (copy **and** print; "Copied to clipboard" confirmation to stderr, suppressed when not a TTY; raw text, or the JSON document under `--json --clip`) — established on the pilot commands.
 - [ ] **SPINE-04**: `--clip` is available on every single-textual-result command: `passgen`, `uuid`, `color`, `hash`, `base64`, `epoch`, `json`, `qr` (text payload).
-- [ ] **SPINE-05**: Config-file defaults resolve with strict precedence **CLI flag > env var > config file > built-in default**; a missing or malformed config file falls back to built-in defaults without erroring a normal command (hand-rolled `toml` + `dirs`, `%APPDATA%\box\config.toml`).
+- [x] **SPINE-05**: Config-file defaults resolve with strict precedence **CLI flag > env var > config file > built-in default**; a missing or malformed config file falls back to built-in defaults without erroring a normal command (hand-rolled `toml` + `dirs`, `%APPDATA%\box\config.toml`). *(06-01: precedence resolver + missing-silent + malformed-exit-2 integration-tested; env tier wires live in 06-02 hash)*
 
 ### Meta-commands
 
@@ -121,9 +121,9 @@ Each requirement maps to exactly one roadmap phase (finalized 2026-06-25 by road
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SPINE-01 | 6 | Pending |
-| SPINE-03 | 6 | Pending |
-| SPINE-05 | 6 | Pending |
+| SPINE-01 | 6 | In progress (primitives shipped 06-01; established/contract-tested on pilots in 06-02) |
+| SPINE-03 | 6 | In progress (primitives shipped 06-01; established on pilots in 06-02) |
+| SPINE-05 | 6 | Complete (06-01) |
 | HASH-V2-01 | 6 | Pending |
 | SPINE-02 | 7 | Pending |
 | SPINE-04 | 7 | Pending |
