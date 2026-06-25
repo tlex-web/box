@@ -246,3 +246,101 @@ fn dupes_missing_path_friendly_error() {
         "a missing path must produce a clear 'no such directory' error naming the path, got: {stderr:?}"
     );
 }
+
+// --- Scriptable spine (SPINE-02, Wave-7b) — copied from tests/uuid.rs:135 -------
+//
+// `box dupes <dir> --json` emits ONE `{results,count,wasted_bytes}` document
+// (D-17): each `.results` group is `{size, paths:[…]}` where `paths` are lossy
+// STRINGS (D-4 — never `to_str().unwrap()`), `count` is the number of groups, and
+// `wasted_bytes` is the redundant-copy total. Purity: one JSON value, no 0x1B, no
+// BOM.
+
+/// Capture `box dupes <path> [args]` raw stdout bytes + exit status, for the
+/// JSON-purity assertions (raw bytes, not a trimmed String). Forces `NO_COLOR=1`.
+fn dupes_output(path: &Path, args: &[&str]) -> std::process::Output {
+    let mut cmd = Command::cargo_bin("box").unwrap();
+    cmd.arg("dupes").arg(path);
+    for a in args {
+        cmd.arg(a);
+    }
+    cmd.env("NO_COLOR", "1");
+    cmd.output().expect("run box dupes")
+}
+
+/// SPINE-02 — `box dupes <dir> --json` emits exactly one well-formed JSON document
+/// `{"results":[{"size":N,"paths":["…","…"]}],"count":N,"wasted_bytes":N}`:
+/// `.results[*].paths` is a STRING array (D-4 lossy), `.wasted_bytes` is present,
+/// with no ANSI and no BOM. Runnable via `cargo test --test dupes json_purity`.
+#[test]
+fn json_purity() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+
+    // A confirmed duplicate pair (identical content) so there is at least one
+    // group; the JSON path must serialize its paths as strings.
+    let payload = b"DUPLICATE PAYLOAD - identical bytes\n";
+    fs::write(root.join("dup_one.txt"), payload).unwrap();
+    fs::write(root.join("dup_two.txt"), payload).unwrap();
+    // A unique file (never grouped).
+    fs::write(root.join("unique.txt"), b"a one-of-a-kind payload\n").unwrap();
+
+    let out = dupes_output(root, &["--json"]);
+    assert!(out.status.success(), "box dupes --json should exit 0");
+
+    // 1. stdout parses as EXACTLY one JSON value (whole-buffer from_slice).
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+
+    // 2. The D-17 shape: `{results, count, wasted_bytes}`.
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .expect("`.results` must be an array");
+    assert_eq!(results.len(), 1, "exactly one duplicate group");
+    assert_eq!(
+        v.get("count"),
+        Some(&serde_json::json!(1)),
+        "`.count` is the number of groups"
+    );
+
+    // 3. `.wasted_bytes` is present and numeric ((2-1)*size for the pair).
+    let wasted = v
+        .get("wasted_bytes")
+        .and_then(|w| w.as_u64())
+        .expect("`.wasted_bytes` must be a number");
+    assert_eq!(
+        wasted,
+        payload.len() as u64,
+        "wasted = (2-1) * file_size for the single duplicate pair"
+    );
+
+    // 4. The group carries a numeric `size` and a `paths` STRING array (D-4 lossy).
+    let group = &results[0];
+    assert!(
+        group.get("size").and_then(|s| s.as_u64()).is_some(),
+        "the group carries a numeric `size`: {group}"
+    );
+    let paths = group
+        .get("paths")
+        .and_then(|p| p.as_array())
+        .expect("`.results[0].paths` must be an array");
+    assert_eq!(paths.len(), 2, "the duplicate pair has two paths");
+    for p in paths {
+        assert!(
+            p.as_str().is_some(),
+            "every path is serialized as a string (to_string_lossy, D-4): {p}"
+        );
+    }
+
+    // 5. PURITY — no ANSI escape (0x1B) anywhere.
+    assert!(
+        !out.stdout.contains(&0x1Bu8),
+        "no ANSI escape may appear in --json stdout"
+    );
+    // 6. PURITY — no UTF-8 BOM (EF BB BF) at the front.
+    assert_ne!(
+        &out.stdout[..3.min(out.stdout.len())],
+        b"\xEF\xBB\xBF",
+        "no UTF-8 BOM may prefix --json stdout"
+    );
+}

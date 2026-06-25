@@ -257,3 +257,89 @@ fn du_zero_depth_and_top_rejected() {
     du(root, &["--depth", "1"]).success();
     du(root, &["--top", "1"]).success();
 }
+
+// --- Scriptable spine (SPINE-02, Wave-7b) — copied from tests/uuid.rs:135 -------
+//
+// `box du <dir> --json` emits ONE `{results,count,total_bytes,total_children}`
+// document (D-11): each `.results` row is `{name, is_dir, size}` with a BARE u64
+// `size` (D-3), all human chrome (the blank line + summary) suppressed. Purity:
+// one JSON value, no 0x1B ANSI, no UTF-8 BOM.
+
+/// Capture `box du <path> [args]` raw stdout bytes + exit status, for the
+/// JSON-purity assertions (raw bytes, not a trimmed String). Forces `NO_COLOR=1`.
+fn du_output(path: &Path, args: &[&str]) -> std::process::Output {
+    let mut cmd = Command::cargo_bin("box").unwrap();
+    cmd.arg("du").arg(path);
+    for a in args {
+        cmd.arg(a);
+    }
+    cmd.env("NO_COLOR", "1");
+    cmd.output().expect("run box du")
+}
+
+/// SPINE-02 — `box du <dir> --json` emits exactly one well-formed JSON document
+/// `{"results":[{"name":…,"is_dir":…,"size":N}],"count":N,"total_bytes":N,
+/// "total_children":N}`: `.results` is an array, `.count` matches, every row
+/// carries a numeric `size`, with no ANSI and no BOM. Runnable via
+/// `cargo test --test du json_purity`.
+#[test]
+fn json_purity() {
+    let fixture = build_fixture();
+    let out = du_output(fixture.path(), &["--json"]);
+    assert!(out.status.success(), "box du --json should exit 0");
+
+    // 1. stdout parses as EXACTLY one JSON value (whole-buffer from_slice).
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+
+    // 2. The D-11 shape: an object wrapping a `results` array + a `count`.
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .expect("`.results` must be an array");
+    // The fixture has 3 immediate children (big/, mid/, small.txt).
+    assert_eq!(results.len(), 3, "fixture has 3 immediate children");
+    assert_eq!(
+        v.get("count"),
+        Some(&serde_json::json!(3)),
+        "`.count` must match the results length"
+    );
+
+    // 3. Every row carries a NUMERIC `size` (bare u64, D-3) + a string `name`.
+    for row in results {
+        assert!(
+            row.get("size").and_then(|s| s.as_u64()).is_some(),
+            "every row carries a numeric `size`: {row}"
+        );
+        assert!(
+            row.get("name").and_then(|n| n.as_str()).is_some(),
+            "every row carries a string `name`: {row}"
+        );
+        assert!(
+            row.get("is_dir").and_then(|d| d.as_bool()).is_some(),
+            "every row carries a boolean `is_dir`: {row}"
+        );
+    }
+    // The full-scan sibling totals are present and numeric.
+    assert!(
+        v.get("total_bytes").and_then(|t| t.as_u64()).is_some(),
+        "`.total_bytes` must be a number"
+    );
+    assert_eq!(
+        v.get("total_children"),
+        Some(&serde_json::json!(3)),
+        "`.total_children` must be the full child count"
+    );
+
+    // 4. PURITY — no ANSI escape (0x1B) anywhere.
+    assert!(
+        !out.stdout.contains(&0x1Bu8),
+        "no ANSI escape may appear in --json stdout"
+    );
+    // 5. PURITY — no UTF-8 BOM (EF BB BF) at the front.
+    assert_ne!(
+        &out.stdout[..3.min(out.stdout.len())],
+        b"\xEF\xBB\xBF",
+        "no UTF-8 BOM may prefix --json stdout"
+    );
+}
