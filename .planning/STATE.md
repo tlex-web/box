@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
-status: ready_to_plan
-stopped_at: Phase 06 complete (2/2) — ready to discuss Phase 7
-last_updated: 2026-06-25T00:42:31.178Z
-last_activity: 2026-06-25 -- 06-02 executed (uuid+hash --json/--clip pilots, BLAKE3 default, D-05 probe)
+status: planning
+stopped_at: Phase 7 context gathered
+last_updated: "2026-06-25T12:18:42.424Z"
+last_activity: 2026-06-25
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 18
+  total_plans: 2
   completed_plans: 2
-  percent: 11
+  percent: 17
 ---
 
 # Project State: box — Rust CLI Toolbox
@@ -126,9 +126,9 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then this file for position/context.
 
-**Last session:** 2026-06-25 — execute-plan (06-02: uuid+hash spine pilots, BLAKE3-default flip, D-05 probe)
-**Stopped at:** Phase 6 COMPLETE (both waves) — spine built (06-01) and proven on uuid+hash (06-02); SPINE-01/SPINE-03/HASH-V2-01 done; full test suite green (25 binaries), clippy `-D warnings` + fmt clean
-**Resume file:** .planning/phases/06-scriptable-core-foundation/06-02-SUMMARY.md
+**Last session:** 2026-06-25T12:18:42.395Z
+**Stopped at:** Phase 7 context gathered
+**Resume file:** .planning/phases/07-spine-rollout/07-CONTEXT.md
 
 **Next action:** `/gsd:execute-phase 7` — Spine Rollout (SPINE-02/SPINE-04). Copy the frozen Phase-6 template across the remaining applicable commands: the `{Row}/{Output}` serde struct + `is_json_on()` fork + `out_line` routing (uuid is the cleanest reference, hash adds the `path`-bearing variant), the `tests/uuid.rs::json_purity` JSON-purity test, and the `#[ignore]`d clip round-trip per command. `emit_json`/`out_line`/`is_json_on`/`config()` are all live (forward-compat allows removed). v1.0 context archived in `.planning/MILESTONES.md`.
 
