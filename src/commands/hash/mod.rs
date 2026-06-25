@@ -1,19 +1,33 @@
-//! The `hash` command: compute and verify file checksums (HASH-01).
+//! The `hash` command: compute and verify file checksums (HASH-01 / HASH-V2-01).
 //!
-//! Streaming, enum-dispatch hasher (D-03): SHA-256 (default), BLAKE3, SHA-512,
-//! and MD5 selected by `--algo`. Input is a path / stdin / `--file` routed through
-//! [`crate::core::input::read_file_or_stdin`] (the deferred `--file` layer this
-//! command is the first consumer of, D-05), and is **streamed** into the hasher —
-//! never buffered whole (no `read_to_end` of a multi-GB payload, T-03-03).
+//! Streaming, enum-dispatch hasher (D-03): BLAKE3 (the v2 COMPUTE default — D-04),
+//! SHA-256, SHA-512, and MD5 selected by `--algo`. Input is a path / stdin /
+//! `--file` routed through [`crate::core::input::read_file_or_stdin`] (the deferred
+//! `--file` layer this command is the first consumer of, D-05), and is **streamed**
+//! into the hasher — never buffered whole (no `read_to_end` of a multi-GB payload,
+//! T-03-03).
+//!
+//! **BLAKE3-default (HASH-V2-01, breaking — COMPUTE only):** `box hash <file>` with
+//! no `--algo` now emits BLAKE3 where v1 emitted SHA-256. The precedence is
+//! CLI > env (`BOX_HASH_DEFAULT_ALGO`) > config (`default_hash_algo`) > builtin
+//! BLAKE3 (SPINE-05), so `--algo sha256` or a config key restore SHA-256. The
+//! `--verify` length table is UNCHANGED (a bare 64-hex still maps to sha256), so no
+//! stored SHA-256 baseline silently breaks; a 64-hex mismatch with no `--algo`
+//! prints a BLAKE3-fallback diagnostic hint on stderr (D-05).
+//!
+//! `--json` (SPINE-01 / D-02): `box hash <file> --json` emits one
+//! `{"results":[{"path":…,"algo":…,"digest":…}],"count":1}` document; `--clip`
+//! tees the digest to the clipboard via `out_line` (SPINE-03 / D-07).
 //!
 //! `--verify EXPECTEDHASH` (D-04):
 //! - the algorithm is the explicit `--algo` if set, else auto-detected by the hex
-//!   length: 32→md5, 64→**sha256** (wins the sha256/blake3 tie), 128→sha512;
+//!   length: 32→md5, 64→**sha256** (wins the sha256/blake3 tie — UNCHANGED), 128→sha512;
 //!   any other length is a usage error → exit 2 via [`BoxError::UnsupportedHashLength`].
 //! - comparison is case-insensitive and plain (`eq_ignore_ascii_case`), NOT
 //!   constant-time: a checksum is a PUBLIC integrity value, not a secret (T-03-01).
 //! - match → exit 0 (no output); mismatch → a clear stderr message → exit 1 (a
-//!   plain `anyhow` error, NOT the exit-2 variant, RESEARCH Pitfall 1).
+//!   plain `anyhow` error, NOT the exit-2 variant, RESEARCH Pitfall 1). A 64-hex
+//!   mismatch with no `--algo` (not under `--json`) also prints the D-05 hint.
 //!
 //! Hex encoding (open item resolved): RustCrypto arms use `const-hex::encode`
 //! (already on hand — no `base16ct` `alloc` feature toggle needed); blake3
@@ -41,9 +55,11 @@ const READ_BUF: usize = 64 * 1024;
 /// checksum (HASH-01). Reads PATH, piped stdin, or `-` via the shared input layer.
 #[derive(Debug, Args)]
 pub struct HashArgs {
-    /// Hash algorithm. Unset means sha256 when computing, or (under `--verify`)
-    /// auto-detect by the digest's hex length. An EXPLICIT `--algo` ALWAYS wins —
-    /// it is never overridden by length auto-detection (WR-01).
+    /// Hash algorithm. Unset means BLAKE3 when computing (the v2 default — D-04;
+    /// pass `--algo sha256` or set `default_hash_algo` in the config to restore
+    /// SHA-256), or (under `--verify`) auto-detect by the digest's hex length. An
+    /// EXPLICIT `--algo` ALWAYS wins — it is never overridden by length
+    /// auto-detection (WR-01).
     #[arg(long, value_enum)]
     pub algo: Option<Algo>,
 
@@ -61,23 +77,56 @@ pub struct HashArgs {
 /// The supported hash algorithms (D-02). Value spellings are locked to
 /// `sha256`/`blake3`/`sha512`/`md5` (Discretion D); excludes sha1/sha224/sha384.
 ///
-/// `serde::Deserialize` (+ `#[serde(rename_all = "lowercase")]`) is added here as
-/// the minimal cross-plan edit for Phase 6 Plan 01: `core::config::Config` carries
-/// an `Option<Algo>` field, and `deny_unknown_fields` Deserialize on that struct
-/// requires `Algo: Deserialize` to compile. The lowercase rename lets a TOML value
-/// `default_hash_algo = "sha256"` round-trip into `Algo::Sha256`. The matching
-/// `serde::Serialize` derive (for `--json` output) lands in Plan 06-02.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, serde::Deserialize)]
+/// Round-trips BOTH directions of the spine (06-02):
+/// - `serde::Deserialize` (+ `#[serde(rename_all = "lowercase")]`, added in 06-01)
+///   lets the config value `default_hash_algo = "sha256"` parse into `Algo::Sha256`;
+/// - `serde::Serialize` (added here, 06-02) lets the `--json` output serialize
+///   `Algo::Blake3` to the lowercase `"blake3"` literal in the `HashRow.algo` field.
+///
+/// The lowercase spellings also match the `ValueEnum` variants, so [`parse_algo`]
+/// can reuse `ValueEnum::from_str` as the ONE env+config string→`Algo` parse path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Algo {
-    /// SHA-256 (default).
+    /// SHA-256 (the v1 default; restored via `--algo sha256` or the config key).
     Sha256,
-    /// BLAKE3.
+    /// BLAKE3 (the v2 COMPUTE default — D-04).
     Blake3,
     /// SHA-512.
     Sha512,
     /// MD5 (legacy interop only — not a security guarantee).
     Md5,
+}
+
+/// Parse an environment-variable (or any string) value into an [`Algo`], reusing
+/// the `ValueEnum` parser so env, config, and `--algo` all share ONE spelling
+/// table (`sha256`/`blake3`/`sha512`/`md5`, case-insensitive). Returns `None` for
+/// an unrecognized value — the env tier then simply falls through to the next
+/// precedence tier rather than erroring a normal `box hash` (Anti-Pattern 3).
+fn parse_algo(s: &str) -> Option<Algo> {
+    Algo::from_str(s, true).ok()
+}
+
+/// One row of `box hash --json` output (D-03 field names: `path`, `algo`,
+/// `digest`). `algo` serializes lowercase (`"blake3"`) via the enum's
+/// `rename_all`. The `digest` and `algo` come from the SAME compute the human row
+/// prints, so the JSON can never report a different digest than the `<hash>
+/// <label>` line (no-drift, Pattern 2).
+#[derive(serde::Serialize)]
+struct HashRow {
+    path: String,
+    algo: Algo,
+    digest: String,
+}
+
+/// The `box hash --json` document (D-01/D-02): a `results` array wrapped in an
+/// object with a `count`, ALWAYS wrapped even for the single-file Phase-6 case
+/// (so the shape stays compatible with Phase-8 multi-file `hash`). Locked field
+/// names: `results`, `count`.
+#[derive(serde::Serialize)]
+struct HashOutput {
+    results: Vec<HashRow>,
+    count: usize,
 }
 
 /// Auto-detect the algorithm for a `--verify` value by its hex length (D-04):
@@ -135,6 +184,18 @@ fn digest_reader<R: Read>(algo: Algo, reader: R) -> anyhow::Result<String> {
 
 impl RunCommand for HashArgs {
     fn run(self) -> anyhow::Result<()> {
+        // Capture the explicit `--algo` and the original path string BEFORE
+        // `read_file_or_stdin` consumes `self.path`. `path_for_probe` is `Some`
+        // only for a real on-disk path (NOT stdin/`-`), which is exactly the D-05
+        // re-open precondition: the streaming `input.reader` is single-pass
+        // (`Box<dyn Read>`, consumed by `digest_reader`), so the BLAKE3 probe must
+        // re-open the file — and there is no second read for piped stdin.
+        let cli_algo = self.algo;
+        let path_for_probe = match self.path.as_deref() {
+            Some(p) if p != "-" => Some(p.to_string()),
+            _ => None,
+        };
+
         // Acquire a STREAMING input source: path / `--file` (ahead of stdin) /
         // piped stdin / exit-2-on-no-arg-TTY — all inherited from core::input.
         let input = read_file_or_stdin(self.path)?;
@@ -142,10 +203,13 @@ impl RunCommand for HashArgs {
 
         match self.verify {
             // --verify: pick the algorithm — an EXPLICIT --algo ALWAYS wins; only
-            // a truly-unset --algo falls back to length auto-detect (WR-01).
+            // a truly-unset --algo falls back to length auto-detect (WR-01). The
+            // verify length table (algo_from_len) is UNCHANGED by the v2 flip: a
+            // bare 64-hex still maps to sha256, so stored SHA-256 baselines never
+            // silently break (D-04, the #1 v2 data-risk backstop).
             Some(expected) => {
                 let expected = expected.trim();
-                let algo = match self.algo {
+                let algo = match cli_algo {
                     // Explicit choice is honored verbatim, even when the digest's
                     // length would map to a DIFFERENT algorithm (e.g. `--algo
                     // sha256 --verify <32-hex>` is sha256, NOT md5).
@@ -159,20 +223,109 @@ impl RunCommand for HashArgs {
                     // Match → exit 0, no extra output (quiet success).
                     Ok(())
                 } else {
+                    // D-05 BLAKE3-fallback probe: on a 64-hex mismatch with NO
+                    // explicit --algo (so the value was verified as sha256) and
+                    // NOT under --json (the probe is a human stderr hint — D-09
+                    // keeps the JSON channel pure), emit a transitional hint. When
+                    // a real path is available we re-open it and compute BLAKE3:
+                    // if the value MATCHES the file's blake3 the hint is DECISIVE;
+                    // otherwise (or for piped stdin, where no second read exists)
+                    // it degrades to the STATIC transitional hint.
+                    if expected.len() == 64
+                        && cli_algo.is_none()
+                        && !crate::core::output::is_json_on()
+                    {
+                        emit_blake3_probe_hint(expected, path_for_probe.as_deref());
+                    }
                     // Mismatch → a plain anyhow error (exit 1), NOT the exit-2
-                    // UnsupportedHashLength variant (RESEARCH Pitfall 1).
+                    // UnsupportedHashLength variant (RESEARCH Pitfall 1). Exit
+                    // STAYS 1 — the probe above only adds a stderr hint.
                     bail!("hash mismatch for {label}: expected {expected}, got {computed}");
                 }
             }
-            // No --verify: print `<hash>  <label>` (two spaces, coreutils — D-01).
-            // An unset --algo defaults to sha256 (D-02).
+            // No --verify: COMPUTE the digest. Precedence is CLI > env > config >
+            // builtin (SPINE-05): an explicit `--algo`, else `BOX_HASH_DEFAULT_ALGO`,
+            // else the config `default_hash_algo`, else the v2 builtin BLAKE3 (D-04
+            // — the breaking compute-default flip; v1 defaulted to SHA-256). The
+            // env tier is wired live here (06-02), reusing `parse_algo` so env and
+            // config share ONE spelling parser.
             None => {
-                let algo = self.algo.unwrap_or(Algo::Sha256);
+                let algo = cli_algo
+                    .or_else(|| {
+                        std::env::var("BOX_HASH_DEFAULT_ALGO")
+                            .ok()
+                            .and_then(|s| parse_algo(&s))
+                    })
+                    .or(crate::core::config::config().default_hash_algo)
+                    .unwrap_or(Algo::Blake3);
                 let computed = digest_reader(algo, input.reader)?;
-                println!("{computed}  {label}");
+                // Fork on is_json_on() FIRST (Pitfall 1): the only stdout write
+                // under --json is emit_json. The human path keeps the two-space
+                // coreutils `<hash>  <label>` row (D-01) and routes through
+                // out_line so --clip tees the digest (D-07).
+                if crate::core::output::is_json_on() {
+                    let doc = HashOutput {
+                        count: 1,
+                        results: vec![HashRow {
+                            // `label` is already an owned String (the path, or `-`
+                            // for stdin). Never `to_str().unwrap()` — a non-UTF-8
+                            // path policy is `to_string_lossy()` (D-4), but `label`
+                            // is already lossy-safe here.
+                            path: label.clone(),
+                            algo,
+                            digest: computed,
+                        }],
+                    };
+                    crate::core::output::emit_json(&doc)?;
+                } else {
+                    crate::core::output::out_line(&format!("{computed}  {label}"));
+                }
                 Ok(())
             }
         }
+    }
+}
+
+/// Emit the D-05 BLAKE3-fallback hint on stderr (caller has already checked the
+/// 64-hex + no-`--algo` + not-`--json` precondition). When a real `path` is
+/// available, re-open it (the streaming reader was single-pass) and compute its
+/// BLAKE3: if it equals `expected` (case-insensitive) the hint is DECISIVE
+/// ("re-run with `--algo blake3`"); otherwise — or when the source was piped
+/// stdin (`path` is `None`), which cannot be re-read — it degrades to the STATIC
+/// transitional hint. stderr-only (the `bail!` carries the real error); the
+/// emphasis is gated on `is_color_on()` so the plain text is byte-identical minus
+/// ANSI (D-05).
+fn emit_blake3_probe_hint(expected: &str, path: Option<&str>) {
+    use owo_colors::OwoColorize;
+
+    // The literal users grep for (and the test pins) is `--algo blake3`.
+    let flag = "--algo blake3";
+    let flag_styled = if crate::core::output::is_color_on() {
+        flag.yellow().to_string()
+    } else {
+        flag.to_string()
+    };
+
+    // Decisive only when we can re-open a real path AND its blake3 matches.
+    let decisive = match path {
+        Some(p) => match read_file_or_stdin(Some(p.to_string())) {
+            Ok(reopened) => match digest_reader(Algo::Blake3, reopened.reader) {
+                Ok(b3) => b3.eq_ignore_ascii_case(expected),
+                Err(_) => false,
+            },
+            Err(_) => false,
+        },
+        None => false,
+    };
+
+    if decisive {
+        eprintln!(
+            "hint: the digest does not match as sha256, but it MATCHES this file's blake3 — re-run with `{flag_styled}`"
+        );
+    } else {
+        eprintln!(
+            "hint: the default hash algorithm is now blake3 — pass `{flag_styled}` if this is a blake3 digest"
+        );
     }
 }
 

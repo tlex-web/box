@@ -13,6 +13,12 @@
 
 use assert_cmd::Command;
 use assert_fs::prelude::*;
+use predicates::prelude::*;
+
+/// Known-answer digests of `b"box"` (mirrors `tests/hash.rs`), used by the
+/// `hash_default_override` precedence round-trip.
+const BOX_SHA256: &str = "26f8567f2569182294c3fa5b9f9cb2270b554eef628b4c149cf82a42888ff4ae";
+const BOX_BLAKE3: &str = "095dfefdedb7f0870e801730da35823caaa8e969078e53b6e262c66f1a5b1c1e";
 
 /// Build a `box <subcommand> <args...>` command with deterministic output and an
 /// isolated, empty config dir (`APPDATA` → `appdata`, which has no `box/` subdir
@@ -98,34 +104,39 @@ fn malformed_exit2() {
     );
 }
 
-/// SPINE-05 — a VALID config containing `default_hash_algo = "sha256"` (the
-/// Phase-6 lean flat key) parses WITHOUT erroring `box uuid` (exit 0, no stderr).
-/// The full "config restores SHA-256 default + CLI --algo blake3 still wins"
-/// round-trip assertion lives in 06-02 (hash adopts the config tier there).
+/// SPINE-05 / HASH-V2-01 / ROADMAP success #4 — the FULL config-precedence
+/// round-trip now that `hash` adopts the config tier (06-02):
+///   - config `default_hash_algo = "sha256"` → `box hash <file>` restores SHA-256
+///     (the escape hatch for the BLAKE3-default breaking change: config beats the
+///     built-in BLAKE3);
+///   - `box hash --algo blake3 <file>` under the SAME config still emits BLAKE3
+///     (CLI > config — the precedence by construction, T-06-05).
+///
 /// Runnable via `cargo test --test config hash_default_override`.
 #[test]
 fn hash_default_override() {
     let appdata = assert_fs::TempDir::new().unwrap();
     write_config(&appdata, "default_hash_algo = \"sha256\"\n");
 
-    let out = box_cmd(&appdata, "uuid", &[])
-        .output()
-        .expect("run box uuid");
+    // A `b"box"` fixture in its own temp dir (kept separate from the APPDATA dir).
+    let work = assert_fs::TempDir::new().unwrap();
+    let f = work.child("box.bin");
+    f.write_binary(b"box").unwrap();
+    let path = f.path().to_str().unwrap();
+    let row_sha256 = format!("{BOX_SHA256}  {path}");
+    let row_blake3 = format!("{BOX_BLAKE3}  {path}");
 
-    assert_eq!(
-        out.status.code(),
-        Some(0),
-        "a valid `default_hash_algo` config must parse without erroring, got {:?} / stderr: {}",
-        out.status.code(),
-        String::from_utf8_lossy(&out.stderr)
-    );
-    assert!(
-        out.stderr.is_empty(),
-        "a valid config must produce no stderr, got: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    assert!(
-        !out.stdout.trim_ascii().is_empty(),
-        "box uuid must still print a UUID with a valid config present"
-    );
+    // config restores SHA-256 (config beats the built-in BLAKE3 default).
+    box_cmd(&appdata, "hash", &[path])
+        .assert()
+        .success()
+        .code(0)
+        .stdout(predicate::str::contains(row_sha256));
+
+    // CLI --algo blake3 STILL wins over the config sha256 (CLI > config).
+    box_cmd(&appdata, "hash", &["--algo", "blake3", path])
+        .assert()
+        .success()
+        .code(0)
+        .stdout(predicate::str::contains(row_blake3));
 }

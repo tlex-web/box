@@ -87,10 +87,9 @@ static CLIP_BUF: Mutex<String> = Mutex::new(String::new());
 /// Whether `--json` is active. Commands check this FIRST and fork their output:
 /// `emit_json(&doc)` on true, the human render via [`out_line`] otherwise (Pitfall 1).
 ///
-/// Forward-compat `#[allow(dead_code)]` (allow-then-remove): the spine lands in
-/// Plan 06-01; `uuid`/`hash` are its first consumers in Plan 06-02 (wave 2), where
-/// these allows are removed.
-#[allow(dead_code)]
+/// Live as of Plan 06-02: `uuid` and `hash` are the first consumers, so the
+/// forward-compat `#[allow(dead_code)]` has been removed (allow-then-remove),
+/// restoring the strict dead-code gate on this primitive.
 pub fn is_json_on() -> bool {
     JSON_ON.load(Ordering::Relaxed)
 }
@@ -120,8 +119,8 @@ pub fn init_output(json: bool, clip: bool) {
 /// Pitfall 1/2). Under `--clip`, also tees the whole document into `CLIP_BUF`
 /// (D-08 — `box … --json --clip` copies the machine-readable doc).
 ///
-/// Forward-compat `#[allow(dead_code)]`: first consumed by `uuid`/`hash` in 06-02.
-#[allow(dead_code)]
+/// Live as of Plan 06-02 (first consumed by `uuid`/`hash`): the forward-compat
+/// `#[allow(dead_code)]` has been removed (allow-then-remove).
 pub fn emit_json<T: serde::Serialize>(value: &T) -> anyhow::Result<()> {
     use std::io::Write;
     let mut out = std::io::stdout().lock();
@@ -139,8 +138,8 @@ pub fn emit_json<T: serde::Serialize>(value: &T) -> anyhow::Result<()> {
 /// tees the line (plus a `\n`) into `CLIP_BUF` so [`flush_clip`] can copy the full
 /// output later (SPINE-03 / D-07).
 ///
-/// Forward-compat `#[allow(dead_code)]`: first consumed by `uuid`/`hash` in 06-02.
-#[allow(dead_code)]
+/// Live as of Plan 06-02 (first consumed by `uuid`/`hash`): the forward-compat
+/// `#[allow(dead_code)]` has been removed (allow-then-remove).
 pub fn out_line(s: &str) {
     println!("{s}");
     if CLIP_ON.load(Ordering::Relaxed) {

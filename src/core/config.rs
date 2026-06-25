@@ -52,11 +52,10 @@ static CONFIG: OnceLock<Config> = OnceLock::new();
 /// The loaded config. Panics if [`init_config`] has not run — it is called once in
 /// `main()` before dispatch, so any command that reaches this has a config.
 ///
-/// Forward-compat `#[allow(dead_code)]` (allow-then-remove, mirroring errors.rs's
-/// `MissingInput` history): the spine lands in Plan 06-01, but its first consumer
-/// is `hash` in Plan 06-02 (wave 2). The allow is removed there once `hash` reads
-/// `config().default_hash_algo`.
-#[allow(dead_code)]
+/// Live as of Plan 06-02: `hash` reads `config().default_hash_algo` in its
+/// compute-default precedence chain, so the forward-compat `#[allow(dead_code)]`
+/// has been removed (allow-then-remove, mirroring errors.rs's `MissingInput`
+/// history), restoring the strict dead-code gate.
 pub fn config() -> &'static Config {
     CONFIG
         .get()

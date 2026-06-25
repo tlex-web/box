@@ -46,13 +46,26 @@ fn row(hash: &str, label: &Path) -> String {
     format!("{hash}  {}", label.display())
 }
 
-/// HASH-01 — `box hash <file>` defaults to SHA-256 and prints
-/// `<sha256>  <filename>` (two spaces) and exits 0.
+/// HASH-V2-01 / D-04 — `box hash <file>` now defaults to BLAKE3 (the v2 breaking
+/// COMPUTE-default flip; v1 emitted SHA-256). Prints `<blake3>  <filename>` (two
+/// spaces) and exits 0. An EXPLICIT `--algo sha256` still emits SHA-256 (the CLI
+/// flag wins, the escape hatch). This is the ONE existing default assertion whose
+/// expectation legitimately changes. Runnable via
+/// `cargo test --test hash default_is_blake3`.
 #[test]
-fn hash_default_sha256() {
+fn default_is_blake3() {
     let dir = assert_fs::TempDir::new().unwrap();
     let f = box_file(&dir);
-    hash_cmd(&[f.path().to_str().unwrap()])
+    let path = f.path().to_str().unwrap();
+
+    // No --algo, no config → the new BLAKE3 default (D-04).
+    hash_cmd(&[path])
+        .success()
+        .code(0)
+        .stdout(predicate::str::contains(row(BOX_BLAKE3, f.path())));
+
+    // Explicit --algo sha256 still emits SHA-256 (CLI flag wins — ROADMAP #3).
+    hash_cmd(&["--algo", "sha256", path])
         .success()
         .code(0)
         .stdout(predicate::str::contains(row(BOX_SHA256, f.path())));
@@ -88,8 +101,9 @@ fn hash_algo_sha512_md5() {
         .stdout(predicate::str::contains(row(BOX_MD5, f.path())));
 }
 
-/// HASH-01 / D-05 — piping bytes with no path (default sha256) hashes the piped
-/// bytes and labels the row `-`.
+/// HASH-V2-01 / D-04/D-05 — piping bytes with no path (now the BLAKE3 default)
+/// hashes the piped bytes and labels the row `-`. (v1 emitted SHA-256 here; the
+/// compute default flipped to BLAKE3 in v2.)
 #[test]
 fn hash_stdin_dash_label() {
     let mut cmd = Command::cargo_bin("box").unwrap();
@@ -97,7 +111,7 @@ fn hash_stdin_dash_label() {
     cmd.assert()
         .success()
         .code(0)
-        .stdout(predicate::str::contains(format!("{BOX_SHA256}  -")));
+        .stdout(predicate::str::contains(format!("{BOX_BLAKE3}  -")));
 }
 
 /// HASH-01 / D-04 — `--verify <correct>` exits 0; `--verify <wrong>` exits 1
@@ -184,4 +198,171 @@ fn hash_verify_bad_len_exit2() {
     // 40 hex chars (a sha1 digest length) — no supported algorithm → exit 2.
     let sha1_len = "a".repeat(40);
     hash_cmd(&["--verify", &sha1_len, path]).failure().code(2);
+}
+
+// --- Scriptable spine (SPINE-01 / SPINE-03) + D-05 verify probe ----------------
+//
+// hash is the second --json/--clip spine consumer (06-02). These tests pin the
+// D-02 pilot JSON literal `{results:[{path,algo,digest}],count:1}`, the D-09
+// empty-stdout-on-error contract, and the D-05 BLAKE3-fallback verify-mismatch
+// hint. `hash_verify_autodetect` above MUST keep passing UNCHANGED — it is the
+// #1 v2 data-risk backstop (the 64→sha256 length table is intact).
+
+/// SPINE-01 / D-02 — `box hash <file> --json` emits exactly ONE well-formed JSON
+/// document `{"results":[{"path":…,"algo":"blake3","digest":<64hex>}],"count":1}`:
+/// a one-element results array inside an object (NOT a bare array — D-02), `algo`
+/// serializes lowercase, no ANSI, no UTF-8 BOM. `algo` is "blake3" because no
+/// `--algo` + no config → the new default (D-04).
+/// Runnable via `cargo test --test hash json_shape`.
+#[test]
+fn json_shape() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let f = box_file(&dir);
+
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .args(["hash", "--json", f.path().to_str().unwrap()])
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box hash --json");
+    assert!(out.status.success(), "box hash --json should exit 0");
+
+    // Exactly one JSON value.
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+
+    // `{results:[{path,algo,digest}],count:1}` shape.
+    assert_eq!(v.get("count"), Some(&serde_json::json!(1)), "`.count` == 1");
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .expect("`.results` must be an array");
+    assert_eq!(results.len(), 1, "one file → one result element");
+    let elem = &results[0];
+    // `algo` serializes lowercase via `#[serde(rename_all = "lowercase")]`; it is
+    // "blake3" because no --algo + no config → the new default.
+    assert_eq!(
+        elem.get("algo"),
+        Some(&serde_json::json!("blake3")),
+        "`.results[0].algo` must be the lowercase \"blake3\" default"
+    );
+    let digest = elem
+        .get("digest")
+        .and_then(|d| d.as_str())
+        .expect("`.results[0].digest` must be a string");
+    assert_eq!(digest, BOX_BLAKE3, "the digest is the BLAKE3 of b\"box\"");
+    // `path` is the file path (the row label), serde-escaped, never raw-printed.
+    assert_eq!(
+        elem.get("path").and_then(|p| p.as_str()),
+        Some(f.path().to_str().unwrap()),
+        "`.results[0].path` is the input path"
+    );
+
+    // PURITY — no ANSI escape, no UTF-8 BOM (Pitfall 1/2).
+    assert!(
+        !out.stdout.contains(&0x1Bu8),
+        "no ANSI escape may appear in --json stdout"
+    );
+    assert_ne!(
+        &out.stdout[..3.min(out.stdout.len())],
+        b"\xEF\xBB\xBF",
+        "no UTF-8 BOM may prefix --json stdout"
+    );
+}
+
+/// D-09 — under `--json`, a verify MISMATCH leaves stdout EMPTY, prints an
+/// `error:` line on stderr, and exits 1. Uses a 64-hex value that is neither the
+/// file's sha256 NOR its blake3, so it mismatches under both algorithms.
+/// Runnable via `cargo test --test hash json_error_empty_stdout`.
+#[test]
+fn json_error_empty_stdout() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let f = box_file(&dir);
+    // All-zeros 64-hex: a valid sha256 LENGTH (→ verify autodetects sha256), but
+    // neither the sha256 nor the blake3 of b"box" → mismatch under both.
+    let wrong = "0".repeat(64);
+
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .args([
+            "hash",
+            "--verify",
+            &wrong,
+            "--json",
+            f.path().to_str().unwrap(),
+        ])
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box hash --verify --json");
+
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "a --json verify mismatch must exit 1, got {:?}",
+        out.status.code()
+    );
+    // D-09: stdout stays EMPTY (no partial JSON, no chrome) under --json on error.
+    assert!(
+        out.stdout.is_empty(),
+        "under --json a failure must leave stdout EMPTY, got: {}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("error:"),
+        "a --json failure must print an `error:` line on stderr, got: {stderr}"
+    );
+}
+
+/// D-05 — `box hash --verify <BOX_BLAKE3> <file>` (no `--algo`, file is b"box"):
+/// the 64-hex value autodetects as sha256, MISMATCHES the file's sha256 → exit 1,
+/// AND because blake3 of the file DOES match the value, a DECISIVE stderr hint
+/// mentioning `--algo blake3` is printed. The SAME invocation WITH `--json`
+/// suppresses the probe hint (D-05/D-09) while still failing exit 1.
+/// Runnable via `cargo test --test hash verify_blake3_probe_hint`.
+#[test]
+fn verify_blake3_probe_hint() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let f = box_file(&dir);
+    let path = f.path().to_str().unwrap();
+
+    // Human path: 64-hex blake3 value, no --algo → sha256 mismatch (exit 1) + the
+    // decisive `--algo blake3` hint on stderr (blake3 matches the file).
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .args(["hash", "--verify", BOX_BLAKE3, path])
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box hash --verify <blake3>");
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "a 64-hex blake3 value verified as sha256 must mismatch → exit 1, got {:?}",
+        out.status.code()
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("--algo blake3"),
+        "the D-05 probe must hint `--algo blake3` on a 64-hex mismatch, got: {stderr}"
+    );
+
+    // --json path: the SAME mismatch suppresses the probe hint (D-05/D-09) — still
+    // exit 1, but stderr carries the plain `error:` line, NOT the probe phrasing.
+    let out_json = Command::cargo_bin("box")
+        .unwrap()
+        .args(["hash", "--verify", BOX_BLAKE3, "--json", path])
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box hash --verify <blake3> --json");
+    assert_eq!(
+        out_json.status.code(),
+        Some(1),
+        "the --json mismatch still exits 1, got {:?}",
+        out_json.status.code()
+    );
+    let stderr_json = String::from_utf8_lossy(&out_json.stderr);
+    assert!(
+        !stderr_json.contains("--algo blake3"),
+        "under --json the D-05 probe hint must be SUPPRESSED, got: {stderr_json}"
+    );
 }
