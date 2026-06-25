@@ -56,13 +56,43 @@ pub struct QrArgs {
     pub input: Option<String>,
 }
 
+/// The `--json` document for `qr` (D-14): encode METADATA, never the glyphs. The
+/// rendered ▀▄█ half-block block is a *visual*, not a scriptable value, so the
+/// machine document carries only the source `text` and the fixed error-correction
+/// level. Scalar → flat object (D-01), no `results`/`count` wrapper.
+#[derive(serde::Serialize)]
+struct QrOutput {
+    /// The source text/URL that was encoded (the useful, scriptable payload).
+    text: String,
+    /// The QR error-correction level — the fixed `"M"` literal for v1 (D-02).
+    error_correction: String,
+}
+
 impl RunCommand for QrArgs {
     fn run(self) -> anyhow::Result<()> {
         // arg → piped stdin → exit-2 on a no-arg interactive TTY (D-03).
         let input = crate::core::input::read_input(self.input)?;
+
+        // Fork on --json FIRST (Pitfall 1). Under --json emit METADATA only — do
+        // NOT render the glyphs (D-14); `emit_json` also tees the whole document
+        // to the clipboard under `--json --clip` (so we do NOT also clip_feed).
+        if crate::core::output::is_json_on() {
+            let doc = QrOutput {
+                text: input.clone(),
+                error_correction: "M".to_string(),
+            };
+            return crate::core::output::emit_json(&doc);
+        }
+
+        // Human path: render the glyph block and print it (data → stdout; no color
+        // path, D-03). Keep `println!` here — routing the glyphs through `out_line`
+        // would copy the ▀▄ block to the clipboard (garbage as text).
         let rendered = render_qr(&input)?;
-        // data → stdout; no color path (D-03).
         println!("{rendered}");
+        // D-15: under --clip copy the SOURCE TEXT (the encoded URL/text), NOT the
+        // glyphs. `clip_feed` tees `input` without printing; a no-op when --clip
+        // is off. This is the one deliberate break from the copy-all rule.
+        crate::core::output::clip_feed(&input);
         Ok(())
     }
 }

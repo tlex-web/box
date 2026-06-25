@@ -149,6 +149,26 @@ pub fn out_line(s: &str) {
     }
 }
 
+/// Tee `s` into `CLIP_BUF` (plus a trailing `\n`, matching [`out_line`]'s tee
+/// shape) ONLY when `--clip` is on, **without writing to stdout** (SPINE-04 /
+/// D-15).
+///
+/// This is the one sanctioned spine addition of Phase 7. It exists for the single
+/// "print X, copy Y" case that [`out_line`] cannot express: `qr` prints the
+/// rendered half-block glyph block to stdout (a visual) but must copy the *source
+/// text* to the clipboard — routing the glyphs through `out_line` would copy
+/// useless ▀▄ characters (Pitfall 4). `qr` therefore keeps its own `println!` for
+/// the display and calls `clip_feed(&input)` for the clipboard payload. A no-op
+/// when `--clip` is off (mirrors `out_line`'s tee gate). Do NOT add other
+/// `core::output` primitives this phase — this is the sole exception.
+pub fn clip_feed(s: &str) {
+    if CLIP_ON.load(Ordering::Relaxed) {
+        let mut b = CLIP_BUF.lock().unwrap();
+        b.push_str(s);
+        b.push('\n');
+    }
+}
+
 /// Flush the accumulated `CLIP_BUF` to the Windows clipboard ONCE — called in
 /// `main()` after a successful dispatch (never on a worker thread; arboard
 /// main-thread discipline, Pitfall 6). A no-op when `--clip` is off, and a no-op
@@ -504,6 +524,38 @@ mod tests {
         CLIP_ON.store(false, Ordering::Relaxed);
         reset_clip_buf();
         out_line("not captured");
+        assert!(
+            CLIP_BUF.lock().unwrap().is_empty(),
+            "CLIP_BUF must stay empty when --clip is off"
+        );
+
+        reset_clip_buf();
+    }
+
+    /// D-15 / Pitfall 4 — `clip_feed` tees `s` into `CLIP_BUF` ONLY when `--clip`
+    /// is on, and NEVER writes to stdout (the "print X, copy Y" split `out_line`
+    /// cannot express, used by `qr` to copy the source text while printing the
+    /// glyph block). Mirrors `out_line_tees` minus the stdout write.
+    /// Runnable via `cargo test --bin box clip_feed_tees_only`.
+    #[test]
+    fn clip_feed_tees_only() {
+        let _g = COLOR_LOCK.lock().unwrap();
+
+        // --clip ON: each fed string accumulates in CLIP_BUF with a trailing '\n'
+        // (the same tee shape as out_line), with NO stdout write.
+        CLIP_ON.store(true, Ordering::Relaxed);
+        reset_clip_buf();
+        clip_feed("https://example.com");
+        let captured = CLIP_BUF.lock().unwrap().clone();
+        assert_eq!(
+            captured, "https://example.com\n",
+            "clip_feed must tee the source text plus a trailing newline under --clip"
+        );
+
+        // --clip OFF: clip_feed is a complete no-op (CLIP_BUF stays empty).
+        CLIP_ON.store(false, Ordering::Relaxed);
+        reset_clip_buf();
+        clip_feed("not captured");
         assert!(
             CLIP_BUF.lock().unwrap().is_empty(),
             "CLIP_BUF must stay empty when --clip is off"
