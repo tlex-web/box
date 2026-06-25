@@ -13,7 +13,9 @@
 
 use std::io::IsTerminal;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 
+use anyhow::Context;
 use owo_colors::OwoColorize;
 
 /// Width used when the real terminal width is unavailable (e.g. piped output,
@@ -56,6 +58,110 @@ pub fn init_color(no_color_flag: bool) {
     // `if_supports_color` call agrees with our decision. (The plain `.green()`
     // path used by [`format_row`] ignores this and consults `COLOR_ON`.)
     owo_colors::set_override(on);
+}
+
+// ---------------------------------------------------------------------------
+// Scriptable spine (SPINE-01 / SPINE-03) — mirrors the COLOR_ON triad above.
+//
+// `--json` and `--clip` are global bools on `Cli`, lifted ONCE in `main()` by
+// [`init_output`] into these process-global atomics (the same pattern as
+// `COLOR_ON`/`init_color`). Commands consult `is_json_on()` and route their
+// primary output through `emit_json` / `out_line`; `main()` calls `flush_clip`
+// once after a successful dispatch. No per-command field, no `RunCommand::run`
+// churn (the load-bearing spine idiom — see 06-PATTERNS).
+// ---------------------------------------------------------------------------
+
+/// Whether `--json` is active (machine-readable stdout). Set once by [`init_output`].
+static JSON_ON: AtomicBool = AtomicBool::new(false);
+
+/// Whether `--clip` is active (tee primary output to the clipboard). Set once by
+/// [`init_output`].
+static CLIP_ON: AtomicBool = AtomicBool::new(false);
+
+/// Accumulates the command's primary output for [`flush_clip`] when `--clip` is on.
+/// Teed by [`out_line`] (one line at a time) and [`emit_json`] (the whole document).
+/// A `Mutex` because the global is shared and `set_text` runs once on the main
+/// thread at the end (arboard main-thread discipline).
+static CLIP_BUF: Mutex<String> = Mutex::new(String::new());
+
+/// Whether `--json` is active. Commands check this FIRST and fork their output:
+/// `emit_json(&doc)` on true, the human render via [`out_line`] otherwise (Pitfall 1).
+pub fn is_json_on() -> bool {
+    JSON_ON.load(Ordering::Relaxed)
+}
+
+/// Lift the two global spine bools into atomics ONCE in `main()`, mirroring
+/// [`init_color`].
+///
+/// **Ordering is load-bearing (Pitfall 7):** this MUST run AFTER [`init_color`].
+/// When `--json` or `--clip` is set we force color OFF (so the clipboard / JSON
+/// channel never receives ANSI escapes — D-03 / Pitfall 1) using the EXACT
+/// mechanism `init_color` uses (`COLOR_ON` store + `owo_colors::set_override`).
+/// Because color's TTY decision was already installed by `init_color`, running
+/// last is what lets this force-off win.
+pub fn init_output(json: bool, clip: bool) {
+    JSON_ON.store(json, Ordering::Relaxed);
+    CLIP_ON.store(clip, Ordering::Relaxed);
+    if json || clip {
+        COLOR_ON.store(false, Ordering::Relaxed);
+        owo_colors::set_override(false);
+    }
+}
+
+/// The single `--json` serializer for every command (no-drift guarantee). Writes
+/// ONE pretty serde document to stdout: no BOM (`to_writer_pretty` never emits
+/// one), a single trailing newline, and never any ANSI — raw serde escapes
+/// control chars in string values, and `.green()` is never reached (D-03 /
+/// Pitfall 1/2). Under `--clip`, also tees the whole document into `CLIP_BUF`
+/// (D-08 — `box … --json --clip` copies the machine-readable doc).
+pub fn emit_json<T: serde::Serialize>(value: &T) -> anyhow::Result<()> {
+    use std::io::Write;
+    let mut out = std::io::stdout().lock();
+    serde_json::to_writer_pretty(&mut out, value).context("serializing --json output")?;
+    out.write_all(b"\n")?;
+    if CLIP_ON.load(Ordering::Relaxed) {
+        let s = serde_json::to_string_pretty(value)?;
+        CLIP_BUF.lock().unwrap().push_str(&s);
+    }
+    Ok(())
+}
+
+/// THE primary-output print primitive for `--clip`-capable commands (replaces
+/// bare `println!`). Always prints the line to stdout; when `--clip` is on it also
+/// tees the line (plus a `\n`) into `CLIP_BUF` so [`flush_clip`] can copy the full
+/// output later (SPINE-03 / D-07).
+pub fn out_line(s: &str) {
+    println!("{s}");
+    if CLIP_ON.load(Ordering::Relaxed) {
+        let mut b = CLIP_BUF.lock().unwrap();
+        b.push_str(s);
+        b.push('\n');
+    }
+}
+
+/// Flush the accumulated `CLIP_BUF` to the Windows clipboard ONCE — called in
+/// `main()` after a successful dispatch (never on a worker thread; arboard
+/// main-thread discipline, Pitfall 6). A no-op when `--clip` is off, and a no-op
+/// (no clipboard write, no confirmation) when the captured output is empty /
+/// whitespace-only (D-08). On a real write the trailing whitespace is trimmed
+/// exactly once (D-07, reusing `clip/mod.rs`'s single-shot arboard flow) and a
+/// concise confirmation is printed to **stderr only**, TTY-gated on STDERR (D-08)
+/// so `box uuid --clip 2>log` does not write the confirmation into the log.
+pub fn flush_clip() -> anyhow::Result<()> {
+    if !CLIP_ON.load(Ordering::Relaxed) {
+        return Ok(());
+    }
+    let text = CLIP_BUF.lock().unwrap();
+    if text.trim_end().is_empty() {
+        return Ok(());
+    }
+    let mut cb = arboard::Clipboard::new().context("open clipboard")?;
+    cb.set_text(text.trim_end().to_string())
+        .context("write clipboard")?;
+    if std::io::stderr().is_terminal() {
+        eprintln!("Copied to clipboard");
+    }
+    Ok(())
 }
 
 /// The status of one flatten row — the leading glyph is the machine-readable
@@ -354,5 +460,127 @@ mod tests {
             row.contains('~'),
             "glyph char must still be present: {row:?}"
         );
+    }
+
+    // --- Scriptable spine (SPINE-01 / SPINE-03) -------------------------------
+    //
+    // Each test mutates a process-global atomic (`JSON_ON`/`CLIP_ON`/`COLOR_ON`)
+    // and/or `CLIP_BUF`, so all take `COLOR_LOCK` to serialize against each other
+    // and the color tests under the parallel runner (VALIDATION atomic-isolation
+    // note), and reset every mutated atomic + buffer at the end. None of them
+    // touch a live clipboard — the capture/no-op logic is fully headless-safe.
+
+    /// Drain `CLIP_BUF` to empty so a test starts (and leaves) the buffer clean.
+    fn reset_clip_buf() {
+        CLIP_BUF.lock().unwrap().clear();
+    }
+
+    /// SPINE-03 / D-07 — `out_line` tees every line into `CLIP_BUF` only when
+    /// `--clip` is on. Runnable via `cargo test --bin box out_line_tees`.
+    #[test]
+    fn out_line_tees() {
+        let _g = COLOR_LOCK.lock().unwrap();
+
+        // --clip ON: 5 lines accumulate, newline-joined, in CLIP_BUF.
+        CLIP_ON.store(true, Ordering::Relaxed);
+        reset_clip_buf();
+        for i in 0..5 {
+            out_line(&format!("line{i}"));
+        }
+        let captured = CLIP_BUF.lock().unwrap().clone();
+        assert_eq!(captured, "line0\nline1\nline2\nline3\nline4\n");
+
+        // --clip OFF: CLIP_BUF stays empty even though out_line still prints.
+        CLIP_ON.store(false, Ordering::Relaxed);
+        reset_clip_buf();
+        out_line("not captured");
+        assert!(
+            CLIP_BUF.lock().unwrap().is_empty(),
+            "CLIP_BUF must stay empty when --clip is off"
+        );
+
+        reset_clip_buf();
+    }
+
+    /// D-08 — with `--clip` on but the buffer empty/whitespace-only, `flush_clip`
+    /// returns Ok and performs NO clipboard op (the empty guard returns before
+    /// `arboard::Clipboard::new()`, which is what makes this headless-CI-safe).
+    /// Runnable via `cargo test --bin box flush_clip_empty_noop`.
+    #[test]
+    fn flush_clip_empty_noop() {
+        let _g = COLOR_LOCK.lock().unwrap();
+        CLIP_ON.store(true, Ordering::Relaxed);
+
+        // Empty buffer → Ok, no arboard call.
+        reset_clip_buf();
+        assert!(flush_clip().is_ok(), "empty buffer must flush as a no-op Ok");
+
+        // Whitespace-only buffer → also a no-op Ok (trim_end().is_empty()).
+        CLIP_BUF.lock().unwrap().push_str("   \n\t  ");
+        assert!(
+            flush_clip().is_ok(),
+            "whitespace-only buffer must flush as a no-op Ok"
+        );
+
+        CLIP_ON.store(false, Ordering::Relaxed);
+        reset_clip_buf();
+    }
+
+    /// SPINE-01 / Pitfall 1+2 — `emit_json`'s serde output carries no UTF-8 BOM
+    /// and no ANSI escape. `emit_json` writes to the real stdout, so this mirrors
+    /// its serde call into a Vec and asserts on the bytes.
+    #[test]
+    fn emit_json_no_bom_no_ansi() {
+        #[derive(serde::Serialize)]
+        struct Probe {
+            results: Vec<&'static str>,
+            count: usize,
+        }
+        let doc = Probe {
+            results: vec!["a", "b"],
+            count: 2,
+        };
+        // Same serde call emit_json uses (to_writer_pretty), captured to bytes.
+        let mut bytes = Vec::new();
+        serde_json::to_writer_pretty(&mut bytes, &doc).unwrap();
+        bytes.push(b'\n');
+
+        // No UTF-8 BOM (EF BB BF) at the front.
+        assert_ne!(
+            &bytes[..3.min(bytes.len())],
+            b"\xEF\xBB\xBF",
+            "emit_json output must have no UTF-8 BOM"
+        );
+        // No ANSI escape (0x1B) anywhere.
+        assert!(
+            !bytes.contains(&0x1Bu8),
+            "emit_json output must contain no ANSI escape"
+        );
+        // Sanity: it is one parseable JSON document with the expected shape.
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(v.get("count"), Some(&serde_json::json!(2)));
+    }
+
+    /// Pitfall 7 — `init_output` forces `COLOR_ON=false` under `--json` (and
+    /// `--clip`), even if color was on. Verified via `is_color_on()` after the call.
+    #[test]
+    fn init_output_forces_color_off() {
+        let _g = COLOR_LOCK.lock().unwrap();
+        // Start with color ON, as if init_color decided a TTY was present.
+        COLOR_ON.store(true, Ordering::Relaxed);
+        owo_colors::set_override(true);
+
+        // --json forces it off (mirrors --clip).
+        init_output(true, false);
+        assert!(
+            !is_color_on(),
+            "init_output must force COLOR_ON=false under --json"
+        );
+
+        // Reset every mutated atomic for other tests.
+        JSON_ON.store(false, Ordering::Relaxed);
+        CLIP_ON.store(false, Ordering::Relaxed);
+        COLOR_ON.store(false, Ordering::Relaxed);
+        owo_colors::set_override(false);
     }
 }
