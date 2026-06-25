@@ -131,6 +131,14 @@ impl RunCommand for TreeArgs {
             return Ok(());
         }
 
+        // INVARIANT (WR-04): every `println!` from here on (root label, the
+        // `render_dir` tree, the blank line, and the summary) is reachable ONLY
+        // when `!is_json_on()` — the `is_json_on()` fork above already `return`ed
+        // under `--json`. These raw prints intentionally bypass `out_line` (tree
+        // is NOT a SPINE-04 `--clip` command, so its human render must not tee to
+        // the clipboard). Keep all human writes strictly below the fork so none
+        // ever leak into the JSON channel.
+        //
         // Print the root label, then render the tree below it.
         println!("{}", color_dir(&root_label));
 

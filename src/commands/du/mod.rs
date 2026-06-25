@@ -146,6 +146,13 @@ impl RunCommand for DuArgs {
             return Ok(());
         }
 
+        // INVARIANT (WR-04): every `println!` below is reachable ONLY when
+        // `!is_json_on()` — the `is_json_on()` fork above already `return`ed under
+        // `--json`. These raw prints intentionally bypass `out_line` (du is NOT a
+        // SPINE-04 `--clip` command, so its human render must not tee to the
+        // clipboard). If any human write is ever moved ABOVE the fork, it would
+        // leak chrome into the JSON channel — keep them strictly below it.
+        //
         // Right-align the size column to the widest SHOWN human_size value (D-12).
         let size_strings: Vec<String> = rows.iter().map(|r| human_size(r.size)).collect();
         let size_width = size_strings.iter().map(|s| s.len()).max().unwrap_or(0);

@@ -152,6 +152,12 @@ impl RunCommand for DupesArgs {
             return Ok(());
         }
 
+        // INVARIANT (WR-04): `render` (and every `println!` it makes) is reachable
+        // ONLY here, AFTER the `is_json_on()` fork above `return`ed under `--json`.
+        // Its raw prints intentionally bypass `out_line` (dupes is NOT a SPINE-04
+        // `--clip` command, so its human render must not tee to the clipboard).
+        // Never hoist a human write above the fork or it would contaminate the
+        // JSON channel.
         render(&groups);
         Ok(())
     }
