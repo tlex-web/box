@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
 status: executing
-stopped_at: Phase 7 context gathered
-last_updated: "2026-06-25T13:13:07.598Z"
-last_activity: 2026-06-25 -- Phase 07 execution started
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-06-25T13:40:24.652Z"
+last_activity: 2026-06-25
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 5
-  completed_plans: 2
-  percent: 17
+  completed_plans: 3
+  percent: 60
 ---
 
 # Project State: box — Rust CLI Toolbox
@@ -36,11 +36,11 @@ See: .planning/PROJECT.md · .planning/ROADMAP.md · .planning/REQUIREMENTS.md (
 ## Current Position
 
 Phase: 07 (spine-rollout) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 07
-Last activity: 2026-06-25 -- Phase 07 execution started
+Plan: 2 of 3
+Status: 07-01 complete (Wave-7a pure transforms); ready to execute 07-02
+Last activity: 2026-06-25 — 07-01 complete (SPINE-02/SPINE-04 partial, 8 of 16 / 4 of 6)
 
-Progress: [█░░░░░░░░░] 11% (2/18 v2.0 plans)
+Progress: [██████░░░░] 60%
 
 ## Phase Map
 
@@ -49,7 +49,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 | Phase | Name | Requirements | Status |
 |-------|------|-------------|--------|
 | 6 | Scriptable-Core Foundation | SPINE-01, SPINE-03, SPINE-05, HASH-V2-01 (4) | Complete (2/2 plans — all 4 reqs done) |
-| 7 | Spine Rollout | SPINE-02, SPINE-04 (2) | Not started |
+| 7 | Spine Rollout | SPINE-02, SPINE-04 (2) | In Progress (1/3 plans — 07-01 Wave-7a pure transforms done) |
 | 8 | Filesystem Depth | HASH-V2-02, FLAT-V2-01/02, DUPE-V2-01/02, RENM-V2-01/02, TREE-V2-01, DU-V2-01/02 (10) | Not started |
 | 9 | Dev-Transform & Visual Depth | UUID-V2-01, EPOC-V2-01, COLR-V2-01, JSON-V2-01, PASS-V2-01, LOL-V2-01, MTRX-V2-01, QR-V2-01, ASCI-V2-01 (9) | Not started |
 | 10 | Fun & System Depth | COW-V2-01, FORT-V2-01, 8BAL-V2-01, ROST-V2-01, POMO-V2-01/02, WTHR-V2-01 (7) | Not started |
@@ -59,13 +59,14 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 
 ## Performance Metrics
 
-**Plans executed (v2.0):** 2 / 18 planned
+**Plans executed (v2.0):** 3 / 18 planned
 **v1.0 (archived):** 22 plans, 22 succeeded, 0 failed, 5/5 phases — see `.planning/MILESTONES.md`.
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 6 | 06-01 | ~10 min | 3 | 11 |
 | 6 | 06-02 | ~35 min | 2 | 7 |
+| 7 | 07-01 | 19 min | 3 | 17 |
 
 ---
 
@@ -89,6 +90,10 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 | `BOX_HASH_DEFAULT_ALGO` env tier wired live in 06-02 via `parse_algo(s) = Algo::from_str(s,true).ok()` (clap ValueEnum, case-insensitive), reused for both env + config — single-sourced spelling table | The hash compute default now resolves `self.algo.or_else(env).or(config().default_hash_algo).unwrap_or(Blake3)` (CLI>env>config>builtin). An unrecognized env value returns None and falls through (never errors a normal `box hash`). `hash` uses this inline `.or()` chain, NOT `resolve_algo` (per the plan's line-162 spec); `resolve_algo` keeps its forward-compat allow. |
 | D-05 verify probe: capture the path string into `path_for_probe` BEFORE `read_file_or_stdin(self.path)` consumes it; re-open + blake3 on a 64-hex no-`--algo` mismatch (06-02) | `ResolvedInput.reader` is single-pass `Box<dyn Read>`. `path_for_probe` is `Some` only for a real path (`p != "-"`), `None` for stdin (no second read → static hint). Decisive hint when blake3 matches the file, static otherwise; stderr-only, suppressed under `--json`, exit STAYS 1. Hint token `--algo blake3` styled `.yellow()` when `is_color_on()`. |
 | `{Row}/{Output}` serde struct feeds BOTH human + JSON paths; always-wrapped `{results,count}` even for N=1 (06-02 pilot literals, frozen for Phase 7) | `uuid` → `{results:[{uuid,version:"v4"}],count}`; `hash` → `{results:[{path,algo,digest}],count}`. The pure renderer fills the struct, `is_json_on()` forks (emit_json | out_line) — no drift. Object never a bare array (Phase-8 multi-item compatible). `tests/uuid.rs::json_purity` is the copy-me JSON-purity test for all 23 commands. |
+| **D-18 (07-01) A1 RESOLVED:** `base64 --decode --json` is binary-safe — decoded bytes re-encoded to base64 in the `output` field, NEVER `String::from_utf8(...).unwrap()` (T-07a-01) | A JSON string can't hold non-UTF-8 bytes; re-encoding to base64 is lossless + round-trippable. `json_decode_non_utf8` is the regression backstop. The human binary-decode path is unchanged (raw `write_all`) and is NOT clip-supported (`out_line` is line-oriented). Encode is always ASCII-safe → flat `{output, mode}`. |
+| **D-19 (07-01) color JSON hex locked LOWERCASE** (`#{:02x}` → `#rrggbb`); human `Hex` row stays UPPERCASE | Only the JSON `hex` field is lowercased so `json_purity` is deterministic (`.hex == "#ff0000"`); the existing human render (`#{:02X}`) is byte-stable (trycmd snapshot unchanged). Nested D-17 shape `{hex, rgb:{r,g,b}, hsl:{h,s,l}}`. |
+| **D-20 (07-01) epoch unified shape** — input resolved to one `epoch: i64` BEFORE the `is_json_on()` fork so `{epoch,utc,local}` JSON never branches on mode (D-17) | `epoch_output()` and `format_timestamp()` share the same `DateTime::from_timestamp`/`with_timezone(&Local)` math (no-drift). JSON datetime strings drop the `Local:`/`UTC:` label prefixes (the keys convey direction). Human path routes through `out_line` for a free future clip adoption. |
+| **D-21 (07-01) SC4 = parse-but-ignore** — `matrix`/`pomodoro`/`lolcat`/`ascii`/`clip` never call `emit_json`/`is_json_on`; the global flags parse but emit NO JSON document | `display_only_omit_json` (tests/cli.rs) asserts the runnable subset live (clip piped stdin, ascii `tiny.png` fixture, lolcat arg); matrix/pomodoro (loop/block) covered by source state + a grep gate (0 non-comment matches). Each module carries a `# Spine omission (SC4)` doc note. |
 
 Full v1.0 decision log preserved in PROJECT.md Key Decisions + `.planning/milestones/v1.0-ROADMAP.md`.
 
@@ -126,9 +131,9 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then this file for position/context.
 
-**Last session:** 2026-06-25T12:18:42.395Z
-**Stopped at:** Phase 7 context gathered
-**Resume file:** .planning/phases/07-spine-rollout/07-CONTEXT.md
+**Last session:** 2026-06-25T13:40:24.630Z
+**Stopped at:** Completed 07-01-PLAN.md
+**Resume file:** None
 
 **Next action:** `/gsd:execute-phase 7` — Spine Rollout (SPINE-02/SPINE-04). Copy the frozen Phase-6 template across the remaining applicable commands: the `{Row}/{Output}` serde struct + `is_json_on()` fork + `out_line` routing (uuid is the cleanest reference, hash adds the `path`-bearing variant), the `tests/uuid.rs::json_purity` JSON-purity test, and the `#[ignore]`d clip round-trip per command. `emit_json`/`out_line`/`is_json_on`/`config()` are all live (forward-compat allows removed). v1.0 context archived in `.planning/MILESTONES.md`.
 

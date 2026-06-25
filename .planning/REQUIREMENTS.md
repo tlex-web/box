@@ -33,9 +33,9 @@ Each maps to exactly one roadmap phase. REQ-IDs continue the per-command mnemoni
 ### Scriptable Output Spine (cross-cutting)
 
 - [x] **SPINE-01**: `box <cmd> --json` emits exactly one well-formed JSON document on stdout — array for multi-item commands, object for scalar commands, recursive object for `tree`; `snake_case` fields; pretty-printed; UTF-8 with **no BOM**; **no ANSI, no progress, no human chrome** on stdout — established and contract-tested on the pilot commands (`uuid`, `hash`). *(06-02: established on `uuid`+`hash`; `json_purity`/`json_shape` are the frozen Phase-7 template)*
-- [ ] **SPINE-02**: `--json` is available on every applicable value-producing command, all following the SPINE-01 house style: `base64`, `epoch`, `color`, `passgen`, `8ball`, `fortune`, `roast`, `cowsay`, `du`, `tree`, `dupes`, `flatten`, `bulk-rename`, `json`, `qr`, `weather`.
+- [x] **SPINE-02**: `--json` is available on every applicable value-producing command, all following the SPINE-01 house style: `base64`, `epoch`, `color`, `passgen`, `8ball`, `fortune`, `roast`, `cowsay`, `du`, `tree`, `dupes`, `flatten`, `bulk-rename`, `json`, `qr`, `weather`.
 - [x] **SPINE-03**: `box <cmd> --clip` copies the primary result to the Windows clipboard (copy **and** print; "Copied to clipboard" confirmation to stderr, suppressed when not a TTY; raw text, or the JSON document under `--json --clip`) — established on the pilot commands. *(06-02: `uuid`/`hash` route through `out_line`/`emit_json`; `#[ignore]`d live round-trip + PS7 phase-gate human-verify)*
-- [ ] **SPINE-04**: `--clip` is available on every single-textual-result command: `passgen`, `uuid`, `color`, `hash`, `base64`, `epoch`, `json`, `qr` (text payload).
+- [x] **SPINE-04**: `--clip` is available on every single-textual-result command: `passgen`, `uuid`, `color`, `hash`, `base64`, `epoch`, `json`, `qr` (text payload).
 - [x] **SPINE-05**: Config-file defaults resolve with strict precedence **CLI flag > env var > config file > built-in default**; a missing or malformed config file falls back to built-in defaults without erroring a normal command (hand-rolled `toml` + `dirs`, `%APPDATA%\box\config.toml`). *(06-01: precedence resolver + missing-silent + malformed-exit-2 integration-tested; env tier wires live in 06-02 hash)*
 
 ### Meta-commands
@@ -125,8 +125,8 @@ Each requirement maps to exactly one roadmap phase (finalized 2026-06-25 by road
 | SPINE-03 | 6 | Complete (06-02 — `uuid`/`hash` route through `out_line`/`emit_json`) |
 | SPINE-05 | 6 | Complete (06-01) |
 | HASH-V2-01 | 6 | Complete (06-02 — BLAKE3 compute-default flip + config/env escape hatch + D-05 probe; verify table UNCHANGED) |
-| SPINE-02 | 7 | Pending |
-| SPINE-04 | 7 | Pending |
+| SPINE-02 | 7 | Complete |
+| SPINE-04 | 7 | Complete |
 | HASH-V2-02 | 8 | Pending |
 | FLAT-V2-01 | 8 | Pending |
 | FLAT-V2-02 | 8 | Pending |

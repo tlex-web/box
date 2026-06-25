@@ -88,7 +88,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 07-01-PLAN.md — Wave 7a pure transforms: `--json` on `base64`, `epoch`, `color`, `passgen`, `8ball`, `fortune`, `roast`, `cowsay` + `--clip` on base64/color/epoch/passgen + A1 base64 decode policy + SC4 display-only omission + new `tests/cowsay.rs`. [wave 1]
+- [x] 07-01-PLAN.md — Wave 7a pure transforms: `--json` on `base64`, `epoch`, `color`, `passgen`, `8ball`, `fortune`, `roast`, `cowsay` + `--clip` on base64/color/epoch/passgen + A1 base64 decode policy + SC4 display-only omission + new `tests/cowsay.rs`. [wave 1]
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -198,7 +198,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Terminal Visuals | v1.0 | 4/4 | Complete | 2026-06-24 |
 | 5. Windows Platform Integration | v1.0 | 4/4 | Complete | 2026-06-24 |
 | 6. Scriptable-Core Foundation | v2.0 | 2/2 | Complete | 2026-06-25 |
-| 7. Spine Rollout | v2.0 | 0/3 | Planned | - |
+| 7. Spine Rollout | v2.0 | 1/3 | In Progress|  |
 | 8. Filesystem Depth | v2.0 | 0/6 | Not started | - |
 | 9. Dev-Transform & Visual Depth | v2.0 | 0/3 | Not started | - |
 | 10. Fun & System Depth | v2.0 | 0/2 | Not started | - |
