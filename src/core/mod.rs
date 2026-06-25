@@ -5,6 +5,7 @@
 //! hidden-entry predicate, and timestamp-preserving copy; `input` owns the
 //! shared stdin/arg reader with the TTY no-block guard (D-04/D-05).
 
+pub mod config;
 pub mod errors;
 pub mod fs;
 pub mod input;

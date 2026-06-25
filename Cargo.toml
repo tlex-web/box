@@ -19,6 +19,9 @@ thiserror = "2.0"
 owo-colors = { version = "4.3", features = ["supports-colors"] }
 enable-ansi-support = "0.3"
 crossterm = "0.29"
+# Config-file defaults (SPINE-05, D-1). Hand-roll: toml parse + dirs for %APPDATA%.
+toml = "1.1.2"
+dirs = "6.0.0"
 # Directory walking
 walkdir = "2.5"
 # Path normalization (no \\?\ UNC leak)

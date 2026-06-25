@@ -60,7 +60,15 @@ pub struct HashArgs {
 
 /// The supported hash algorithms (D-02). Value spellings are locked to
 /// `sha256`/`blake3`/`sha512`/`md5` (Discretion D); excludes sha1/sha224/sha384.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+///
+/// `serde::Deserialize` (+ `#[serde(rename_all = "lowercase")]`) is added here as
+/// the minimal cross-plan edit for Phase 6 Plan 01: `core::config::Config` carries
+/// an `Option<Algo>` field, and `deny_unknown_fields` Deserialize on that struct
+/// requires `Algo: Deserialize` to compile. The lowercase rename lets a TOML value
+/// `default_hash_algo = "sha256"` round-trip into `Algo::Sha256`. The matching
+/// `serde::Serialize` derive (for `--json` output) lands in Plan 06-02.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Algo {
     /// SHA-256 (default).
     Sha256,

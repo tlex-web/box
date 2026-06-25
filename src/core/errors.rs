@@ -28,4 +28,13 @@ pub enum BoxError {
     /// Live as of Plan 03-01.
     #[error("unsupported --verify hash length: {len} (expected 32/64/128 hex)")]
     UnsupportedHashLength { len: usize },
+
+    /// A corrupt/unparseable `%APPDATA%\box\config.toml` (or an unknown key under
+    /// `deny_unknown_fields`). Aborts BEFORE the operation runs → exit 2 (D-10),
+    /// joining [`BoxError::MissingInput`] / [`BoxError::UnsupportedHashLength`] in
+    /// the `main()` downcast. A MISSING file is **not** this error — it falls back
+    /// to `Config::default()` silently (`core::config::load` matches `NotFound`).
+    /// Constructed in `core::config::load` on a `toml::from_str` failure.
+    #[error("config error in {path}: {message}")]
+    Config { path: String, message: String },
 }
