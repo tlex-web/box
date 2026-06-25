@@ -176,3 +176,43 @@ fn display_only_omit_json() {
         "box lolcat <text> --json must NOT emit a JSON spine document to stdout (SC4)"
     );
 }
+
+/// SC4 / WR-03 — `matrix` and `pomodoro` block or loop (a real countdown /
+/// animation) so `display_only_omit_json` cannot run them headless. Their spine
+/// omission was previously guaranteed only by a manual grep in the plan
+/// acceptance criteria — NOT a CI gate. This source-level guard reads the two
+/// `mod.rs` files and asserts neither calls `emit_json` nor `is_json_on`, so a
+/// future edit that copy-pastes a spine block into either module fails the
+/// compiled test suite (the omission the live test cannot cover).
+///
+/// Comment lines are stripped before scanning: both modules' doc comments
+/// legitimately MENTION `is_json_on()` / `emit_json` to EXPLAIN the omission, so
+/// a raw `contains` would false-positive on that prose. We scan only the code
+/// (non-`//` lines) so the guard catches a real call without tripping on the
+/// documentation. `cargo test` runs with the crate root as the working
+/// directory, so these source-relative paths resolve.
+#[test]
+fn matrix_pomodoro_have_no_spine_calls() {
+    for path in ["src/commands/matrix/mod.rs", "src/commands/pomodoro/mod.rs"] {
+        let src = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("read {path}: {e}"));
+        // Drop comment lines (`//`, `//!`, `///`, and block-comment `*` rows) so
+        // the doc-comment mentions of the spine fns don't false-positive; what
+        // remains is the actual code.
+        let code: String = src
+            .lines()
+            .filter(|line| {
+                let t = line.trim_start();
+                !(t.starts_with("//") || t.starts_with('*') || t.starts_with("/*"))
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            !code.contains("emit_json"),
+            "{path} code must not call emit_json (SC4 display-only omission)"
+        );
+        assert!(
+            !code.contains("is_json_on"),
+            "{path} code must not call is_json_on (SC4 display-only omission)"
+        );
+    }
+}
