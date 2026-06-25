@@ -22,6 +22,13 @@
 //! A missing or undecodable file is mapped to a clean exit-1 anyhow error via
 //! `.with_context(...)?` — never a panic (FOUND-05 / T-04A-02).
 
+// # Spine omission (SC4)
+// `ascii` is a DISPLAY-ONLY command: it INTENTIONALLY does not honor the global
+// `--json`/`--clip` flags (roadmap SC4). The flags parse (global on `Cli`) but
+// `run()` never calls `is_json_on()` / `emit_json` — `box ascii <img> --json`
+// renders the ASCII art and emits NO JSON document to stdout (the render is a
+// visual). Asserted by `tests/cli.rs::display_only_omit_json`.
+
 use anyhow::Context;
 use clap::Args;
 use image::GenericImageView;

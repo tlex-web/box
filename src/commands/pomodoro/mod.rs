@@ -39,6 +39,13 @@
 //! panic-free (no `.unwrap()` on terminal ops) — the `Drop` guard is the real
 //! restore path. Pomodoro keeps the NORMAL screen (in-place countdown), so the
 //! guard does NOT leave an alternate screen.
+//!
+//! # Spine omission (SC4)
+//! `pomodoro` is a DISPLAY-ONLY command: it INTENTIONALLY does not honor the global
+//! `--json`/`--clip` flags (roadmap SC4). The flags parse (global on `Cli`) but
+//! `run()` never calls `is_json_on()` / `emit_json` — `box pomodoro --json` runs the
+//! normal countdown and emits NO JSON document to stdout. Asserted (via source
+//! state) by `tests/cli.rs::display_only_omit_json`.
 
 use std::io::Write;
 use std::time::{Duration, Instant};

@@ -31,6 +31,13 @@
 //! reach the terminal to move the cursor to column 0 and overwrite the colored
 //! prefix of the line — the per-line diagonal seeding stays correct.
 
+// # Spine omission (SC4)
+// `lolcat` is a DISPLAY-ONLY command: it INTENTIONALLY does not honor the global
+// `--json`/`--clip` flags (roadmap SC4). The flags parse (global on `Cli`) but
+// `run()` never calls `is_json_on()` / `emit_json` — `box lolcat <text> --json`
+// rainbow-prints the text and emits NO JSON document to stdout (the rainbow is a
+// visual, not a scriptable value). Asserted by `tests/cli.rs::display_only_omit_json`.
+
 use std::io::{BufWriter, Write};
 
 use clap::Args;

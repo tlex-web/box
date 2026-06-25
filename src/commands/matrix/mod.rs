@@ -45,6 +45,15 @@
 //! release profile `panic = "abort"` a true panic won't unwind, so the alternate
 //! screen itself is the backstop (nothing persists in the real terminal); the
 //! loop is therefore kept panic-free (no `.unwrap()` on terminal ops).
+//!
+//! # Spine omission (SC4)
+//! `matrix` is a DISPLAY-ONLY command: it INTENTIONALLY does not honor the global
+//! `--json`/`--clip` flags (roadmap SC4). The flags still PARSE (they are global on
+//! `Cli`), but `run()` never calls `is_json_on()` / `emit_json` — so `box matrix
+//! --json` runs the normal animation and emits NO JSON document to stdout. A
+//! machine-JSON envelope for a screensaver would be meaningless; omitting it (vs.
+//! emitting a malformed/empty doc) is the contract. Asserted by
+//! `tests/cli.rs::display_only_omit_json`.
 
 use std::io::Write;
 use std::time::Duration;

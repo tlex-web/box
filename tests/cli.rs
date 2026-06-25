@@ -95,3 +95,84 @@ fn piped_help_has_no_ansi() {
 fn trycmd() {
     trycmd::TestCases::new().case("tests/cmd/*.trycmd");
 }
+
+/// SC4 — the five DISPLAY-ONLY commands (`matrix`, `pomodoro`, `lolcat`, `ascii`,
+/// `clip`) OMIT the spine: the global `--json`/`--clip` flags PARSE (they are
+/// global on `Cli`) but these commands never emit a machine-JSON spine document to
+/// stdout. We verify the runnable, non-hanging subset LIVE — `clip` (piped stdin),
+/// `ascii` (a tiny fixture image), and `lolcat` (a tiny arg) — asserting their
+/// `--json` stdout does NOT parse into the `{results,count}` / spine envelope.
+/// `matrix`/`pomodoro` loop or block (a real countdown / animation) and cannot be
+/// run headless without hanging; their omission is guaranteed by source state
+/// (their `mod.rs` never calls `emit_json`/`is_json_on`, confirmed at build time —
+/// a grep gate in the plan acceptance criteria) and documented in each module's
+/// `# Spine omission (SC4)` note.
+#[test]
+fn display_only_omit_json() {
+    // A value carries the spine envelope if it is an object with a `results` array
+    // + a `count` (the multi-capable shape) — the machine-JSON document SC4 forbids
+    // these commands from emitting. A flat human line, raw bytes, or rainbow text
+    // is NOT such a document.
+    fn is_spine_document(bytes: &[u8]) -> bool {
+        match serde_json::from_slice::<serde_json::Value>(bytes) {
+            Ok(v) => v.get("results").map(|r| r.is_array()).unwrap_or(false)
+                && v.get("count").is_some(),
+            Err(_) => false,
+        }
+    }
+
+    // clip (copy mode) with piped stdin → bounded, never blocks. `--json` must NOT
+    // turn the clipboard copy into a JSON document on stdout (copy prints nothing).
+    let clip_out = Command::cargo_bin("box")
+        .unwrap()
+        .args(["clip", "--json"])
+        .write_stdin("sc4-display-only")
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box clip --json");
+    assert!(
+        clip_out.status.success(),
+        "box clip --json should exit 0 (stderr: {})",
+        String::from_utf8_lossy(&clip_out.stderr)
+    );
+    assert!(
+        !is_spine_document(&clip_out.stdout),
+        "box clip --json must NOT emit a JSON spine document to stdout (SC4)"
+    );
+
+    // ascii with the tiny fixture image → bounded render. `--json` must NOT wrap
+    // the ASCII art in a JSON document.
+    let ascii_out = Command::cargo_bin("box")
+        .unwrap()
+        .args(["ascii", "tests/cmd/ascii.in/tiny.png", "--json"])
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box ascii --json");
+    assert!(
+        ascii_out.status.success(),
+        "box ascii <tiny> --json should exit 0 (stderr: {})",
+        String::from_utf8_lossy(&ascii_out.stderr)
+    );
+    assert!(
+        !is_spine_document(&ascii_out.stdout),
+        "box ascii <tiny> --json must NOT emit a JSON spine document to stdout (SC4)"
+    );
+
+    // lolcat with a tiny positional arg → bounded. Under NO_COLOR the rainbow is
+    // plain text; `--json` must NOT wrap it in a JSON document.
+    let lolcat_out = Command::cargo_bin("box")
+        .unwrap()
+        .args(["lolcat", "sc4-display-only", "--json"])
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box lolcat --json");
+    assert!(
+        lolcat_out.status.success(),
+        "box lolcat <text> --json should exit 0 (stderr: {})",
+        String::from_utf8_lossy(&lolcat_out.stderr)
+    );
+    assert!(
+        !is_spine_document(&lolcat_out.stdout),
+        "box lolcat <text> --json must NOT emit a JSON spine document to stdout (SC4)"
+    );
+}

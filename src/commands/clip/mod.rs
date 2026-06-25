@@ -35,6 +35,15 @@
 //! is mapped via `.context(...)?`. `clip` introduces NO exit-2 path (it reads raw
 //! stdin, not `read_input`, so there is no `MissingInput`).
 
+// # Spine omission (SC4)
+// `clip` is a DISPLAY-ONLY / clipboard-I/O command: it INTENTIONALLY does not honor
+// the global `--json`/`--clip` flags (roadmap SC4). The flags parse (global on `Cli`)
+// but `run()` never calls `is_json_on()` / `emit_json` — `box clip --json` and
+// `box clip --paste --json` perform the normal clipboard copy/paste and emit NO JSON
+// document to stdout (`--paste` emits the clipboard bytes verbatim; wrapping them in a
+// JSON envelope is meaningless, and `--clip` on the clipboard command is a no-op).
+// Asserted by `tests/cli.rs::display_only_omit_json`.
+
 use std::io::{Read, Write};
 
 use anyhow::Context;
