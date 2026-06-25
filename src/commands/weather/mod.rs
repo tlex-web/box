@@ -41,7 +41,7 @@
 use anyhow::Context;
 use clap::{Args, ValueEnum};
 use owo_colors::OwoColorize;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::commands::RunCommand;
 use crate::core::output::is_color_on;
@@ -109,6 +109,25 @@ impl RunCommand for WeatherArgs {
         let wind = forecast.current.wind_speed_10m;
         let humidity = forecast.current.relative_humidity_2m;
 
+        // Fork on --json FIRST (Pitfall 1). Under --json emit the current-only
+        // WeatherOutput (D-17) — built from the already-parsed `forecast`, with the
+        // unit labels read straight from `current_units` (never hardcoded). The
+        // f64 fields come directly from the API response (finite real data, never a
+        // hand-computed NaN/Inf — Pitfall 2). The resolved-location echo above is
+        // already on stderr, so stdout stays a clean single document.
+        if crate::core::output::is_json_on() {
+            let doc = WeatherOutput {
+                location: label,
+                temperature: temp,
+                unit: temp_unit.clone(),
+                conditions: conditions.to_string(),
+                wind_speed: wind,
+                wind_unit: wind_unit.clone(),
+                humidity,
+            };
+            return crate::core::output::emit_json(&doc);
+        }
+
         // Aligned labeled block → stdout (data). Conditions are optionally colored,
         // gated SOLELY on is_color_on() so piped output is byte-identical minus
         // ANSI (D-00/D-13). No second color path, no global override.
@@ -122,6 +141,31 @@ impl RunCommand for WeatherArgs {
         println!("  Humidity    : {humidity}%");
         Ok(())
     }
+}
+
+/// The `--json` document for `weather` (D-17): the CURRENT-ONLY conditions, a
+/// flat scalar object (scalar → flat, D-01). The `unit`/`wind_unit` labels are
+/// taken from the response `current_units` object, NEVER hardcoded — the imperial
+/// wind label is the API's `"mp/h"`, not the `mph` request param (Pitfall WTHR-3).
+/// The `f64` fields come straight from the parsed `current` block (finite real
+/// API data — never a hand-computed NaN/Inf, Pitfall 2). No forecast/multi-day
+/// fields here — those are Phase 10 (out of v1 scope).
+#[derive(Serialize)]
+struct WeatherOutput {
+    /// The resolved location label (the `lat,lon` echo or the geocoded name).
+    location: String,
+    /// Current temperature, in the unit named by `unit`.
+    temperature: f64,
+    /// The authoritative temperature unit label from `current_units` (`°C`/`°F`).
+    unit: String,
+    /// The WMO-mapped conditions text (e.g. `"Clear sky"`).
+    conditions: String,
+    /// Current wind speed, in the unit named by `wind_unit`.
+    wind_speed: f64,
+    /// The authoritative wind unit label from `current_units` (`km/h`/`mp/h`).
+    wind_unit: String,
+    /// Relative humidity as a percentage value.
+    humidity: f64,
 }
 
 /// Geocode a city `name` to `(lat, lon, "City, Region, Country")` via the
