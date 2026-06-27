@@ -26,26 +26,30 @@ const RESERVED: &[&str] = &[
 ];
 
 /// Encode a path **relative to the canonical source root** into a flat filename
-/// (D-15): replace every `\` and `/` separator with `_`, drop any leading
-/// separator artifact, then run the result through [`sanitize_reserved`].
+/// (D-15 / FLAT-V2-01): split the path into segments on BOTH real separators,
+/// drop empty / `..` / `.` segments, join the survivors with `sep`, then run the
+/// result through [`sanitize_reserved`]. `sep` is the collision-encoding join
+/// character (`_` by default; overridable via `flatten --separator`).
+///
+/// Splitting on the real path separators — never on `sep` — keeps this correct
+/// for a multi-character or unusual separator, and means a segment that itself
+/// contains the old default `_` is no longer split (a behavior superset of the
+/// v1 form, which round-tripped to the same result for `_`).
 ///
 /// The output is guaranteed to contain no `\`, no `/`, and no `..` component, so
 /// a maliciously deep or `..`-laden source path can never produce a name that
-/// escapes the output directory (T-03-pathinject).
-pub fn encode_relative(rel: &Path) -> String {
-    // Replace every separator with `_`. After this no `\` or `/` survives, so the
-    // result is a single filename that cannot traverse out of the output dir.
-    let replaced = rel.to_string_lossy().replace(['\\', '/'], "_");
-    // A `..` or `.` parent/current-dir token left between separators (e.g.
-    // `..\escape.txt` -> `.._escape.txt`) is harmless as a filename, but the
-    // threat model (T-03-pathinject) requires no literal `..` survives. Collapse
-    // each leading `..`/`.` segment to nothing so it can never be interpreted as
-    // traversal. Segments are now `_`-delimited.
-    let cleaned: Vec<&str> = replaced
-        .split('_')
+/// escapes the output directory (T-03-pathinject). The caller additionally rejects
+/// a `sep` containing `/`/`\` before reaching here (T-8-01).
+pub fn encode_relative(rel: &Path, sep: &str) -> String {
+    // A `..` or `.` parent/current-dir token must never survive (T-03-pathinject):
+    // splitting on the real separators isolates each segment so the filter can drop
+    // every `..`/`.`/empty one before the surviving segments are joined with `sep`.
+    let lossy = rel.to_string_lossy();
+    let cleaned: Vec<&str> = lossy
+        .split(['\\', '/'])
         .filter(|seg| !seg.is_empty() && *seg != ".." && *seg != ".")
         .collect();
-    let joined = cleaned.join("_");
+    let joined = cleaned.join(sep);
     sanitize_reserved(&joined)
 }
 
@@ -96,6 +100,12 @@ pub fn sanitize_reserved(name: &str) -> String {
 /// key `occupied` the same way (also `to_lowercase()`).
 ///
 /// Returns `name` unchanged when it does not collide.
+///
+/// The numeric disambiguation suffix is always `_{n}` (e.g. `readme_1.txt`) and is
+/// deliberately NOT affected by `flatten --separator` (FLAT-V2-01): the separator
+/// controls the path-segment join in [`encode_relative`], whereas this suffix is a
+/// within-output uniqueness counter — keeping it stable avoids a separator like
+/// `-` producing ambiguous `name-1` vs a real `name-1` source file.
 pub fn dedupe(name: &str, occupied: &HashSet<String>) -> String {
     let key = name.to_lowercase();
     if !occupied.contains(&key) {
@@ -128,12 +138,36 @@ mod tests {
     #[test]
     fn encode_relative_replaces_separators() {
         assert_eq!(
-            encode_relative(Path::new("docs/sub/report.txt")),
+            encode_relative(Path::new("docs/sub/report.txt"), "_"),
             "docs_sub_report.txt"
         );
         assert_eq!(
-            encode_relative(Path::new("docs\\sub\\report.txt")),
+            encode_relative(Path::new("docs\\sub\\report.txt"), "_"),
             "docs_sub_report.txt"
+        );
+    }
+
+    /// FLAT-V2-01 — `encode_relative` joins path segments with the supplied
+    /// separator (default `_`), so `flatten --separator -` yields `a-b-c.txt`.
+    /// Both real separators (`/` and `\`) collapse to the chosen join char, and a
+    /// `..`/`.` traversal token is still dropped regardless of the separator.
+    #[test]
+    fn encode_relative_honors_separator() {
+        assert_eq!(
+            encode_relative(Path::new("docs/sub/report.txt"), "-"),
+            "docs-sub-report.txt"
+        );
+        assert_eq!(
+            encode_relative(Path::new("docs\\sub\\report.txt"), "-"),
+            "docs-sub-report.txt"
+        );
+        // The default `_` still works (parity with the v1 hardcoded join).
+        assert_eq!(encode_relative(Path::new("a/b/c.txt"), "_"), "a_b_c.txt");
+        // A `..` segment is dropped before the join, so no traversal token survives
+        // even with a custom separator.
+        assert_eq!(
+            encode_relative(Path::new("..\\escape.txt"), "-"),
+            "escape.txt"
         );
     }
 
@@ -153,7 +187,7 @@ mod tests {
             "just_a_file.txt",
         ];
         for input in inputs {
-            let encoded = encode_relative(Path::new(input));
+            let encoded = encode_relative(Path::new(input), "_");
             assert!(
                 !encoded.contains('\\'),
                 "encoded {input:?} -> {encoded:?} must not contain a backslash"

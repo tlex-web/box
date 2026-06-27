@@ -24,6 +24,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context};
 use clap::Args;
+use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 use walkdir::WalkDir;
 
 use crate::commands::RunCommand;
@@ -31,6 +32,12 @@ use crate::core::fs::{is_hidden, normalize_path, safe_copy};
 use crate::core::output::{
     dry_run_summary, format_row, human_size, real_run_summary, terminal_width, RowStatus,
 };
+
+/// "Large input" cutoff for the FLAT-V2-01 real-run stderr progress bar (Claude's
+/// Discretion): a file-count bar is drawn only when the plan has MORE than this
+/// many items. Below it (small flattens, including every existing test fixture) no
+/// bar appears. Always stderr-only, never constructed under `--json` (Pitfall 2).
+const PROGRESS_ITEM_THRESHOLD: usize = 16;
 
 /// `box flatten <src> <out> [--dry-run]` — flatten a folder tree into one
 /// directory (FLAT-01..04).
@@ -43,6 +50,20 @@ pub struct FlattenArgs {
     /// Preview the plan without writing anything.
     #[arg(long)]
     pub dry_run: bool,
+    /// Only copy files whose final extension matches one of these (comma-separated,
+    /// case-insensitive, e.g. `jpg,png`). Non-matching files are simply absent from
+    /// the plan/output (they never inflate the counts).
+    #[arg(long)]
+    pub extensions: Option<String>,
+    /// Join character for collision-encoded names (default `_`); e.g. `--separator
+    /// -` turns `docs\sub\a.txt` into `docs-sub-a.txt`. Must not contain a path
+    /// separator (`/` or `\`).
+    #[arg(long)]
+    pub separator: Option<String>,
+    /// Include hidden files and directories the default walk prunes (names starting
+    /// with `.` and, on Windows, the FILE_ATTRIBUTE_HIDDEN flag).
+    #[arg(long)]
+    pub include_hidden: bool,
 }
 
 /// What the plan will do with one source file.
@@ -147,6 +168,20 @@ fn flatten_rows(plan: &Plan) -> Vec<FlattenRow> {
 
 impl RunCommand for FlattenArgs {
     fn run(self) -> anyhow::Result<()> {
+        // (0) Validate --separator FIRST, before any I/O (V5 input validation): it
+        //     must not carry a path separator, which would let a collision-encoded
+        //     name escape the output dir (T-8-01). A clean anyhow error → exit 1,
+        //     never a panic. Default join char is `_` (v1 parity).
+        let separator = self.separator.as_deref().unwrap_or("_");
+        if separator.contains('/') || separator.contains('\\') {
+            bail!(
+                "invalid --separator {separator:?}: must not contain a path separator (/ or \\)"
+            );
+        }
+        // Parse --extensions once into a lowercased set (leading dots + surrounding
+        // whitespace tolerated). `None` means no extension filter (default).
+        let ext_set: Option<HashSet<String>> = self.extensions.as_deref().map(parse_extensions);
+
         // (1) Auto-create the output dir first (D-13), then canonicalize BOTH
         //     roots via dunce so the containment guard and collision-encoding work
         //     on real, UNC-free paths (FOUND-06, Pitfall 1).
@@ -186,8 +221,15 @@ impl RunCommand for FlattenArgs {
             occupied.insert(entry.file_name().to_string_lossy().to_lowercase());
         }
 
-        // (4) Walk + build the single plan.
-        let plan = build_plan(&src_root, &mut occupied)?;
+        // (4) Walk + build the single plan, threading the FLAT-V2-01 filters into
+        //     the one source-of-truth walk (so human render and --json cannot drift).
+        let plan = build_plan(
+            &src_root,
+            &mut occupied,
+            self.include_hidden,
+            ext_set.as_ref(),
+            separator,
+        )?;
 
         // (5) Dry-run prints and writes nothing; real run copies.
         if self.dry_run {
@@ -224,6 +266,22 @@ impl RunCommand for FlattenArgs {
         let json = crate::core::output::is_json_on();
         let arrow_col = arrow_col(&plan);
         let width = terminal_width();
+        // stderr-only copy progress (Pitfall 2): shown only for a plan above the
+        // cutoff and only when --json is off; never constructed under --json and
+        // never drawn to stdout.
+        let progress = if !json && plan.items.len() > PROGRESS_ITEM_THRESHOLD {
+            let pb = ProgressBar::with_draw_target(
+                Some(plan.items.len() as u64),
+                ProgressDrawTarget::stderr(),
+            );
+            pb.set_style(
+                ProgressStyle::with_template("{bar:30} {pos}/{len} files")
+                    .unwrap_or_else(|_| ProgressStyle::default_bar()),
+            );
+            Some(pb)
+        } else {
+            None
+        };
         let mut copied = 0usize;
         let mut bytes_written: u64 = 0;
         for item in &plan.items {
@@ -268,6 +326,12 @@ impl RunCommand for FlattenArgs {
                     }
                 }
             }
+            if let Some(pb) = &progress {
+                pb.inc(1);
+            }
+        }
+        if let Some(pb) = progress {
+            pb.finish_and_clear();
         }
 
         // WR-06: `count`/`results` are derived from the PLAN, not the executed
@@ -320,16 +384,39 @@ impl RunCommand for FlattenArgs {
     }
 }
 
-/// Walk `src_root` (hidden pruned, symlinks skipped) and build the plan, resolving
-/// each non-skipped file's destination name against `occupied` and inserting the
-/// chosen name so within-run collisions also dedupe.
-fn build_plan(src_root: &Path, occupied: &mut HashSet<String>) -> anyhow::Result<Plan> {
+/// Parse a `--extensions` list into a lowercased set of bare extensions
+/// (FLAT-V2-01): comma-separated, surrounding whitespace and a leading `.`
+/// tolerated, empties dropped (`"jpg, .PNG ,"` → `{"jpg","png"}`).
+fn parse_extensions(list: &str) -> HashSet<String> {
+    list.split(',')
+        .map(|e| e.trim().trim_start_matches('.').to_ascii_lowercase())
+        .filter(|e| !e.is_empty())
+        .collect()
+}
+
+/// Walk `src_root` and build the plan, resolving each non-skipped file's
+/// destination name against `occupied` and inserting the chosen name so within-run
+/// collisions also dedupe. The FLAT-V2-01 filters fold into this single
+/// source-of-truth walk so the human render and `--json` can never diverge:
+/// `include_hidden` bypasses the hidden prune; `extensions` (when `Some`) keeps
+/// only files whose final extension is in the set; `separator` is the
+/// collision-encoding join char passed to [`rename::encode_relative`].
+fn build_plan(
+    src_root: &Path,
+    occupied: &mut HashSet<String>,
+    include_hidden: bool,
+    extensions: Option<&HashSet<String>>,
+    separator: &str,
+) -> anyhow::Result<Plan> {
     let mut plan = Plan::default();
 
     let walker = WalkDir::new(src_root)
         .follow_links(false)
         .into_iter()
-        .filter_entry(|e| !is_hidden(e));
+        // --include-hidden drops the hidden prune entirely; unset keeps the D-06
+        // `is_hidden` filter exactly as v1 (a hidden directory still prunes its
+        // whole subtree cheaply).
+        .filter_entry(move |e| include_hidden || !is_hidden(e));
 
     for entry in walker {
         let entry = entry.with_context(|| format!("walking {}", src_root.display()))?;
@@ -358,6 +445,21 @@ fn build_plan(src_root: &Path, occupied: &mut HashSet<String>) -> anyhow::Result
             continue;
         }
 
+        // FLAT-V2-01 extension filter: when --extensions is set, only files whose
+        // final extension (case-insensitive) is in the set become plan items.
+        // Non-matching files are simply skipped BEFORE becoming plan items, so they
+        // never inflate `count` and are not emitted as skip rows.
+        if let Some(exts) = extensions {
+            let matches = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| exts.contains(&e.to_ascii_lowercase()))
+                .unwrap_or(false);
+            if !matches {
+                continue;
+            }
+        }
+
         // Base name for a plain copy.
         let base = path
             .file_name()
@@ -367,8 +469,9 @@ fn build_plan(src_root: &Path, occupied: &mut HashSet<String>) -> anyhow::Result
         let base_key = base_safe.to_lowercase();
 
         if occupied.contains(&base_key) {
-            // Collision: encode the source-relative path, then numeric-dedupe.
-            let encoded = rename::encode_relative(rel);
+            // Collision: encode the source-relative path (joined with the chosen
+            // separator), then numeric-dedupe.
+            let encoded = rename::encode_relative(rel, separator);
             let chosen = rename::dedupe(&encoded, occupied);
             occupied.insert(chosen.to_lowercase());
             // `[collision]` vs `[collision xN]` when the chosen name itself needed
