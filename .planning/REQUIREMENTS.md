@@ -51,7 +51,7 @@ Each maps to exactly one roadmap phase. REQ-IDs continue the per-command mnemoni
 ### Filesystem depth
 
 - [x] **FLAT-V2-01**: `flatten` gains `--extensions <list>`, `--separator <str>`, `--include-hidden`, and a stderr progress bar.
-- [ ] **FLAT-V2-02**: `flatten --move` relocates files instead of copying — copy → verify (dest exists + size matches) → delete source; dry-run default, `--force` to execute.
+- [x] **FLAT-V2-02**: `flatten --move` relocates files instead of copying — copy → verify (dest exists + size matches) → delete source; dry-run default, `--force` to execute. *(08-04: two-phase copy+verify-ALL then delete-ALL — D-36, the only ordering keeping the source byte-for-byte unchanged on a mid-batch copy error; empty source dirs preserved; `snapshot_tree` per-abort-path tests; adversarial code-review gate approved)*
 - [x] **DUPE-V2-01**: `dupes` uses multi-stage hashing (size → partial → full BLAKE3) and is hardlink-aware (paths sharing one file-index are collapsed, not counted as wasted space).
 - [ ] **DUPE-V2-02**: `dupes --delete` removes duplicates safely — keep at least one per group, non-interactive, dry-run default, `--force` to execute, hardlink-safe, abort-all-before-any pre-flight.
 - [x] **RENM-V2-01**: `bulk-rename` gains case transforms (upper / lower / title) and sequential numbering (`{n}` token with zero-padding).
@@ -129,7 +129,7 @@ Each requirement maps to exactly one roadmap phase (finalized 2026-06-25 by road
 | SPINE-04 | 7 | Complete |
 | HASH-V2-02 | 8 | Complete |
 | FLAT-V2-01 | 8 | Complete |
-| FLAT-V2-02 | 8 | Pending |
+| FLAT-V2-02 | 8 | Complete (08-04 — flatten --move, two-phase copy→verify→delete, adversarial review approved) |
 | DUPE-V2-01 | 8 | Complete |
 | DUPE-V2-02 | 8 | Pending |
 | RENM-V2-01 | 8 | Complete |

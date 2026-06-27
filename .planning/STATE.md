@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
 status: executing
-stopped_at: Completed 08-03-PLAN.md (DUPE-V2-01 + RENM-V2-01)
-last_updated: "2026-06-28T01:10:00.000Z"
+stopped_at: Completed 08-04-PLAN.md (FLAT-V2-02 flatten --move)
+last_updated: "2026-06-28T01:40:00.000Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 11
-  completed_plans: 8
-  percent: 73
+  completed_plans: 9
+  percent: 82
 ---
 
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-28
-**Updated by:** execute-plan (08-03 complete — DUPE-V2-01 dupes size→partial(16 KiB BLAKE3)→full cascade + hardlink-aware wasted via stable Win32 GetFileInformationByHandle/file_identity, JSON shape unchanged; RENM-V2-01 bulk-rename --case upper|lower|title [title on stem] + literal {n} numbering [--number-width/--start/--step] over the SORTED plan, before the UNCHANGED abort-all pre-flight; D-34/D-35 logged; full suite + clippy green; next: Wave 2 destructive 08-04 flatten --move)
+**Updated by:** execute-plan (08-04 complete — FLAT-V2-02 `flatten --move`: destructive relocation, dry-run DEFAULT + `--force`, TWO-PHASE copy+verify-ALL then delete-ALL [the only ordering that keeps the source byte-for-byte unchanged on a mid-batch copy error], empty source dirs preserved, `--json` dry_run flips with the mode; new tests/flatten_move.rs with snapshot_tree before==after per abort path; the mandatory adversarial code-review gate was approved; D-36 logged; full suite + clippy green; next: Wave 2 destructive 08-05 dupes --delete + 08-06 bulk-rename --backup)
 
 ---
 
@@ -36,11 +36,11 @@ See: .planning/PROJECT.md · .planning/ROADMAP.md · .planning/REQUIREMENTS.md (
 ## Current Position
 
 Phase: 08 (filesystem-depth) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-06-28
 
-Progress: [███████░░░] 73%
+Progress: [████████░░] 82%
 
 ## Phase Map
 
@@ -50,7 +50,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 |-------|------|-------------|--------|
 | 6 | Scriptable-Core Foundation | SPINE-01, SPINE-03, SPINE-05, HASH-V2-01 (4) | Complete (2/2 plans — all 4 reqs done) |
 | 7 | Spine Rollout | SPINE-02, SPINE-04 (2) | Complete (3/3 plans — 07-01 Wave-7a + 07-02 Wave-7b + 07-03 Wave-7c done; --json on 16/16, --clip on 6/6 new; SPINE-02/SPINE-04 done) |
-| 8 | Filesystem Depth | HASH-V2-02, FLAT-V2-01/02, DUPE-V2-01/02, RENM-V2-01/02, TREE-V2-01, DU-V2-01/02 (10) | Executing (3/6 plans — 08-01 HASH-V2-02 + FLAT-V2-01, 08-02 TREE-V2-01 + DU-V2-01/02, 08-03 DUPE-V2-01 + RENM-V2-01 done; Wave 1 complete) |
+| 8 | Filesystem Depth | HASH-V2-02, FLAT-V2-01/02, DUPE-V2-01/02, RENM-V2-01/02, TREE-V2-01, DU-V2-01/02 (10) | Executing (4/6 plans — Wave 1: 08-01 HASH-V2-02 + FLAT-V2-01, 08-02 TREE-V2-01 + DU-V2-01/02, 08-03 DUPE-V2-01 + RENM-V2-01 done; Wave 2: 08-04 FLAT-V2-02 flatten --move done [adversarial review approved]; 08-05/08-06 remain) |
 | 9 | Dev-Transform & Visual Depth | UUID-V2-01, EPOC-V2-01, COLR-V2-01, JSON-V2-01, PASS-V2-01, LOL-V2-01, MTRX-V2-01, QR-V2-01, ASCI-V2-01 (9) | Not started |
 | 10 | Fun & System Depth | COW-V2-01, FORT-V2-01, 8BAL-V2-01, ROST-V2-01, POMO-V2-01/02, WTHR-V2-01 (7) | Not started |
 | 11 | Meta-Commands | CFG-01, CMP-01 (2) | Not started |
@@ -59,7 +59,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 
 ## Performance Metrics
 
-**Plans executed (v2.0):** 8 / 18 planned
+**Plans executed (v2.0):** 9 / 18 planned
 **v1.0 (archived):** 22 plans, 22 succeeded, 0 failed, 5/5 phases — see `.planning/MILESTONES.md`.
 
 | Phase | Plan | Duration | Tasks | Files |
@@ -72,6 +72,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 | 8 | 08-01 | 15 min | 3 | 7 |
 | 8 | 08-02 | ~30 min | 3 | 4 |
 | 8 | 08-03 | ~30 min | 3 | 4 |
+| 8 | 08-04 | ~10 min | 3 (2 code + 1 review gate) | 2 |
 
 ---
 
@@ -117,6 +118,8 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 | **D-34 (08-03) DUPE-V2-01: dupes runs a size→partial(16 KiB BLAKE3)→full cascade; hardlink aliases sharing one `(volume_serial, file_index)` are collapsed before `wasted = (distinct_inodes-1)*size`** — identity via the STABLE Win32 `GetFileInformationByHandle` (localized `file_identity` in `dupes/mod.rs`), NOT the nightly `windows_by_handle` std fields (RESEARCH Pitfall 1 correction to STATE.md:113) | The partial stage re-buckets size-candidates by `(size, partial_hash)`; only `(size,partial)` buckets of `>=2` reach the full `par_iter`. The full hash stays the SOLE grouping arbiter — the partial stage is a pure pre-filter that provably can't change grouping (so a black-box grouping test can't distinguish 2-stage from 3-stage; `multistage_splits` is a green-from-start regression guard). `wasted_space` made hardlink-aware IN PLACE: `distinct_inodes` calls `file_identity` per path and counts an identity error as that path's own inode, so the synthetic-path unit tests keep matching `(len-1)*size` — no signature change, no dead code. JSON `{results,count,wasted_bytes}` shape unchanged; the human render still LISTS all alias paths, only the wasted figure collapses them. Per-module FFI (wave-isolation, D-33). |
 | **D-35 (08-03) RENM-V2-01: `--case upper\|lower\|title` (title on the STEM only, extension preserved) + literal `{n}` (`{{n}}` escape) numbered over the SORTED source order, assigned BETWEEN `build_plan` and the UNCHANGED `preflight_plan`** (D-21 apply order: re.replace → {n} → --case) | `apply_number_and_case_to_plan` operates on every regular FILE — real renames AND no-op `(unchanged)` skips — so `--case` applies even when `re.replace` was a no-op (`"(.*)" "$1" --case upper` uppercases everything); directory/symlink skips excluded (only files numbered). The byte-exact no-op check is RE-RUN post-transform and tallies kept in sync (Rename↔Skip flips). Counter = `start`, step `step`, over the source-path sort (reproducible, Pitfall 7); `width = number_width.unwrap_or(digit_count(file_count))`. `{{n}}` escaped via a NUL sentinel. `Case` is a `pub` clap `ValueEnum` (matches `hash::Algo`/`tree::SortMode`; satisfies `private_interfaces`). The load-bearing abort-all collision/cycle/separator detector is byte-for-byte untouched; default `box bulk-rename` output preserved. |
 
+| **D-36 (08-04) FLAT-V2-02: `flatten --move` executes in TWO phases — copy+verify EVERY file (safe_copy create-new → dest-exists + size-match), THEN delete EVERY source — rather than the plan's per-item copy→verify→delete loop** (dry-run is the DEFAULT, `--force` to execute; empty source dirs preserved) | The per-item loop the plan's `<action>` prose described would DELETE items 1..N-1 before a copy error on item N, violating the plan's own must_haves truth + threat T-8-04 ("every abort path — incl. mid-batch copy error — leaves the source byte-for-byte unchanged"). Two-phase is the ONLY ordering satisfying that invariant: Phase 1 copies+size-verifies all (any error `?`-propagates with ZERO sources deleted); Phase 2 (delete all) is unreachable until the whole batch verified, so a failed/short copy can never orphan a source. Trade-offs (reviewed + accepted at the mandatory adversarial code-review gate): peak disk doubles for the batch; a rare Phase-2 `remove_file` error leaves a fully-copied + partially-deleted tree — recoverable, NO data loss (T-8-04-TOCTOU accepted, single-process local CLI). `--json` reuses `FlattenOutput`/`flatten_rows` (dry_run flips with `--force`); copy mode (no `--move`) byte-identical to 08-01. `snapshot_tree(before)==snapshot_tree(after)` per abort path is the data-loss backstop (copy-me for 08-05/08-06). |
+
 Full v1.0 decision log preserved in PROJECT.md Key Decisions + `.planning/milestones/v1.0-ROADMAP.md`.
 
 ### Critical Pitfalls to Remember (carried from v1 + new for v2)
@@ -153,11 +156,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then this file for position/context.
 
-**Last session:** 2026-06-28T01:10:00.000Z
-**Stopped at:** Completed 08-03-PLAN.md (DUPE-V2-01 + RENM-V2-01)
+**Last session:** 2026-06-28T01:40:00.000Z
+**Stopped at:** Completed 08-04-PLAN.md (FLAT-V2-02 flatten --move)
 **Resume file:** None
 
-**Next action:** Phase 8 **Wave 1 is complete** (08-01/02/03). Wave 2 = the three DESTRUCTIVE plans, each with mandatory adversarial review + a snapshot-the-tree-unchanged assertion per abort path: **08-04 `flatten --move`** (copy→verify→delete, dry-run default + `--force`), 08-05 `dupes --delete` (keep-first, hardlink-safe, abort-all), 08-06 `bulk-rename --backup` (JSON undo manifest in `%LOCALAPPDATA%\box\undo\`, fsync before first rename). 08-03 shipped `dupes` size→partial(16 KiB BLAKE3)→full cascade + hardlink-aware wasted (`(distinct_inodes-1)*size`) via the STABLE Win32 `GetFileInformationByHandle`/`file_identity` (NOT nightly `windows_by_handle`), JSON shape unchanged; and `bulk-rename` `--case upper|lower|title` (title on the stem) + literal `{n}` (`{{n}}` escape) numbered over the SORTED plan (`--number-width/--start/--step`) BEFORE the UNCHANGED abort-all pre-flight. **08-05 reuse:** `dupes::file_identity` + the sorted-group cascade are ready for `--delete` keep-first/hardlink-safe; `(distinct_inodes-1)*size` is the deletion accounting basis. **08-04/06 reuse:** the dry-run-default → `--force` → abort-all-before-any template (bulk-rename) + `safe_copy`. Full `cargo test` green (171 unit + all integration) and clippy `--all-targets -D warnings` clean.
+**Next action:** Phase 8 **Wave 1 complete (08-01/02/03); Wave 2 in progress — 08-04 done**. Two destructive plans remain, each with mandatory adversarial review + a snapshot-the-tree-unchanged assertion per abort path: **08-05 `dupes --delete`** (keep-first, hardlink-safe, abort-all-before-any), **08-06 `bulk-rename --backup`** (JSON undo manifest in `%LOCALAPPDATA%\box\undo\`, fsync before first rename). 08-04 shipped `flatten --move`: destructive relocation, dry-run DEFAULT + `--force`, **TWO-PHASE copy+verify-ALL then delete-ALL** (D-36 — the only ordering keeping the source byte-for-byte unchanged on a mid-batch copy error), empty source dirs preserved, `--json` dry_run flips with the mode; new `tests/flatten_move.rs` with `snapshot_tree` before==after per abort path; the adversarial code-review gate was approved. **08-05 reuse:** `dupes::file_identity` + the sorted-group cascade are ready for `--delete` keep-first/hardlink-safe; `(distinct_inodes-1)*size` is the deletion accounting basis. **08-05/06 reuse:** the dry-run-default → `--force` destructive template + the two-phase abort-all-before-any pattern + the `snapshot_tree` per-abort-path test discipline established in 08-04; plus `safe_copy` and the bulk-rename abort-all pre-flight. Full `cargo test` green and clippy `--all-targets -D warnings` clean.
 
 ---
 *State reset to v2.0 phase map: 2026-06-25 by roadmapper (v1.0 plan-by-plan execution log archived with the milestone; v2.0 accumulated context — locked decisions D-1..D-7, v2 pitfalls, the v1→v2 architecture graft — preserved above).*
