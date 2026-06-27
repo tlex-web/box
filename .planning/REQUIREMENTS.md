@@ -52,9 +52,9 @@ Each maps to exactly one roadmap phase. REQ-IDs continue the per-command mnemoni
 
 - [x] **FLAT-V2-01**: `flatten` gains `--extensions <list>`, `--separator <str>`, `--include-hidden`, and a stderr progress bar.
 - [ ] **FLAT-V2-02**: `flatten --move` relocates files instead of copying — copy → verify (dest exists + size matches) → delete source; dry-run default, `--force` to execute.
-- [ ] **DUPE-V2-01**: `dupes` uses multi-stage hashing (size → partial → full BLAKE3) and is hardlink-aware (paths sharing one file-index are collapsed, not counted as wasted space).
+- [x] **DUPE-V2-01**: `dupes` uses multi-stage hashing (size → partial → full BLAKE3) and is hardlink-aware (paths sharing one file-index are collapsed, not counted as wasted space).
 - [ ] **DUPE-V2-02**: `dupes --delete` removes duplicates safely — keep at least one per group, non-interactive, dry-run default, `--force` to execute, hardlink-safe, abort-all-before-any pre-flight.
-- [ ] **RENM-V2-01**: `bulk-rename` gains case transforms (upper / lower / title) and sequential numbering (`{n}` token with zero-padding).
+- [x] **RENM-V2-01**: `bulk-rename` gains case transforms (upper / lower / title) and sequential numbering (`{n}` token with zero-padding).
 - [ ] **RENM-V2-02**: `bulk-rename --backup` writes pre-rename backups before executing a rename plan.
 - [x] **TREE-V2-01**: `tree` gains `.gitignore` respect, `--dirs-only`, `--ignore <glob>`, and sort-by-size.
 - [x] **DU-V2-01**: `du` gains an in-line percentage column and color-coded size ranges, plus `--exclude <glob>` (apparent size remains the default).
@@ -130,9 +130,9 @@ Each requirement maps to exactly one roadmap phase (finalized 2026-06-25 by road
 | HASH-V2-02 | 8 | Complete |
 | FLAT-V2-01 | 8 | Complete |
 | FLAT-V2-02 | 8 | Pending |
-| DUPE-V2-01 | 8 | Pending |
+| DUPE-V2-01 | 8 | Complete |
 | DUPE-V2-02 | 8 | Pending |
-| RENM-V2-01 | 8 | Pending |
+| RENM-V2-01 | 8 | Complete |
 | RENM-V2-02 | 8 | Pending |
 | TREE-V2-01 | 8 | Complete |
 | DU-V2-01 | 8 | Complete |
