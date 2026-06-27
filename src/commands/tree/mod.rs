@@ -25,11 +25,29 @@
 //!   summary (GNU `tree` convention) counts every shown dir/file, printed to
 //!   stdout after the tree (FOUND-03 — rows + summary to stdout, errors to
 //!   stderr).
+//!
+//! Depth flags (TREE-V2-01, D-20 — all OPT-IN; with none set the render is
+//! byte-identical to v1):
+//! - `--gitignore` hides entries matched by every `.gitignore` from the tree root
+//!   down to the current directory (a NESTED rule overrides an ancestor — the eza
+//!   #1086 class). `--ignore '<glob>'` (repeatable) folds into the SAME matcher.
+//! - `--dirs-only` drops file children (applied AFTER the ignore filter).
+//! - `--sort size` replaces the D-08 dirs-first comparator with size-descending
+//!   (files biggest-first, directories — which carry `size: None` — sorted to the
+//!   end); without it the D-08 order is unchanged.
+//!
+//! Matcher-as-filter (D-20): the gitignore/`--ignore`/`--dirs-only`/`--sort` logic
+//! lives inside [`read_children`], the SINGLE chokepoint both [`render_dir`] (human)
+//! and [`build_node`] (`--json`) call per directory — so the two recursions cannot
+//! drift. We deliberately do NOT switch to `ignore::WalkBuilder` (which would
+//! re-architect both recursions). Nested correctness uses an ancestor-stack
+//! (`Vec<Gitignore>`) checked deepest-first so a deeper rule wins.
 
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use clap::Args;
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use owo_colors::OwoColorize;
 use walkdir::WalkDir;
 
@@ -59,6 +77,60 @@ pub struct TreeArgs {
     /// (WR-04) — `--depth 0` would show only the root, almost certainly a typo.
     #[arg(long, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
     pub depth: Option<usize>,
+
+    /// Respect `.gitignore` files (root + nested; a deeper rule wins). Opt-in —
+    /// the default render is unchanged (TREE-V2-01, D-20).
+    #[arg(long)]
+    pub gitignore: bool,
+
+    /// Hide entries matching this glob (repeatable, e.g. `--ignore '*.log'
+    /// --ignore target`). Folds into the same matcher as `--gitignore`.
+    #[arg(long, value_name = "GLOB")]
+    pub ignore: Vec<String>,
+
+    /// Show directories only (drop all file children, in both the human and JSON
+    /// renders).
+    #[arg(long = "dirs-only")]
+    pub dirs_only: bool,
+
+    /// Sort order. `name` (default) = directories-first then case-insensitive
+    /// alphabetical (D-08); `size` = files biggest-first (directories sorted to
+    /// the end).
+    #[arg(long, value_name = "MODE")]
+    pub sort: Option<SortMode>,
+}
+
+/// `--sort` mode (TREE-V2-01). `Name` reproduces the default D-08 dirs-first order;
+/// `Size` orders files biggest-first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum SortMode {
+    /// Directories first, then case-insensitive alphabetical (the v1 default).
+    Name,
+    /// Files biggest-first; directories (no intrinsic size) sorted to the end.
+    Size,
+}
+
+/// The per-walk depth-flag options threaded through both recursions so the human
+/// and JSON renders apply identical filtering/sorting (no-drift).
+struct WalkOpts {
+    /// Load and honor `.gitignore` files per directory (`--gitignore`).
+    gitignore: bool,
+    /// Drop file children (`--dirs-only`).
+    dirs_only: bool,
+    /// The sort comparator selector (`--sort`).
+    sort: Option<SortMode>,
+}
+
+/// The immutable walk configuration carried (by `&`) through both recursions, so
+/// the per-call argument count stays small (clippy `too_many_arguments`). The
+/// mutable threading state (`Counts`, the gitignore `stack`) is passed separately.
+struct WalkCtx<'a> {
+    /// The displayed-depth cap (`--depth N`); `None` = unbounded.
+    max_depth: Option<usize>,
+    /// Show the per-file size column (`--sizes`) — consulted by `render_dir` only.
+    sizes: bool,
+    /// The depth-flag options (`--gitignore`/`--dirs-only`/`--sort`).
+    opts: &'a WalkOpts,
 }
 
 /// One child entry to render: its display name, whether it is a directory, and
@@ -118,6 +190,28 @@ impl RunCommand for TreeArgs {
         // path) so the render reads naturally, matching GNU `tree`.
         let root_label = self.path.to_string_lossy().to_string();
 
+        // The depth-flag options threaded through BOTH recursions (no-drift).
+        let opts = WalkOpts {
+            gitignore: self.gitignore,
+            dirs_only: self.dirs_only,
+            sort: self.sort,
+        };
+
+        // Build the initial matcher stack (deepest-first checked at match time):
+        // the `--ignore` globs form the SHALLOWEST entry, then the tree root's own
+        // `.gitignore` (when `--gitignore`). Children of deeper dirs push their own
+        // `.gitignore` as the recursion descends. An empty stack = no filtering, so
+        // the default render is byte-identical to v1.
+        let mut stack: Vec<Gitignore> = Vec::new();
+        if let Some(ig) = build_ignore_matcher(&root, &self.ignore)? {
+            stack.push(ig);
+        }
+        if opts.gitignore {
+            if let Some(gi) = load_dir_gitignore(&root)? {
+                stack.push(gi);
+            }
+        }
+
         // Fork on `is_json_on()` FIRST (Pitfall 1): tree has FOUR human stdout
         // writes (root label + tree + blank + summary), ALL of which must live
         // behind the `else`. Under --json the ONLY stdout write is emit_json, of a
@@ -125,8 +219,14 @@ impl RunCommand for TreeArgs {
         // root-rule exception). The root node is the target dir; its children
         // recurse with the SAME read_children/sort_children the printer uses, so
         // JSON order matches human order (no-drift).
+        let ctx = WalkCtx {
+            max_depth: self.depth,
+            sizes: self.sizes,
+            opts: &opts,
+        };
+
         if crate::core::output::is_json_on() {
-            let root_node = build_node(&root, root_label, true, None, self.depth, 1)?;
+            let root_node = build_node(&ctx, &root, root_label, true, None, 1, &mut stack)?;
             crate::core::output::emit_json(&root_node)?;
             return Ok(());
         }
@@ -143,7 +243,7 @@ impl RunCommand for TreeArgs {
         println!("{}", color_dir(&root_label));
 
         let mut counts = Counts::default();
-        render_dir(&root, "", self.depth, 1, self.sizes, &mut counts)?;
+        render_dir(&ctx, &root, "", 1, &mut counts, &mut stack)?;
 
         println!();
         println!("{} directories, {} files", counts.dirs, counts.files);
@@ -157,21 +257,22 @@ impl RunCommand for TreeArgs {
 /// so its immediate children are depth 1). Tallies every shown dir/file into
 /// `counts`.
 fn render_dir(
+    ctx: &WalkCtx,
     dir: &Path,
     prefix: &str,
-    max_depth: Option<usize>,
     depth: usize,
-    sizes: bool,
     counts: &mut Counts,
+    stack: &mut Vec<Gitignore>,
 ) -> anyhow::Result<()> {
     // Stop once we'd exceed the displayed-depth cap (root is depth 0).
-    if let Some(max) = max_depth {
+    if let Some(max) = ctx.max_depth {
         if depth > max {
             return Ok(());
         }
     }
 
-    let children = read_children(dir)?;
+    // `stack` already includes `dir`'s own `.gitignore` (pushed by the caller).
+    let children = read_children(dir, ctx.opts, stack)?;
     let last_idx = children.len().saturating_sub(1);
 
     for (i, child) in children.iter().enumerate() {
@@ -186,7 +287,7 @@ fn render_dir(
         };
 
         // `--sizes`: per-file human_size, blank for directories (D-10).
-        let size_col = if sizes {
+        let size_col = if ctx.sizes {
             match child.size {
                 Some(bytes) => format!("  {}", human_size(bytes)),
                 None => String::new(),
@@ -202,14 +303,13 @@ fn render_dir(
             // The continuation for this child's subtree: `│   ` if more siblings
             // follow, else `    ` (gap).
             let child_prefix = format!("{prefix}{}", if is_last { GAP } else { PIPE });
-            render_dir(
-                &child.path,
-                &child_prefix,
-                max_depth,
-                depth + 1,
-                sizes,
-                counts,
-            )?;
+            // Push this child dir's own `.gitignore` (deepest-first wins), recurse,
+            // then pop so siblings don't inherit it.
+            let pushed = push_dir_gitignore(stack, &child.path, ctx.opts)?;
+            render_dir(ctx, &child.path, &child_prefix, depth + 1, counts, stack)?;
+            if pushed {
+                stack.pop();
+            }
         } else {
             counts.files += 1;
         }
@@ -226,12 +326,13 @@ fn render_dir(
 /// cap exactly like `render_dir`: a directory AT the cap depth still appears as a
 /// node but its children (one level deeper) are not descended.
 fn build_node(
+    ctx: &WalkCtx,
     dir: &Path,
     name: String,
     is_dir: bool,
     size: Option<u64>,
-    max_depth: Option<usize>,
     depth: usize,
+    stack: &mut Vec<Gitignore>,
 ) -> anyhow::Result<Node> {
     // A file is a leaf — it carries its size and no children.
     if !is_dir {
@@ -245,22 +346,33 @@ fn build_node(
 
     // A directory: descend unless this child's subtree would exceed the displayed-
     // depth cap (same boundary as render_dir, which stops once `depth > max`).
-    let descend = match max_depth {
+    let descend = match ctx.max_depth {
         Some(max) => depth <= max,
         None => true,
     };
 
     let mut children = Vec::new();
     if descend {
-        for child in read_children(dir)? {
+        // `stack` already includes `dir`'s own `.gitignore` (pushed by the caller).
+        for child in read_children(dir, ctx.opts, stack)? {
+            // Push the child dir's `.gitignore` before recursing (deepest-first).
+            let pushed = if child.is_dir {
+                push_dir_gitignore(stack, &child.path, ctx.opts)?
+            } else {
+                false
+            };
             children.push(build_node(
+                ctx,
                 &child.path,
                 child.name,
                 child.is_dir,
                 child.size,
-                max_depth,
                 depth + 1,
+                stack,
             )?);
+            if pushed {
+                stack.pop();
+            }
         }
     }
 
@@ -274,9 +386,13 @@ fn build_node(
 }
 
 /// Read `dir`'s immediate children (hidden pruned via the shared `is_hidden`,
-/// symlinks not followed), returning them sorted directories-first then
-/// case-insensitive alphabetical (D-08).
-fn read_children(dir: &Path) -> anyhow::Result<Vec<Child>> {
+/// symlinks not followed), applying — in order — the gitignore/`--ignore` filter
+/// (via the ancestor `stack`, deepest-first), then `--dirs-only`, then sorting per
+/// `opts.sort`. `stack` MUST already include `dir`'s own `.gitignore` (the caller
+/// pushes it). With an empty stack, no `--dirs-only`, and no `--sort`, the result
+/// is byte-identical to v1 (directories-first then case-insensitive alphabetical,
+/// D-08).
+fn read_children(dir: &Path, opts: &WalkOpts, stack: &[Gitignore]) -> anyhow::Result<Vec<Child>> {
     // WalkDir at exactly depth 1 gives the immediate children as
     // `walkdir::DirEntry`s, so `core::fs::is_hidden` is reused VERBATIM (D-06)
     // and `follow_links(false)` keeps symlinks undescended (T-03-05).
@@ -289,8 +405,18 @@ fn read_children(dir: &Path) -> anyhow::Result<Vec<Child>> {
         .filter_entry(|e| !is_hidden(e))
     {
         let entry = entry.with_context(|| format!("reading {}", dir.display()))?;
-        let name = entry.file_name().to_string_lossy().to_string();
         let is_dir = entry.file_type().is_dir();
+        // Gitignore/`--ignore` filter FIRST (layered after the hidden prune): check
+        // the ancestor stack deepest-first so a nested rule wins (Pitfall 4).
+        if !stack.is_empty() && is_ignored(stack, entry.path(), is_dir) {
+            continue;
+        }
+        // `--dirs-only` AFTER the ignore filter: drop file children identically in
+        // both renders.
+        if opts.dirs_only && !is_dir {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
         // File size for the `--sizes` column; directories carry no size.
         let size = if is_dir {
             None
@@ -305,17 +431,108 @@ fn read_children(dir: &Path) -> anyhow::Result<Vec<Child>> {
         });
     }
 
-    sort_children(&mut children);
+    sort_children(&mut children, opts.sort);
     Ok(children)
 }
 
-/// Sort children directories-first, then case-insensitive alphabetical (D-08).
-fn sort_children(children: &mut [Child]) {
-    children.sort_by(|a, b| {
-        b.is_dir
-            .cmp(&a.is_dir)
-            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-    });
+/// Sort children per `sort`. `None`/`Some(Name)` keep the v1 D-08 order
+/// (directories-first then case-insensitive alphabetical). `Some(Size)` orders
+/// files biggest-first (ties broken case-insensitive); directories carry no
+/// intrinsic size (`size: None`) so they sort to a defined end, alphabetically.
+fn sort_children(children: &mut [Child], sort: Option<SortMode>) {
+    match sort {
+        Some(SortMode::Size) => {
+            children.sort_by(|a, b| match (a.size, b.size) {
+                // Both files: biggest-first, tie-break case-insensitive name.
+                (Some(sa), Some(sb)) => sb
+                    .cmp(&sa)
+                    .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())),
+                // A file sorts before a directory (files carry sizes).
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                // Both directories: case-insensitive alphabetical.
+                (None, None) => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+            });
+        }
+        // Default (and explicit `--sort name`): the v1 D-08 comparator.
+        _ => {
+            children.sort_by(|a, b| {
+                b.is_dir
+                    .cmp(&a.is_dir)
+                    .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+            });
+        }
+    }
+}
+
+/// Check the ancestor gitignore `stack` deepest-first; the FIRST decisive match
+/// wins (a nested rule overrides an ancestor — Pitfall 4). Returns `true` when
+/// `path` should be hidden. A whitelist (`!pattern`) in a deeper file re-shows a
+/// path an ancestor ignored.
+fn is_ignored(stack: &[Gitignore], path: &Path, is_dir: bool) -> bool {
+    for gi in stack.iter().rev() {
+        let m = gi.matched(path, is_dir);
+        if m.is_ignore() {
+            return true;
+        }
+        if m.is_whitelist() {
+            return false;
+        }
+    }
+    false
+}
+
+/// Build a single [`Gitignore`] from the `--ignore` globs (rooted at the tree
+/// target so patterns match relative paths). Returns `None` when no globs were
+/// given. A malformed glob is a clean error (exit 1), never a panic (T-8-02-GLOB).
+fn build_ignore_matcher(root: &Path, globs: &[String]) -> anyhow::Result<Option<Gitignore>> {
+    if globs.is_empty() {
+        return Ok(None);
+    }
+    let mut builder = GitignoreBuilder::new(root);
+    for g in globs {
+        builder
+            .add_line(None, g)
+            .with_context(|| format!("invalid --ignore glob: {g}"))?;
+    }
+    Ok(Some(builder.build().context("building --ignore matcher")?))
+}
+
+/// Load `dir`'s own `.gitignore` (rooted at `dir`) when present, returning `None`
+/// when the file is absent. A partial parse error (`add` returns the error while
+/// retaining the valid lines) is non-fatal — git is similarly lenient about an
+/// individual bad pattern.
+fn load_dir_gitignore(dir: &Path) -> anyhow::Result<Option<Gitignore>> {
+    let gi_path = dir.join(".gitignore");
+    if !gi_path.is_file() {
+        return Ok(None);
+    }
+    let mut builder = GitignoreBuilder::new(dir);
+    let _ = builder.add(&gi_path);
+    let gi = builder
+        .build()
+        .with_context(|| format!("parsing {}", gi_path.display()))?;
+    Ok(Some(gi))
+}
+
+/// Push `dir`'s own `.gitignore` onto the matcher `stack` when `--gitignore` is set
+/// and the file exists, returning whether a matcher was pushed (so the caller knows
+/// to pop after recursing). A no-op (returns `false`) when `--gitignore` is off.
+fn push_dir_gitignore(
+    stack: &mut Vec<Gitignore>,
+    dir: &Path,
+    opts: &WalkOpts,
+) -> anyhow::Result<bool> {
+    if !opts.gitignore {
+        return Ok(false);
+    }
+    match load_dir_gitignore(dir)? {
+        Some(gi) => {
+            stack.push(gi);
+            Ok(true)
+        }
+        None => Ok(false),
+    }
 }
 
 /// Color a directory name `.blue().bold()` when color is on, else return it plain
@@ -342,6 +559,15 @@ mod tests {
         }
     }
 
+    fn file_sized(name: &str, size: u64) -> Child {
+        Child {
+            name: name.to_string(),
+            is_dir: false,
+            size: Some(size),
+            path: PathBuf::from(name),
+        }
+    }
+
     #[test]
     fn dirs_sort_before_files_then_alpha() {
         // Mixed dirs/files in scrambled, mixed-case order.
@@ -352,7 +578,8 @@ mod tests {
             child("Beta", true),
             child("apple.rs", false),
         ];
-        sort_children(&mut v);
+        // Default order (no --sort) is the D-08 dirs-first comparator.
+        sort_children(&mut v, None);
         let order: Vec<&str> = v.iter().map(|c| c.name.as_str()).collect();
         // Directories first (alpha, Beta — case-insensitive), then files
         // (apple.rs, README.md, Zebra.txt — case-insensitive).
@@ -360,6 +587,50 @@ mod tests {
             order,
             vec!["alpha", "Beta", "apple.rs", "README.md", "Zebra.txt"]
         );
+    }
+
+    #[test]
+    fn sort_name_matches_default() {
+        // `--sort name` is explicitly the same as the default D-08 order.
+        let mut v = vec![
+            child("Zebra.txt", false),
+            child("alpha", true),
+            child("Beta", true),
+        ];
+        sort_children(&mut v, Some(SortMode::Name));
+        let order: Vec<&str> = v.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(order, vec!["alpha", "Beta", "Zebra.txt"]);
+    }
+
+    #[test]
+    fn sort_size_is_files_biggest_first_dirs_last() {
+        // Files carry sizes; directories (size None) sort to the end alphabetically.
+        let mut v = vec![
+            file_sized("small.txt", 100),
+            child("zdir", true),
+            file_sized("big.txt", 3000),
+            file_sized("mid.txt", 500),
+            child("Adir", true),
+        ];
+        sort_children(&mut v, Some(SortMode::Size));
+        let order: Vec<&str> = v.iter().map(|c| c.name.as_str()).collect();
+        // Files biggest-first (big, mid, small), then dirs alpha (Adir, zdir).
+        assert_eq!(
+            order,
+            vec!["big.txt", "mid.txt", "small.txt", "Adir", "zdir"]
+        );
+    }
+
+    #[test]
+    fn sort_size_ties_break_alpha() {
+        // Equal-size files break the tie by case-insensitive name.
+        let mut v = vec![
+            file_sized("zeta.txt", 200),
+            file_sized("Alpha.txt", 200),
+        ];
+        sort_children(&mut v, Some(SortMode::Size));
+        let order: Vec<&str> = v.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(order, vec!["Alpha.txt", "zeta.txt"]);
     }
 
     #[test]
