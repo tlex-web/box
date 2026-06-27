@@ -39,9 +39,9 @@
 //! Matcher-as-filter (D-20): the gitignore/`--ignore`/`--dirs-only`/`--sort` logic
 //! lives inside [`read_children`], the SINGLE chokepoint both [`render_dir`] (human)
 //! and [`build_node`] (`--json`) call per directory — so the two recursions cannot
-//! drift. We deliberately do NOT switch to `ignore::WalkBuilder` (which would
-//! re-architect both recursions). Nested correctness uses an ancestor-stack
-//! (`Vec<Gitignore>`) checked deepest-first so a deeper rule wins.
+//! drift. We deliberately do NOT switch to the recursive walker from the `ignore`
+//! crate (which would re-architect both recursions). Nested correctness uses an
+//! ancestor-stack (`Vec<Gitignore>`) checked deepest-first so a deeper rule wins.
 
 use std::path::{Path, PathBuf};
 
