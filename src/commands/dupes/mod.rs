@@ -1,16 +1,35 @@
 //! The `dupes` command: a content-duplicate finder (DUPE-01).
 //!
-//! Identity model (D-13) — size pre-filter THEN content hash:
+//! Identity model (D-13, DUPE-V2-01) — a THREE-stage size → partial → full
+//! cascade, each stage a cheaper pre-filter for the next:
 //! 1. Walk the target read-only (hidden pruned via the shared `is_hidden`,
 //!    symlinks NOT followed; NO noise list / NO `ignore` crate, D-06/D-07) and
 //!    bucket every regular file by `metadata().len()`.
 //! 2. Only same-size buckets of `>= 2` files are CANDIDATES — every unique-size
 //!    file is skipped and is never hashed (most files are never hashed at all).
-//! 3. Content-hash the candidates in PARALLEL with rayon, reusing the `hash`
-//!    slice's BLAKE3 streaming path (`blake3::Hasher::update_reader`, Plan 03-01).
-//!    BLAKE3 is chosen for SPEED — cryptographic-criticality is irrelevant for
-//!    equality grouping (D-13). The first hash error short-circuits the `collect`
-//!    to a clean `anyhow` error → exit 1, never a panic (T-03-17, FOUND-05).
+//! 3. PARTIAL stage (DUPE-V2-01): BLAKE3 only the first [`PARTIAL_BYTES`] of each
+//!    candidate and re-bucket by `(size, partial_hash)`. Same-size files that
+//!    differ in their prefix split here after a single small read, so the
+//!    expensive full pass only runs on files that agree on size AND prefix.
+//! 4. FULL stage: content-hash the surviving `(size, partial)` buckets of `>= 2`
+//!    in PARALLEL with rayon, reusing the `hash` slice's BLAKE3 streaming path
+//!    (`blake3::Hasher::update_reader`, Plan 03-01). BLAKE3 is chosen for SPEED —
+//!    cryptographic-criticality is irrelevant for equality grouping (D-13). The
+//!    first hash error short-circuits the `collect` to a clean `anyhow` error →
+//!    exit 1, never a panic (T-03-17, FOUND-05). The full hash is the final
+//!    arbiter — the partial stage can never change the grouping, only skip work.
+//!
+//! Hardlink-aware wasted space (DUPE-V2-01, RESEARCH Pitfall 6): content equality
+//! is NOT the same as a shared inode. Within each confirmed-duplicate group, paths
+//! that share one NTFS file-index `(dwVolumeSerialNumber, nFileIndex)` are a single
+//! on-disk file under two names (a hardlink alias) and are COLLAPSED before the
+//! wasted-space figure — a hardlink frees nothing if deleted, so it is never
+//! counted as wasted: `wasted = (distinct_inodes - 1) * size` per group. The
+//! identity is read with the STABLE Win32 `GetFileInformationByHandle`
+//! ([`file_identity`]); the nightly-only std `windows_by_handle` handle fields this
+//! project's STATE.md once pointed at (issue #63010 OPEN) are deliberately NOT used
+//! (RESEARCH Pitfall 1 correction). The human render still LISTS every alias; only
+//! the wasted figure collapses them.
 //!
 //! Determinism (RESEARCH Pitfall 6, T-03-16): rayon completion order is
 //! arbitrary, so the `(hash, path)` pairs are `sort()`ed BEFORE grouping/printing
@@ -26,7 +45,7 @@
 //! STRICTLY READ-ONLY (T-03-13, locked Out of Scope): there is NO write path here
 //! — no `safe_copy`, rename, or delete. `dupes` only reads the filesystem.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -117,10 +136,40 @@ impl RunCommand for DupesArgs {
             .flat_map(|(size, paths)| paths.into_iter().map(move |p| (size, p)))
             .collect();
 
-        // Content-hash the candidates IN PARALLEL (rayon). The first hash error
-        // short-circuits the collect to a clean anyhow error (exit 1, no panic,
-        // T-03-17). Each tuple is (hash, size, path).
-        let mut hashed: Vec<(String, u64, PathBuf)> = candidates
+        // PARTIAL stage (DUPE-V2-01): BLAKE3 the first PARTIAL_BYTES of each
+        // candidate IN PARALLEL and re-bucket by (size, partial_hash). The first
+        // partial-hash error short-circuits to a clean anyhow error (exit 1, no
+        // panic, T-03-17). Same-size files with a different prefix split here after
+        // a single small read, so the expensive full pass only runs on files that
+        // already agree on BOTH size and prefix.
+        let partial_hashed: Vec<(u64, String, PathBuf)> = candidates
+            .par_iter()
+            .map(|(size, path)| {
+                let ph = partial_hash(path)
+                    .with_context(|| format!("partial-hashing {}", path.display()))?;
+                Ok((*size, ph, path.clone()))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        let mut by_partial: HashMap<(u64, String), Vec<PathBuf>> = HashMap::new();
+        for (size, ph, path) in partial_hashed {
+            by_partial.entry((size, ph)).or_default().push(path);
+        }
+
+        // Only (size, partial) buckets with >= 2 files can hold a true duplicate;
+        // everything else is provably unique after one prefix read.
+        let full_candidates: Vec<(u64, PathBuf)> = by_partial
+            .into_iter()
+            .filter(|(_, paths)| paths.len() >= 2)
+            .flat_map(|((size, _partial), paths)| paths.into_iter().map(move |p| (size, p)))
+            .collect();
+
+        // FULL stage: content-hash the surviving candidates IN PARALLEL (rayon).
+        // The first hash error short-circuits the collect to a clean anyhow error
+        // (exit 1, no panic, T-03-17). Each tuple is (hash, size, path). The full
+        // hash is the final arbiter — it can never disagree with the partial stage's
+        // pre-filter, only confirm or split within a (size, partial) bucket.
+        let mut hashed: Vec<(String, u64, PathBuf)> = full_candidates
             .par_iter()
             .map(|(size, path)| {
                 let hash = hash_file_blake3(path)
@@ -223,6 +272,21 @@ fn hash_reader_blake3<R: Read>(reader: R) -> anyhow::Result<String> {
     Ok(hasher.finalize().to_hex().to_string())
 }
 
+/// How many leading bytes the PARTIAL stage hashes (DUPE-V2-01). 16 KiB is enough
+/// to split most same-size files cheaply while reading at most one disk block run.
+const PARTIAL_BYTES: u64 = 16 * 1024;
+
+/// BLAKE3 the first [`PARTIAL_BYTES`] of `path` — the cheap re-bucketing stage
+/// between size-bucketing and the full content hash. Reuses the reader-generic
+/// [`hash_reader_blake3`] core over a `Read::take(PARTIAL_BYTES)`. For a file
+/// `<= PARTIAL_BYTES` the partial covers the WHOLE file, so its partial hash already
+/// proves byte-identity; the subsequent full pass over such a file is redundant but
+/// harmless (correctness is unaffected, and the code stays a single uniform path).
+fn partial_hash(path: &Path) -> anyhow::Result<String> {
+    let file = std::fs::File::open(path).with_context(|| format!("opening {}", path.display()))?;
+    hash_reader_blake3(file.take(PARTIAL_BYTES))
+}
+
 /// Fold a `(hash, size, path)` list — already sorted by `(hash, path)` — into the
 /// duplicate groups: runs of consecutive equal hashes with `>= 2` members. The
 /// resulting groups (and their paths) are deterministically ordered because the
@@ -258,13 +322,100 @@ fn group_duplicates(hashed: Vec<(String, u64, PathBuf)>) -> Vec<DupeGroup> {
     groups
 }
 
-/// Total wasted space = the sum over groups of `(group_len - 1) * file_size` (the
-/// bytes occupied by the redundant copies — one copy of each group is "kept").
+/// Total wasted space = the sum over groups of `(distinct_inodes - 1) * file_size`
+/// (the bytes the redundant copies occupy — one copy of each group is "kept").
+///
+/// Hardlink-aware (DUPE-V2-01, RESEARCH Pitfall 6): paths within a group that share
+/// one NTFS file-index are a single on-disk file under several names, so they are
+/// collapsed to ONE inode before the `(len - 1)` redundancy count — a hardlink alias
+/// frees nothing if deleted and is never reported as wasted. [`distinct_inodes`]
+/// counts a path whose identity cannot be read as its OWN inode (conservative — we
+/// never UNDER-report wasted space on a transient `file_identity` error; this also
+/// means the unit tests, whose synthetic paths do not exist on disk, see each path
+/// as a distinct inode and so match the plain `(len - 1) * size` arithmetic).
 fn wasted_space(groups: &[DupeGroup]) -> u64 {
     groups
         .iter()
-        .map(|g| (g.paths.len() as u64 - 1) * g.size)
+        .map(|g| {
+            let distinct = distinct_inodes(&g.paths) as u64;
+            distinct.saturating_sub(1) * g.size
+        })
         .sum()
+}
+
+/// Count the distinct inodes among a group's paths via [`file_identity`]: paths
+/// sharing one `(volume_serial, file_index)` (hardlink aliases) count ONCE. A path
+/// whose identity cannot be read is conservatively counted as its own distinct
+/// inode (so wasted space is never under-reported).
+fn distinct_inodes(paths: &[PathBuf]) -> usize {
+    let mut ids: HashSet<(u32, u64)> = HashSet::new();
+    let mut unknown = 0usize;
+    for p in paths {
+        match file_identity(p) {
+            Ok(id) => {
+                ids.insert(id);
+            }
+            Err(_) => unknown += 1,
+        }
+    }
+    ids.len() + unknown
+}
+
+/// The stable filesystem identity of `path` as `(volume_serial, file_index)` — two
+/// paths sharing one inode (a hardlink alias) return the SAME pair (DUPE-V2-01).
+///
+/// Windows: read `(dwVolumeSerialNumber, nFileIndex)` off an open handle via the
+/// STABLE Win32 `GetFileInformationByHandle`. The std handle fields behind
+/// `windows_by_handle` (issue #63010 OPEN) are NIGHTLY-only, so they are
+/// deliberately NOT used here (RESEARCH Pitfall 1, correcting STATE.md:113 for this
+/// stable-MSVC build). This is
+/// the localized-FFI pattern (matching `du`'s `compressed_size`): one tiny wrapped
+/// `unsafe`, a read-only metadata query that registers no OS state (T-8-03-FFI).
+#[cfg(windows)]
+fn file_identity(path: &Path) -> anyhow::Result<(u32, u64)> {
+    use std::os::windows::io::AsRawHandle;
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::Storage::FileSystem::{
+        GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+    };
+
+    let file = std::fs::File::open(path)
+        .with_context(|| format!("opening {} for file identity", path.display()))?;
+    // `file` is kept alive for the whole call, so the borrowed handle stays valid.
+    // `RawHandle` is `*mut c_void`, matching `HANDLE`'s field — no cast needed.
+    let handle = HANDLE(file.as_raw_handle());
+    let mut info = BY_HANDLE_FILE_INFORMATION::default();
+    // SAFETY: `handle` is a live, valid file handle owned by `file` (alive for the
+    // duration of the call); `&mut info` is a valid writable out-param. The call is
+    // a read-only metadata query that retains no handle and registers no OS state
+    // (T-8-03-FFI). Errors surface as a clean `anyhow` context, never a panic.
+    unsafe { GetFileInformationByHandle(handle, &mut info) }
+        .with_context(|| format!("GetFileInformationByHandle failed for {}", path.display()))?;
+    let file_index = ((info.nFileIndexHigh as u64) << 32) | (info.nFileIndexLow as u64);
+    Ok((info.dwVolumeSerialNumber, file_index))
+}
+
+/// Non-Windows Unix fallback: `(st_dev, st_ino)` from `MetadataExt` is the
+/// equivalent stable identity, so hardlink collapse works on Unix hosts too (keeps
+/// `cargo test` meaningful off Windows). The project targets Windows.
+#[cfg(all(not(windows), unix))]
+fn file_identity(path: &Path) -> anyhow::Result<(u32, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    let m =
+        std::fs::metadata(path).with_context(|| format!("reading metadata for {}", path.display()))?;
+    Ok((m.dev() as u32, m.ino()))
+}
+
+/// Other-host fallback (neither Windows nor Unix): no stable file-index API in std,
+/// so hash the path — each path becomes its own identity and hardlink collapse is a
+/// no-op. Only keeps `cargo check` green on exotic hosts; the project targets
+/// Windows.
+#[cfg(all(not(windows), not(unix)))]
+fn file_identity(path: &Path) -> anyhow::Result<(u32, u64)> {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    path.hash(&mut h);
+    Ok((0, h.finish()))
 }
 
 /// Print each duplicate group (one file per line, a blank line between groups)
