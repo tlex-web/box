@@ -15,6 +15,19 @@
 //! stored SHA-256 baseline silently breaks; a 64-hex mismatch with no `--algo`
 //! prints a BLAKE3-fallback diagnostic hint on stderr (D-05).
 //!
+//! **Multi-file (HASH-V2-02):** `box hash a.bin b.bin` hashes every positional
+//! path in argument order, printing one coreutils text-mode `{digest}␣␣{label}`
+//! row (TWO spaces) per readable file and, under `--json`, ONE
+//! `{"results":[…],"count":N}` document. The partial-failure policy is coreutils
+//! best-effort: an unreadable file logs `error: …` on stderr and forces a final
+//! `exit 1`, but the other files are still hashed and printed. Under `--json` the
+//! document carries only the SUCCESSFUL rows and the process still exits 1 — a
+//! deliberate partial-success refinement of D-09 (whose empty-stdout rule targets
+//! TOTAL failure; A1). `--verify` stays single-input (the first/only path); the
+//! fan-out applies to the compute path only this phase. A stderr-only file-count
+//! progress bar appears for batches above [`PROGRESS_FILE_THRESHOLD`], never under
+//! `--json` (Pitfall 2).
+//!
 //! `--json` (SPINE-01 / D-02): `box hash <file> --json` emits one
 //! `{"results":[{"path":…,"algo":…,"digest":…}],"count":1}` document; `--clip`
 //! tees the digest to the clipboard via `out_line` (SPINE-03 / D-07).
@@ -40,6 +53,7 @@ use std::io::Read;
 
 use anyhow::{bail, Context};
 use clap::{Args, ValueEnum};
+use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 use md5::Md5;
 use sha2::{Digest, Sha256, Sha512};
 
@@ -50,6 +64,14 @@ use crate::core::input::read_file_or_stdin;
 /// Streaming read buffer for the RustCrypto incremental `update` loop. blake3
 /// manages its own SIMD-sized internal buffer via `update_reader`.
 const READ_BUF: usize = 64 * 1024;
+
+/// "Large input" cutoff for the HASH-V2-02 stderr progress bar (Claude's
+/// Discretion): a file-count bar is shown only when MORE than this many files are
+/// requested. Below it (the overwhelmingly common single-file case) no bar is
+/// drawn, so the default `box hash <file>` stderr stays empty and the existing
+/// snapshots are unaffected. The bar is always stderr-only and never constructed
+/// under `--json` (Pitfall 2).
+const PROGRESS_FILE_THRESHOLD: usize = 8;
 
 /// `box hash [--algo ALGO] [--verify HASH] [PATH]` — compute or verify a file
 /// checksum (HASH-01). Reads PATH, piped stdin, or `-` via the shared input layer.
@@ -70,8 +92,12 @@ pub struct HashArgs {
     #[arg(long)]
     pub verify: Option<String>,
 
-    /// File to hash; omit (or `-`) to read from piped stdin (labelled `-`).
-    pub path: Option<String>,
+    /// Files to hash; pass several for a coreutils-style batch (one
+    /// `<digest>  <filename>` line each, in argument order). Omit (or `-`) to read
+    /// from piped stdin (labelled `-`). Under `--verify`, only the FIRST path is
+    /// checked (verify stays single-input this phase).
+    #[arg(value_name = "PATH")]
+    pub paths: Vec<String>,
 }
 
 /// The supported hash algorithms (D-02). Value spellings are locked to
@@ -184,30 +210,30 @@ fn digest_reader<R: Read>(algo: Algo, reader: R) -> anyhow::Result<String> {
 
 impl RunCommand for HashArgs {
     fn run(self) -> anyhow::Result<()> {
-        // Capture the explicit `--algo` and the original path string BEFORE
-        // `read_file_or_stdin` consumes `self.path`. `path_for_probe` is `Some`
-        // only for a real on-disk path (NOT stdin/`-`), which is exactly the D-05
-        // re-open precondition: the streaming `input.reader` is single-pass
-        // (`Box<dyn Read>`, consumed by `digest_reader`), so the BLAKE3 probe must
-        // re-open the file — and there is no second read for piped stdin.
         let cli_algo = self.algo;
-        let path_for_probe = match self.path.as_deref() {
-            Some(p) if p != "-" => Some(p.to_string()),
-            _ => None,
-        };
-
-        // Acquire a STREAMING input source: path / `--file` (ahead of stdin) /
-        // piped stdin / exit-2-on-no-arg-TTY — all inherited from core::input.
-        let input = read_file_or_stdin(self.path)?;
-        let label = input.label;
 
         match self.verify {
-            // --verify: pick the algorithm — an EXPLICIT --algo ALWAYS wins; only
-            // a truly-unset --algo falls back to length auto-detect (WR-01). The
-            // verify length table (algo_from_len) is UNCHANGED by the v2 flip: a
-            // bare 64-hex still maps to sha256, so stored SHA-256 baselines never
-            // silently break (D-04, the #1 v2 data-risk backstop).
+            // --verify stays SINGLE-INPUT this phase (the first/only path); the
+            // multi-file fan-out applies to the COMPUTE path only (HASH-V2-02). Pick
+            // the algorithm — an EXPLICIT --algo ALWAYS wins; only a truly-unset
+            // --algo falls back to length auto-detect (WR-01). The verify length
+            // table (algo_from_len) is UNCHANGED by the v2 flip: a bare 64-hex still
+            // maps to sha256, so stored SHA-256 baselines never silently break
+            // (D-04, the #1 v2 data-risk backstop).
             Some(expected) => {
+                // The first positional path (or None → stdin) is the verify target.
+                // Capture `path_for_probe` (Some only for a real on-disk path, NOT
+                // stdin/`-`) BEFORE `read_file_or_stdin` consumes it: the streaming
+                // reader is single-pass, so the D-05 BLAKE3 probe must re-open the
+                // file — and there is no second read for piped stdin.
+                let first = self.paths.into_iter().next();
+                let path_for_probe = match first.as_deref() {
+                    Some(p) if p != "-" => Some(p.to_string()),
+                    _ => None,
+                };
+                let input = read_file_or_stdin(first)?;
+                let label = input.label;
+
                 let expected = expected.trim();
                 let algo = match cli_algo {
                     // Explicit choice is honored verbatim, even when the digest's
@@ -243,47 +269,121 @@ impl RunCommand for HashArgs {
                     bail!("hash mismatch for {label}: expected {expected}, got {computed}");
                 }
             }
-            // No --verify: COMPUTE the digest. Precedence is CLI > env > config >
-            // builtin (SPINE-05): an explicit `--algo`, else `BOX_HASH_DEFAULT_ALGO`,
-            // else the config `default_hash_algo`, else the v2 builtin BLAKE3 (D-04
-            // — the breaking compute-default flip; v1 defaulted to SHA-256). The
-            // env tier is wired live here (06-02), reusing `parse_algo` so env and
-            // config share ONE spelling parser.
-            None => {
-                let algo = cli_algo
-                    .or_else(|| {
-                        std::env::var("BOX_HASH_DEFAULT_ALGO")
-                            .ok()
-                            .and_then(|s| parse_algo(&s))
-                    })
-                    .or(crate::core::config::config().default_hash_algo)
-                    .unwrap_or(Algo::Blake3);
-                let computed = digest_reader(algo, input.reader)?;
-                // Fork on is_json_on() FIRST (Pitfall 1): the only stdout write
-                // under --json is emit_json. The human path keeps the two-space
-                // coreutils `<hash>  <label>` row (D-01) and routes through
-                // out_line so --clip tees the digest (D-07).
-                if crate::core::output::is_json_on() {
-                    let doc = HashOutput {
-                        count: 1,
-                        results: vec![HashRow {
-                            // `label` is already an owned String (the path, or `-`
-                            // for stdin). Never `to_str().unwrap()` — a non-UTF-8
-                            // path policy is `to_string_lossy()` (D-4), but `label`
-                            // is already lossy-safe here.
-                            path: label.clone(),
-                            algo,
-                            digest: computed,
-                        }],
-                    };
-                    crate::core::output::emit_json(&doc)?;
-                } else {
-                    crate::core::output::out_line(&format!("{computed}  {label}"));
-                }
-                Ok(())
-            }
+            // No --verify: COMPUTE digests for one or more files (HASH-V2-02).
+            None => run_compute(cli_algo, self.paths),
         }
     }
+}
+
+/// Compute and emit digests for `paths` — the HASH-V2-02 multi-file compute path.
+///
+/// An empty `paths` reads stdin once (label `-`, the unchanged single-input
+/// behavior); otherwise each path is hashed in argument order. The human path
+/// prints one coreutils two-space `{digest}  {label}` row per readable file via
+/// `out_line` (so `--clip` tees each digest, D-07); under `--json` the ONLY stdout
+/// write is one `{results,count}` document.
+///
+/// **Partial-failure policy (A1, coreutils best-effort):** an unreadable file logs
+/// `error: …` on stderr and forces a final `exit 1`, but the rest of the batch is
+/// still hashed and reported. Under `--json` the document carries only the
+/// SUCCESSFUL rows and the process still exits 1 — the deliberate partial-success
+/// refinement of D-09 (whose empty-stdout rule targets TOTAL failure).
+///
+/// Progress: a file-count bar is drawn to STDERR only for batches larger than
+/// [`PROGRESS_FILE_THRESHOLD`] and never under `--json` (Pitfall 2) — it never
+/// touches stdout.
+fn run_compute(cli_algo: Option<Algo>, paths: Vec<String>) -> anyhow::Result<()> {
+    // Resolve the algorithm ONCE via the EXISTING CLI > env > config > builtin
+    // chain (do not duplicate the resolver): an explicit `--algo`, else
+    // `BOX_HASH_DEFAULT_ALGO` (reusing `parse_algo`), else the config
+    // `default_hash_algo`, else the v2 builtin BLAKE3 (D-04). Every file in the
+    // batch shares this one algorithm.
+    let algo = cli_algo
+        .or_else(|| {
+            std::env::var("BOX_HASH_DEFAULT_ALGO")
+                .ok()
+                .and_then(|s| parse_algo(&s))
+        })
+        .or(crate::core::config::config().default_hash_algo)
+        .unwrap_or(Algo::Blake3);
+
+    // Empty Vec → a single stdin target (label `-`); else one target per path.
+    let targets: Vec<Option<String>> = if paths.is_empty() {
+        vec![None]
+    } else {
+        paths.into_iter().map(Some).collect()
+    };
+
+    // Fork once on --json: under it, no human rows and no progress (Pitfall 1/2).
+    let json = crate::core::output::is_json_on();
+
+    // stderr-only file-count progress, only for a batch above the cutoff and only
+    // when --json is off; never constructed (and never drawn to stdout) otherwise.
+    let progress = if !json && targets.len() > PROGRESS_FILE_THRESHOLD {
+        let pb =
+            ProgressBar::with_draw_target(Some(targets.len() as u64), ProgressDrawTarget::stderr());
+        pb.set_style(
+            ProgressStyle::with_template("{bar:30} {pos}/{len} files hashed")
+                .unwrap_or_else(|_| ProgressStyle::default_bar()),
+        );
+        Some(pb)
+    } else {
+        None
+    };
+
+    let mut rows: Vec<HashRow> = Vec::with_capacity(targets.len());
+    let mut had_error = false;
+    for t in targets {
+        match read_file_or_stdin(t).and_then(|inp| {
+            let label = inp.label.clone();
+            digest_reader(algo, inp.reader).map(|d| (label, d))
+        }) {
+            Ok((label, digest)) => {
+                if !json {
+                    // The line-281 two-space coreutils row (D-01), routed through
+                    // out_line so --clip tees each digest (D-07).
+                    crate::core::output::out_line(&format!("{digest}  {label}"));
+                }
+                rows.push(HashRow {
+                    // `label` is already an owned String (the path, or `-` for
+                    // stdin); never `to_str().unwrap()` (D-4).
+                    path: label,
+                    algo,
+                    digest,
+                });
+            }
+            // Best-effort (A1): report the bad file on stderr, keep going.
+            Err(e) => {
+                eprintln!("error: {e:#}");
+                had_error = true;
+            }
+        }
+        if let Some(pb) = &progress {
+            pb.inc(1);
+        }
+    }
+    if let Some(pb) = progress {
+        pb.finish_and_clear();
+    }
+
+    // Under --json the ONLY stdout write is one document with the SUCCESSFUL rows
+    // (A1 partial-success — distinct from D-09's total-failure empty-stdout rule).
+    if json {
+        let doc = HashOutput {
+            count: rows.len(),
+            results: rows,
+        };
+        crate::core::output::emit_json(&doc)?;
+    }
+
+    // Coreutils best-effort: exit 1 if ANY file failed. The successful digests are
+    // already flushed above (out_line/emit_json each end on a newline, so stdout is
+    // line-flushed before this exit). flush_clip is intentionally skipped on the
+    // failure path, matching the existing verify-mismatch error contract.
+    if had_error {
+        std::process::exit(1);
+    }
+    Ok(())
 }
 
 /// Emit the D-05 BLAKE3-fallback hint on stderr (caller has already checked the
