@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
 status: executing
-stopped_at: Phase 8 context gathered
-last_updated: "2026-06-27T21:21:05.096Z"
-last_activity: 2026-06-27 -- Phase 08 planning complete
+stopped_at: Completed 08-01-PLAN.md (HASH-V2-02 + FLAT-V2-01)
+last_updated: "2026-06-27T21:54:31.803Z"
+last_activity: 2026-06-27
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 11
-  completed_plans: 5
-  percent: 33
+  completed_plans: 6
+  percent: 55
 ---
 
 # Project State: box — Rust CLI Toolbox
 
-**Last updated:** 2026-06-25
-**Updated by:** execute-plan (07-03 complete — json/qr/weather Wave-7c odd-fits adopt the spine + clip_feed primitive added; SPINE-02 16/16 + SPINE-04 6/6 done, Phase 7 COMPLETE, next: Phase 8 filesystem depth)
+**Last updated:** 2026-06-27
+**Updated by:** execute-plan (08-01 complete — HASH-V2-02 multi-file coreutils hash + best-effort exit-1 + stderr progress; FLAT-V2-01 --extensions/--separator/--include-hidden folded into build_plan + copy progress; all four Phase-8 deps landed [indicatif/ignore/globset/windows 0.61]; D-29/D-30/D-31 logged; next: 08-02 tree+du)
 
 ---
 
@@ -25,7 +25,7 @@ progress:
 
 **Core Value:** The toolbox must be globally available and instantly usable from PowerShell 7 — type `box <command>` from anywhere and the tool just works.
 
-**Current Focus:** Phase 8 — filesystem depth
+**Current Focus:** Phase 08 — filesystem-depth
 
 **Milestone:** v2.0 Toolbox → Toolkit — EXECUTING. Phase 6 (scriptable-core foundation) complete. v1.0 Full Toolbox shipped & archived 2026-06-24 (all 23 commands; see `.planning/MILESTONES.md`).
 
@@ -35,12 +35,12 @@ See: .planning/PROJECT.md · .planning/ROADMAP.md · .planning/REQUIREMENTS.md (
 
 ## Current Position
 
-Phase: 8
-Plan: Not started
+Phase: 08 (filesystem-depth) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-06-27 -- Phase 08 planning complete
+Last activity: 2026-06-27
 
-Progress: [██████████] 100%
+Progress: [██████░░░░] 55%
 
 ## Phase Map
 
@@ -50,7 +50,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 |-------|------|-------------|--------|
 | 6 | Scriptable-Core Foundation | SPINE-01, SPINE-03, SPINE-05, HASH-V2-01 (4) | Complete (2/2 plans — all 4 reqs done) |
 | 7 | Spine Rollout | SPINE-02, SPINE-04 (2) | Complete (3/3 plans — 07-01 Wave-7a + 07-02 Wave-7b + 07-03 Wave-7c done; --json on 16/16, --clip on 6/6 new; SPINE-02/SPINE-04 done) |
-| 8 | Filesystem Depth | HASH-V2-02, FLAT-V2-01/02, DUPE-V2-01/02, RENM-V2-01/02, TREE-V2-01, DU-V2-01/02 (10) | Not started |
+| 8 | Filesystem Depth | HASH-V2-02, FLAT-V2-01/02, DUPE-V2-01/02, RENM-V2-01/02, TREE-V2-01, DU-V2-01/02 (10) | Executing (1/6 plans — 08-01 HASH-V2-02 + FLAT-V2-01 done) |
 | 9 | Dev-Transform & Visual Depth | UUID-V2-01, EPOC-V2-01, COLR-V2-01, JSON-V2-01, PASS-V2-01, LOL-V2-01, MTRX-V2-01, QR-V2-01, ASCI-V2-01 (9) | Not started |
 | 10 | Fun & System Depth | COW-V2-01, FORT-V2-01, 8BAL-V2-01, ROST-V2-01, POMO-V2-01/02, WTHR-V2-01 (7) | Not started |
 | 11 | Meta-Commands | CFG-01, CMP-01 (2) | Not started |
@@ -59,7 +59,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 
 ## Performance Metrics
 
-**Plans executed (v2.0):** 5 / 18 planned
+**Plans executed (v2.0):** 6 / 18 planned
 **v1.0 (archived):** 22 plans, 22 succeeded, 0 failed, 5/5 phases — see `.planning/MILESTONES.md`.
 
 | Phase | Plan | Duration | Tasks | Files |
@@ -69,6 +69,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 | 7 | 07-01 | 19 min | 3 | 17 |
 | 7 | 07-02 | 12 min | 3 | 10 |
 | 7 | 07-03 | 13 min | 3 | 7 |
+| 8 | 08-01 | 15 min | 3 | 7 |
 
 ---
 
@@ -103,6 +104,10 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 | **D-26 (07-03) A2 RESOLVED — core::output::clip_feed(&str) is the ONE sanctioned spine addition this phase** (the "print X, copy Y" tee out_line cannot express) | Mirrors out_line's tee half (push_str + '\n', gated on CLIP_ON) but omits the println!. qr keeps `println!` for the glyph block and calls `clip_feed(&input)` so `qr --clip` copies the SOURCE TEXT, not the ▀▄ glyphs (D-15); under `--json --clip` emit_json's own tee copies the document (no double-feed). Locked by `clip_feed_tees_only` + the #[ignore]d `clip_copies_source_text` (pasted==input). NO other core::output primitive added. |
 | **D-27 (07-03) json --json is D-16 identity passthrough** — emit_json(&value) on the parsed Value VERBATIM, NOT wrapped; the --json fork is FIRST and wins over --compact | json is the ONE direct-serde command (root-rule exception alongside tree). The machine document is always the pretty serde form (so `--json --compact` yields pretty — the decisive `json_identity_passthrough` discriminator). The plain `to_string_pretty` + `--compact` human branches route through `out_line` so `--clip`/`--compact --clip` tee the printed form; the colored `print!` branch is left as-is (never reached under --clip, COLOR_ON forced false). Invalid → bail! (exit 1, empty stdout) unchanged (D-09). |
 | **D-28 (07-03) weather --json is D-17 current-only**; unit/wind_unit read from forecast.current_units (never hardcoded — imperial wind label is "mp/h", Pitfall WTHR-3) | `WeatherOutput{location, temperature, unit, conditions, wind_speed, wind_unit, humidity}` built from the parsed `forecast`; f64 fields straight from `forecast.current` (finite real API data, never hand-computed NaN/Inf, Pitfall 2). Offline `json_purity` via a one-shot loopback `TcpListener` serving `forecast_imperial.json` + a `lat,lon` location (skips geocoding → only the forecast GET runs); asserts `unit=="°F"`/`wind_unit=="mp/h"` to prove the label is from current_units. The stderr resolved-location echo stays off the --json stdout channel. NO forecast/daily/hourly fields (Phase 10). |
+
+| **D-29 (08-01) HASH-V2-02 --json partial failure (A1 RESOLVED)** — emit the `{results,count}` document with ONLY the successful rows AND exit 1 | A partial-success refinement of D-09 (whose empty-stdout rule targets TOTAL failure). Best-effort coreutils parity: each unreadable file logs `error: …` on stderr, the rest are still hashed; `std::process::exit(1)` after rows flush (out_line/emit_json each end on a newline → stdout line-flushed before exit). `--verify` stays single-input (first path). Locked by `tests/hash.rs::{multi_file_two_space,json_multifile_purity,partial_failure_exit1}`. |
+| **D-30 (08-01) progress is stderr-only** via `ProgressBar::with_draw_target(Some(n), ProgressDrawTarget::stderr())` behind a `!is_json_on() && len > THRESHOLD` guard | Cutoffs (Claude's Discretion): hash file-count bar for >8 files, flatten copy bar for >16 plan items; below the cutoff no bar (keeps the common case + existing snapshots clean). Never constructed under `--json` (Pitfall 2 — stdout JSON purity). The copy-me pattern for du/dupes progress in 08-02/08-03. |
+| **D-31 (08-01) flatten `encode_relative(rel, sep)`** splits on the REAL path separators then joins with `sep`; dedupe numeric suffix stays `_` | Splitting on `/`/`\` (not on `sep`) keeps a multi-char/unusual separator correct and is byte-identical to v1 for the default `_`. The dedupe `_{n}` suffix is a within-output uniqueness counter, not a segment join, so it is unaffected by `--separator`. `--separator` rejects `/`/`\` before any I/O (T-8-01); `--extensions` is a pure lowercased-set compare, no glob/regex (T-8-01-INJ). `--include-hidden` bypasses the D-06 prune; all three fold into the single `build_plan` walk (no-drift). |
 
 Full v1.0 decision log preserved in PROJECT.md Key Decisions + `.planning/milestones/v1.0-ROADMAP.md`.
 
@@ -140,11 +145,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then this file for position/context.
 
-**Last session:** 2026-06-25T17:19:21.107Z
-**Stopped at:** Phase 8 context gathered
-**Resume file:** .planning/phases/08-filesystem-depth/08-CONTEXT.md
+**Last session:** 2026-06-27T21:54:31.785Z
+**Stopped at:** Completed 08-01-PLAN.md (HASH-V2-02 + FLAT-V2-01)
+**Resume file:** .planning/phases/08-filesystem-depth/08-02-PLAN.md
 
-**Next action:** Phase 7 is complete and ready for verification (`/gsd:verify-phase 7` or equivalent). All 16 commands carry `--json` (SPINE-02) and the 6 new `--clip` commands are wired (SPINE-04); `clip_feed` is the only spine addition (D-26). Then Phase 8 (Filesystem Depth — HASH-V2-02, FLAT/DUPE/RENM/TREE/DU-V2 depth flags): the depth phases add fields/flags to the existing `{Output}` structs, never the fork mechanism. The full Phase-7 suite (all integration + 158 unit tests) is green and clippy is clean.
+**Next action:** Phase 8 Wave 1 continues with **08-02 (tree+du)** then **08-03 (dupes+bulk-rename)** — both can consume the now-landed `ignore`/`globset`/`windows 0.61`/`indicatif` deps without touching `Cargo.toml`. 08-01 shipped HASH-V2-02 (multi-file coreutils hash, best-effort exit-1, stderr progress) + FLAT-V2-01 (`--extensions`/`--separator`/`--include-hidden` folded into `build_plan`, copy progress); the stderr-progress pattern (`ProgressDrawTarget::stderr()` behind `!is_json_on() && len>THRESHOLD`) is the copy-me for du/dupes. Full `cargo test` green (159 unit + all integration) and clippy `-D warnings` clean.
 
 ---
 *State reset to v2.0 phase map: 2026-06-25 by roadmapper (v1.0 plan-by-plan execution log archived with the milestone; v2.0 accumulated context — locked decisions D-1..D-7, v2 pitfalls, the v1→v2 architecture graft — preserved above).*

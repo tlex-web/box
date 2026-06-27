@@ -46,11 +46,11 @@ Each maps to exactly one roadmap phase. REQ-IDs continue the per-command mnemoni
 ### Hashing depth
 
 - [x] **HASH-V2-01**: BLAKE3 is the default `hash` algorithm — **breaking change to the COMPUTE default only** (`box hash file` now emits BLAKE3; `--algo sha256` and the `hash.default_algo` config key preserve old behavior). **Verify resolution is unchanged**: a bare `--verify <64-hex>` still maps to SHA-256 (the length table 32→md5 / 64→sha256 / 128→sha512 is untouched), so stored SHA-256 baselines never silently break; `--algo blake3 --verify` is the explicit BLAKE3 verify path, and a 64-hex mismatch emits a BLAKE3-fallback diagnostic hint. *(Amended 2026-06-25 per Phase-6 discuss decision D-04/D-05 — the original "64-hex tie now maps to BLAKE3" wording would have silently broken the SHA-256 install base.)* *(06-02: compute default flipped with CLI>env>config>builtin precedence; `algo_from_len` UNCHANGED + `hash_verify_autodetect` passes UNCHANGED; D-05 probe live)*
-- [ ] **HASH-V2-02**: `hash` accepts multiple file arguments and prints coreutils `digest␣␣filename` (double-space) per line, with a stderr progress indicator for large inputs.
+- [x] **HASH-V2-02**: `hash` accepts multiple file arguments and prints coreutils `digest␣␣filename` (double-space) per line, with a stderr progress indicator for large inputs.
 
 ### Filesystem depth
 
-- [ ] **FLAT-V2-01**: `flatten` gains `--extensions <list>`, `--separator <str>`, `--include-hidden`, and a stderr progress bar.
+- [x] **FLAT-V2-01**: `flatten` gains `--extensions <list>`, `--separator <str>`, `--include-hidden`, and a stderr progress bar.
 - [ ] **FLAT-V2-02**: `flatten --move` relocates files instead of copying — copy → verify (dest exists + size matches) → delete source; dry-run default, `--force` to execute.
 - [ ] **DUPE-V2-01**: `dupes` uses multi-stage hashing (size → partial → full BLAKE3) and is hardlink-aware (paths sharing one file-index are collapsed, not counted as wasted space).
 - [ ] **DUPE-V2-02**: `dupes --delete` removes duplicates safely — keep at least one per group, non-interactive, dry-run default, `--force` to execute, hardlink-safe, abort-all-before-any pre-flight.
@@ -127,8 +127,8 @@ Each requirement maps to exactly one roadmap phase (finalized 2026-06-25 by road
 | HASH-V2-01 | 6 | Complete (06-02 — BLAKE3 compute-default flip + config/env escape hatch + D-05 probe; verify table UNCHANGED) |
 | SPINE-02 | 7 | Complete |
 | SPINE-04 | 7 | Complete |
-| HASH-V2-02 | 8 | Pending |
-| FLAT-V2-01 | 8 | Pending |
+| HASH-V2-02 | 8 | Complete |
+| FLAT-V2-01 | 8 | Complete |
 | FLAT-V2-02 | 8 | Pending |
 | DUPE-V2-01 | 8 | Pending |
 | DUPE-V2-02 | 8 | Pending |

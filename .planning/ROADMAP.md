@@ -117,7 +117,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 08-01-PLAN.md — `hash` multi-file + coreutils `digest␣␣filename` + stderr progress (HASH-V2-02); `flatten` --extensions/--separator/--include-hidden + progress (FLAT-V2-01); adds the four Phase-8 deps. [wave 1]
+- [x] 08-01-PLAN.md — `hash` multi-file + coreutils `digest␣␣filename` + stderr progress (HASH-V2-02); `flatten` --extensions/--separator/--include-hidden + progress (FLAT-V2-01); adds the four Phase-8 deps. [wave 1]
 - [ ] 08-02-PLAN.md — `tree` --gitignore/--ignore/--dirs-only/--sort size (TREE-V2-01); `du` percentage column/band color/--exclude + --on-disk Win32 (DU-V2-01, DU-V2-02). [wave 1]
 - [ ] 08-03-PLAN.md — `dupes` multi-stage (size→partial→full BLAKE3) + hardlink-aware collapse (DUPE-V2-01); `bulk-rename` --case + {n} numbering (RENM-V2-01). [wave 1]
 
@@ -204,7 +204,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Windows Platform Integration | v1.0 | 4/4 | Complete | 2026-06-24 |
 | 6. Scriptable-Core Foundation | v2.0 | 2/2 | Complete | 2026-06-25 |
 | 7. Spine Rollout | v2.0 | 3/3 | Complete   | 2026-06-25 |
-| 8. Filesystem Depth | v2.0 | 0/6 | Not started | - |
+| 8. Filesystem Depth | v2.0 | 1/6 | In Progress|  |
 | 9. Dev-Transform & Visual Depth | v2.0 | 0/3 | Not started | - |
 | 10. Fun & System Depth | v2.0 | 0/2 | Not started | - |
 | 11. Meta-Commands | v2.0 | 0/2 | Not started | - |
