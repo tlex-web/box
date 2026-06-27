@@ -75,6 +75,21 @@ pub struct BulkRenameArgs {
     /// Recurse into subdirectories (default: only the target dir's top-level files).
     #[arg(long)]
     pub recursive: bool,
+    /// Case-fold the resulting name (`upper`/`lower` fold the whole name; `title`
+    /// title-cases the stem only, leaving the extension untouched). Applied AFTER
+    /// the regex replacement and `{n}` expansion (D-21).
+    #[arg(long, value_name = "MODE")]
+    pub case: Option<Case>,
+    /// Zero-pad width for the literal `{n}` token (default: auto-width from the file
+    /// count). Write `{{n}}` for a literal `{n}`.
+    #[arg(long, value_name = "N")]
+    pub number_width: Option<usize>,
+    /// First value for the `{n}` counter (assigned over the sorted plan order).
+    #[arg(long, default_value_t = 1, value_name = "N")]
+    pub start: usize,
+    /// Increment between consecutive `{n}` values.
+    #[arg(long, default_value_t = 1, value_name = "N")]
+    pub step: usize,
 }
 
 /// What the plan will do with one file.
@@ -93,6 +108,18 @@ impl ItemKind {
             ItemKind::Skip => RowStatus::Skip,
         }
     }
+}
+
+/// The optional name-case transform applied AFTER `re.replace` (RENM-V2-01, D-21).
+/// `Upper`/`Lower` fold the WHOLE resulting name; `Title` capitalizes the stem only
+/// and leaves the final extension untouched. The `regex` crate has no `\U`/`\L`
+/// case-fold escapes, so case is a separate post-pass — the regex semantics stay
+/// 100% untouched (D-21 rationale).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum Case {
+    Upper,
+    Lower,
+    Title,
 }
 
 /// One planned action. Built once and consumed by both the preview and the
@@ -305,7 +332,20 @@ impl RunCommand for BulkRenameArgs {
             .with_context(|| format!("compiling regex pattern {:?}", self.pattern))?;
 
         // (2)/(3) Walk the scope and build the plan.
-        let plan = build_plan(&self.dir, &re, &self.replacement, self.recursive)?;
+        let mut plan = build_plan(&self.dir, &re, &self.replacement, self.recursive)?;
+
+        // (3b) RENM-V2-01: expand the literal `{n}` counter and fold `--case` over
+        //      the deterministic SORTED plan order (D-21 apply order: re.replace →
+        //      {n} → --case), BEFORE the unchanged pre-flight — so every generated
+        //      name still flows through the load-bearing collision/cycle/separator
+        //      detector exactly as today (the safety logic is untouched).
+        apply_number_and_case_to_plan(
+            &mut plan,
+            self.case,
+            self.number_width,
+            self.start,
+            self.step,
+        );
 
         // (4) Per-directory pre-flight (D-18 ABORT-ALL). Partition the real
         //     renames by parent dir; collision scope is per-directory (D-14).
@@ -541,6 +581,165 @@ fn build_plan(dir: &Path, re: &Regex, replacement: &str, recursive: bool) -> any
     }
 
     Ok(plan)
+}
+
+/// Apply the `{n}` counter and `--case` fold to a built [`Plan`] over the
+/// deterministic SORTED source order (RENM-V2-01, D-21), BEFORE the unchanged
+/// pre-flight. The counter is assigned in sorted-by-source order so it is
+/// reproducible across runs/machines (RESEARCH Pitfall 7) — never walk order.
+///
+/// Operates on every regular FILE — both real renames AND no-op `(unchanged)` skips
+/// — so `--case`/`{n}` apply even when the regex replacement was a byte-exact no-op
+/// (e.g. `box bulk-rename . "(.*)" "$1" --case upper` uppercases everything).
+/// Directory and symlink skips are excluded (only files are numbered). After the
+/// transform the byte-exact no-op check is RE-RUN per item: a transformed name equal
+/// to its source becomes an `(unchanged)` skip; a former no-op the transform changed
+/// is promoted to a real rename. The tallies stay in sync so the summary is correct.
+fn apply_number_and_case_to_plan(
+    plan: &mut Plan,
+    case: Option<Case>,
+    number_width: Option<usize>,
+    start: usize,
+    step: usize,
+) {
+    // Eligible for numbering/case: real renames and no-op (unchanged) skips.
+    // Directory/symlink skips carry a different reason and are left untouched.
+    let mut idx: Vec<usize> = plan
+        .items
+        .iter()
+        .enumerate()
+        .filter(|(_, it)| {
+            it.kind == ItemKind::Rename || it.reason.as_deref() == Some("(unchanged)")
+        })
+        .map(|(i, _)| i)
+        .collect();
+
+    // Reproducible counter: sort by absolute source path, then the display label
+    // (Pitfall 7 — never the arbitrary walk order).
+    idx.sort_by(|&a, &b| {
+        plan.items[a]
+            .src
+            .cmp(&plan.items[b].src)
+            .then_with(|| plan.items[a].src_label.cmp(&plan.items[b].src_label))
+    });
+
+    // Auto width = digits needed for the file count unless --number-width pins it.
+    let width = number_width.unwrap_or_else(|| digit_count(idx.len()));
+
+    let mut n = start;
+    for &i in &idx {
+        // Base name = the post-re.replace name for a rename, or the source name for
+        // a no-op skip (whose re.replace produced no change).
+        let base = plan.items[i]
+            .new_name
+            .clone()
+            .unwrap_or_else(|| plan.items[i].old_name.clone());
+        let transformed = apply_number_and_case(&base, n, width, case);
+        // Every eligible file consumes a counter value (whether or not it uses
+        // `{n}`), so numbering stays stable regardless of no-op collapses.
+        n = n.saturating_add(step);
+
+        let was_rename = plan.items[i].kind == ItemKind::Rename;
+        let is_noop = transformed == plan.items[i].old_name;
+        match (was_rename, is_noop) {
+            (true, true) => {
+                // A rename the transform collapsed to a byte-exact no-op.
+                plan.items[i].kind = ItemKind::Skip;
+                plan.items[i].new_name = None;
+                plan.items[i].reason = Some("(unchanged)".to_string());
+                plan.to_rename -= 1;
+                plan.unchanged += 1;
+            }
+            (true, false) => {
+                plan.items[i].new_name = Some(transformed);
+            }
+            (false, true) => { /* still a no-op — leave the (unchanged) skip as-is */ }
+            (false, false) => {
+                // A former no-op the transform turned into a real rename.
+                plan.items[i].kind = ItemKind::Rename;
+                plan.items[i].new_name = Some(transformed);
+                plan.items[i].reason = None;
+                plan.unchanged -= 1;
+                plan.to_rename += 1;
+            }
+        }
+    }
+}
+
+/// Expand the literal `{n}` token then fold case (RENM-V2-01, D-21 apply order:
+/// `{n}` THEN `--case`). `{n}` is the LITERAL token (≠ the regex crate's `${n}`
+/// group syntax); write `{{n}}` for a literal `{n}` (A4 brace escape). `title`
+/// operates on the stem only (extension preserved).
+fn apply_number_and_case(name: &str, n: usize, width: usize, case: Option<Case>) -> String {
+    let numbered = expand_number(name, n, width);
+    match case {
+        Some(Case::Upper) => numbered.to_uppercase(),
+        Some(Case::Lower) => numbered.to_lowercase(),
+        Some(Case::Title) => title_case_stem(&numbered),
+        None => numbered,
+    }
+}
+
+/// Replace the literal `{n}` token with the zero-padded counter, honoring the
+/// `{{n}}` escape for a literal `{n}` (A4). The escape is protected with a NUL
+/// sentinel (a byte that can never appear in a file name) so a real `{n}` nested
+/// inside the escape is not expanded.
+fn expand_number(name: &str, n: usize, width: usize) -> String {
+    const SENTINEL: &str = "\u{0}box-literal-n\u{0}";
+    let num = format!("{n:0width$}");
+    name.replace("{{n}}", SENTINEL)
+        .replace("{n}", &num)
+        .replace(SENTINEL, "{n}")
+}
+
+/// Title-case the STEM of `name`, leaving the final extension untouched (D-21). The
+/// extension is everything after the LAST `.` (a leading-dot name like `.gitignore`
+/// is treated as all-stem, no extension). Within the stem, the first alphanumeric of
+/// each word (word = a run separated by non-alphanumerics, e.g. `_`/`-`/space) is
+/// uppercased and the rest lowercased.
+fn title_case_stem(name: &str) -> String {
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((s, e)) if !s.is_empty() => (s, Some(e)),
+        _ => (name, None),
+    };
+    let titled = title_case_words(stem);
+    match ext {
+        Some(e) => format!("{titled}.{e}"),
+        None => titled,
+    }
+}
+
+/// Title-case a bare string: uppercase the first alphanumeric of each word,
+/// lowercase the rest; non-alphanumerics are copied verbatim and start a new word.
+fn title_case_words(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut at_word_start = true;
+    for ch in s.chars() {
+        if ch.is_alphanumeric() {
+            if at_word_start {
+                out.extend(ch.to_uppercase());
+            } else {
+                out.extend(ch.to_lowercase());
+            }
+            at_word_start = false;
+        } else {
+            out.push(ch);
+            at_word_start = true;
+        }
+    }
+    out
+}
+
+/// Digits needed to print `count` (at least 1) — the auto `--number-width` when the
+/// flag is not given.
+fn digit_count(count: usize) -> usize {
+    let mut digits = 1;
+    let mut v = count;
+    while v >= 10 {
+        v /= 10;
+        digits += 1;
+    }
+    digits
 }
 
 /// The full plan plus pre-tallied counts for the dry-run summary.
@@ -978,5 +1177,68 @@ mod tests {
             "got: {s}"
         );
         assert!(s.ends_with("No files were renamed."), "got: {s}");
+    }
+
+    // --- RENM-V2-01: {n} expansion + --case fold (pure post-passes) -------------
+
+    /// `apply_number_and_case` expands `{n}` with zero-pad width, then folds case:
+    /// `Upper`/`Lower` over the WHOLE name, `Title` over the stem only (D-21).
+    #[test]
+    fn apply_number_and_case_expands_and_folds() {
+        // {n} expands with zero-pad width; case None leaves the rest as-is.
+        assert_eq!(
+            apply_number_and_case("img_{n}.JPG", 5, 3, None),
+            "img_005.JPG"
+        );
+        // Upper/lower fold the WHOLE name (extension included).
+        assert_eq!(
+            apply_number_and_case("img_{n}.jpg", 5, 3, Some(Case::Upper)),
+            "IMG_005.JPG"
+        );
+        assert_eq!(
+            apply_number_and_case("IMG_{n}.JPG", 5, 3, Some(Case::Lower)),
+            "img_005.jpg"
+        );
+        // Title folds the stem only; the extension stays as-is.
+        assert_eq!(
+            apply_number_and_case("hello_world.txt", 1, 1, Some(Case::Title)),
+            "Hello_World.txt"
+        );
+    }
+
+    /// `{{n}}` is the literal-brace escape → a literal `{n}`, never expanded (A4).
+    #[test]
+    fn apply_number_and_case_literal_brace_escape() {
+        assert_eq!(
+            apply_number_and_case("keep_{{n}}.txt", 7, 3, None),
+            "keep_{n}.txt"
+        );
+        // A real {n} alongside an escaped one: only the real token expands.
+        assert_eq!(
+            apply_number_and_case("{n}_{{n}}.txt", 7, 2, None),
+            "07_{n}.txt"
+        );
+    }
+
+    /// `title_case_stem` capitalizes each word of the stem and preserves the final
+    /// extension verbatim (D-21).
+    #[test]
+    fn title_case_stem_preserves_extension() {
+        assert_eq!(title_case_stem("hello_world.txt"), "Hello_World.txt");
+        // Mixed-case input is normalized per word; extension untouched.
+        assert_eq!(title_case_stem("hELLO worLD.md"), "Hello World.md");
+        // A leading-dot name has no extension → all stem (leading dot preserved).
+        assert_eq!(title_case_stem(".gitignore"), ".Gitignore");
+        // No extension at all.
+        assert_eq!(title_case_stem("readme"), "Readme");
+    }
+
+    /// `digit_count` is the auto `--number-width`: digits needed for the file count.
+    #[test]
+    fn digit_count_auto_width() {
+        assert_eq!(digit_count(0), 1);
+        assert_eq!(digit_count(9), 1);
+        assert_eq!(digit_count(10), 2);
+        assert_eq!(digit_count(100), 3);
     }
 }
