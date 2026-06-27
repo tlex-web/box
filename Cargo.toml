@@ -101,6 +101,24 @@ serde = { version = "1", features = ["derive"] }
 # ever fails to build (all hit the same WinRT API, swap localized to this module):
 # winrt-notification 0.5.1 → winrt-toast-reborn 0.3.8 → PowerShell shell-out.
 tauri-winrt-notification = "0.7.2"
+# --- Phase 8 (filesystem depth) — all four added ONCE here so plans 08-02/08-03
+# never touch the manifest (RESEARCH § Primary recommendation). ---
+# Progress bars for hash/flatten (and later du/dupes). MUST draw to stderr and be
+# hidden/skipped under --json (Pitfall 2). First real use of this CLAUDE.md-listed
+# crate; consumed by 08-01 (hash/flatten) and 08-02/08-03.
+indicatif = "0.18.4"
+# tree --gitignore matcher (08-02) + du --exclude globset (08-02). Promoted from
+# dev-only (transitive today via assert_fs→globwalk) to RUNTIME deps. BurntSushi,
+# pure-Rust, +crt-static/PS7-clean (no DLL).
+ignore = "0.4"
+globset = "0.4"
+# Win32: GetCompressedFileSizeW (du --on-disk, 08-02) + GetFileInformationByHandle
+# (dupes hardlink identity, 08-03). Pin 0.61 to UNIFY with the transitive
+# windows ^0.61 from tauri-winrt-notification 0.7.2 (D-2) — `cargo tree -i windows`
+# must stay a single 0.61.x. Only the two feature modules these calls need; the
+# std handle fields (file_index/volume_serial) are nightly-only (issue #63010), so
+# the stable path is this Win32 binding (RESEARCH HIGH-IMPACT correction).
+windows = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_Foundation"] }
 # NOTE: no `rand_core` yet — verify `use rand::TryRngCore` resolves through rand
 # 0.9 re-exports during the passgen plan (RESEARCH A1); not needed here.
 # NOTE: no `filetime` — use std::fs::FileTimes (Rust 1.75+).

@@ -366,3 +366,115 @@ fn verify_blake3_probe_hint() {
         "under --json the D-05 probe hint must be SUPPRESSED, got: {stderr_json}"
     );
 }
+
+// --- Phase 8: HASH-V2-02 multi-file + best-effort partial failure (Wave 0) -----
+//
+// These RED seams pin the multi-file coreutils two-space format, the multi-file
+// --json {results,count} document (purity), and the best-effort partial-failure
+// exit-1 policy (A1, the deliberate partial-success refinement of D-09). They
+// FAIL against the single-file v1 binary (clap rejects a second positional arg)
+// until Task 2 lands `paths: Vec<String>`.
+
+/// HASH-V2-02 — `box hash a.bin b.bin` prints one `<digest>  <label>` line per
+/// file (TWO spaces, coreutils text mode), in argument order. Both fixtures are
+/// b"box" so both rows carry the BLAKE3-default known-answer vector.
+#[test]
+fn multi_file_two_space() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let a = dir.child("a.bin");
+    a.write_binary(b"box").unwrap();
+    let b = dir.child("b.bin");
+    b.write_binary(b"box").unwrap();
+
+    hash_cmd(&[a.path().to_str().unwrap(), b.path().to_str().unwrap()])
+        .success()
+        .code(0)
+        // `row` embeds the two-space coreutils separator (D-01).
+        .stdout(predicate::str::contains(row(BOX_BLAKE3, a.path())))
+        .stdout(predicate::str::contains(row(BOX_BLAKE3, b.path())));
+}
+
+/// HASH-V2-02 / SPINE-01 — `box hash a.bin b.bin --json` emits exactly ONE
+/// parseable document with `count == 2` and one result row per readable file;
+/// stdout carries no ANSI (0x1B) and no UTF-8 BOM (purity).
+#[test]
+fn json_multifile_purity() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let a = dir.child("a.bin");
+    a.write_binary(b"box").unwrap();
+    let b = dir.child("b.bin");
+    b.write_binary(b"box").unwrap();
+
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .args([
+            "hash",
+            "--json",
+            a.path().to_str().unwrap(),
+            b.path().to_str().unwrap(),
+        ])
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box hash --json a b");
+    assert!(out.status.success(), "multi-file --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    assert_eq!(
+        v.get("count"),
+        Some(&serde_json::json!(2)),
+        "two files → count 2"
+    );
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .expect("`.results` must be an array");
+    assert_eq!(results.len(), 2, "one result row per readable file");
+
+    assert!(
+        !out.stdout.contains(&0x1Bu8),
+        "no ANSI escape may appear in --json stdout"
+    );
+    assert_ne!(
+        &out.stdout[..3.min(out.stdout.len())],
+        b"\xEF\xBB\xBF",
+        "no UTF-8 BOM may prefix --json stdout"
+    );
+}
+
+/// HASH-V2-02 / A1 — `box hash <readable> <missing>` prints the readable digest
+/// on stdout, an `error:` line naming the missing path on stderr, and exits 1
+/// (coreutils best-effort partial failure).
+#[test]
+fn partial_failure_exit1() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let good = dir.child("good.bin");
+    good.write_binary(b"box").unwrap();
+    let missing = dir.path().join("does_not_exist_42.bin");
+
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .args(["hash", good.path().to_str().unwrap(), missing.to_str().unwrap()])
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box hash good missing");
+
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "a partial failure must exit 1 (best-effort), got {:?}",
+        out.status.code()
+    );
+    // The readable file's digest is still printed on stdout.
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains(BOX_BLAKE3),
+        "the readable file's digest must still print, got: {stdout}"
+    );
+    // The missing file surfaces an `error:` line naming the path on stderr.
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("error:") && stderr.contains("does_not_exist_42"),
+        "a bad file must print an `error:` line naming the path on stderr, got: {stderr}"
+    );
+}

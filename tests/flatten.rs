@@ -425,3 +425,69 @@ fn json_force_run() {
     // The real run actually copied the files flat.
     assert_eq!(files_in(out.path()), 2, "both files copied flat");
 }
+
+// --- Phase 8: FLAT-V2-01 filters (Wave 0) -------------------------------------
+//
+// RED seams for --extensions / --include-hidden. They FAIL against the v1 binary
+// (clap rejects the unknown flags) until Task 3 lands the filters in build_plan.
+// (--separator is unit-tested in src/commands/flatten/rename.rs Task 3.)
+
+/// FLAT-V2-01 — `--extensions jpg,png` (comma-separated, case-insensitive, final
+/// extension) copies only matching files; a .txt is absent from the output dir.
+#[test]
+fn extensions_filter() {
+    let src = assert_fs::TempDir::new().unwrap();
+    let out = assert_fs::TempDir::new().unwrap();
+    src.child("photo.jpg").write_str("j").unwrap();
+    src.child("art.PNG").write_str("p").unwrap(); // case-insensitive match
+    src.child("notes.txt").write_str("t").unwrap();
+    src.child("sub/diagram.png").write_str("d").unwrap();
+
+    let output = flatten_output(src.path(), out.path(), &["--extensions", "jpg,png"]);
+    assert!(output.status.success(), "flatten --extensions should exit 0");
+
+    // jpg + PNG + nested png copied (3); the .txt is filtered out entirely.
+    assert!(out.path().join("photo.jpg").exists(), "jpg must be copied");
+    assert!(
+        out.path().join("art.PNG").exists(),
+        "PNG (case-insensitive) must be copied"
+    );
+    assert!(
+        out.path().join("diagram.png").exists(),
+        "nested png must be copied flat"
+    );
+    assert!(
+        !out.path().join("notes.txt").exists(),
+        "txt must be filtered out"
+    );
+    assert_eq!(files_in(out.path()), 3, "only the 3 image files copied");
+}
+
+/// FLAT-V2-01 — a `.dotfile` the default walk prunes is copied ONLY with
+/// --include-hidden.
+#[test]
+fn include_hidden() {
+    let src = assert_fs::TempDir::new().unwrap();
+    src.child(".secret").write_str("s").unwrap();
+    src.child("visible.txt").write_str("v").unwrap();
+
+    // Default run: the dotfile is pruned (D-06), only visible.txt is copied.
+    let out_default = assert_fs::TempDir::new().unwrap();
+    let o1 = flatten_output(src.path(), out_default.path(), &[]);
+    assert!(o1.status.success(), "default flatten should exit 0");
+    assert!(
+        !out_default.path().join(".secret").exists(),
+        ".dotfile must be pruned by default"
+    );
+    assert!(out_default.path().join("visible.txt").exists());
+
+    // With --include-hidden: the dotfile is copied too.
+    let out_hidden = assert_fs::TempDir::new().unwrap();
+    let o2 = flatten_output(src.path(), out_hidden.path(), &["--include-hidden"]);
+    assert!(o2.status.success(), "flatten --include-hidden should exit 0");
+    assert!(
+        out_hidden.path().join(".secret").exists(),
+        ".dotfile must be copied with --include-hidden"
+    );
+    assert!(out_hidden.path().join("visible.txt").exists());
+}
