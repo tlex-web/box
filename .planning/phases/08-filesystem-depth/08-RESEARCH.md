@@ -441,22 +441,27 @@ fn partial_hash(path: &Path) -> anyhow::Result<String> {
 | A5 | `<id>` for the backup manifest filename is a sortable timestamp (e.g. `box-undo-<unix_millis>.json`), not a UUID. CONTEXT leaves the id scheme open. | bulk-rename | Low — `uuid v4` is also available; either works; timestamp is human-sortable. |
 | A6 | `dupes --delete` and `flatten --move` get NEW `Args` bool fields (`delete`/`move_`) — `move` is a Rust keyword, so the field is `r#move` or `move_` with `#[arg(long = "move")]`. | dupes/flatten | Low — purely a naming detail; `#[arg(long = "move")]` is the clean fix. |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three resolved during planning (consumers: 08-01/08-02/08-03). Inline `RESOLVED` markers below.
 
 1. **`hash` multi-file `--json` partial-failure semantics (A1).**
    - What we know: human path is best-effort + exit 1 (Claude's Discretion default, coreutils parity). The frozen D-09 says "on failure stdout stays EMPTY."
    - What's unclear: whether a 4-of-5-succeeded run should emit the 4 good rows under `--json` (useful, but stretches D-09) or keep stdout empty (pure, but discards good digests).
    - Recommendation: emit the partial document + exit 1 (errors → stderr), treating "partial success with diagnostics" as distinct from "total failure"; flag for the planner to confirm in 08-01 (or discuss). Conservative fallback: fail-fast under `--json` only.
+   - **RESOLVED (08-01 Task 2):** emit the partial `{results,count}` document containing only the successful rows AND exit 1 with per-file errors on stderr — the recommended option, baked in as a deliberate partial-success refinement of D-09.
 
 2. **Nested-`.gitignore` matcher shape for `tree` (Pitfall 4).**
    - What we know: D-20 locks matcher-as-filter inside `read_children`; nested correctness is the main test.
    - What's unclear: `Vec<Gitignore>` ancestor-stack vs. rebuild-per-directory `GitignoreBuilder`.
    - Recommendation: ancestor-stack checked deepest-first (one `Gitignore` per directory level that has a `.gitignore`, plus one for `--ignore` lines); it maps cleanly onto the existing per-directory recursion and is the cheaper allocation. Pin a 3-level-nested fixture.
+   - **RESOLVED (08-02 Task 2):** ancestor-stack `Vec<Gitignore>` checked deepest-first (the recommended option); 3-level nested fixture pinned in `tests/tree.rs::gitignore_nested`.
 
 3. **`dupes`/`du` Win32 wrapper location.**
    - What we know: both need `windows 0.61` `Win32_Storage_FileSystem`.
    - What's unclear: localize FFI per-module (v1 arboard/winrt pattern) vs. a shared `core::fs::{compressed_size, file_identity}` pair.
    - Recommendation: a shared `core::fs` pair — both wrappers are tiny, both open a handle, and centralizing the `unsafe` keeps the audit surface in one file. Not load-bearing; planner's call.
+   - **RESOLVED (08-02/08-03):** per-module localized FFI — `compressed_size` in `du/mod.rs`, `file_identity` in `dupes/mod.rs` — chosen over the shared `core::fs` pair specifically so no two Wave-1 plans edit `core/fs.rs` (wave-isolation; taken under the "planner's call" latitude).
 
 ## Environment Availability
 
