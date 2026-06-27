@@ -42,8 +42,22 @@
 //! piped output is byte-identical minus ANSI (D-10). Groups go to stdout
 //! (FOUND-03).
 //!
-//! STRICTLY READ-ONLY (T-03-13, locked Out of Scope): there is NO write path here
-//! — no `safe_copy`, rename, or delete. `dupes` only reads the filesystem.
+//! Read-only by DEFAULT (T-03-13). The detection/grouping path above is strictly
+//! read-only — no `safe_copy`, rename, or delete. The ONLY write path is the opt-in
+//! DESTRUCTIVE `--delete --force` (DUPE-V2-02), which removes redundant copies:
+//! - **Keep-first** over the already-sorted group order: each group keeps `paths[0]`,
+//!   so a group can NEVER lose its last real copy.
+//! - **Hardlink-safe** (RESEARCH Pitfall 6): a candidate sharing the kept member's
+//!   `(volume_serial, file_index)` (a hardlink alias of the kept inode) is SPARED —
+//!   deleting it frees nothing and destroys a name. Reuses [`file_identity`].
+//! - **Dry-run is the DEFAULT**: `--delete` alone only PREVIEWS the plan and writes
+//!   nothing; `--force` is required to execute. `--delete --force` is the sole
+//!   destructive mode.
+//! - **Abort-all-before-any**: the whole deletion plan + pre-flight run to
+//!   completion BEFORE any `remove_file`; ANY problem (an unreadable identity, or a
+//!   group with no member to keep) aborts the ENTIRE operation with nothing deleted.
+//! - The dry-run and every abort path leave the tree byte-for-byte unchanged
+//!   (the snapshot-the-tree-unchanged Code-review gate, `tests/dupes_delete.rs`).
 
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
@@ -65,6 +79,19 @@ pub struct DupesArgs {
     /// Directory to scan for content duplicates (default: the current directory).
     #[arg(default_value = ".")]
     pub path: PathBuf,
+
+    /// Delete duplicate copies, keeping the FIRST file in each group (the sorted-
+    /// order keep-first, DUPE-V2-02). DESTRUCTIVE — but dry-run by DEFAULT: without
+    /// `--force` this only PREVIEWS which copies it would remove and writes nothing.
+    /// A hardlink alias of the kept file is never deleted (it frees nothing and
+    /// would destroy a name).
+    #[arg(long)]
+    pub delete: bool,
+
+    /// Actually delete (only meaningful together with `--delete`). Without it,
+    /// `--delete` is a dry-run preview that writes nothing.
+    #[arg(long)]
+    pub force: bool,
 }
 
 /// A confirmed duplicate group: the shared content hash, the common file size,
@@ -184,6 +211,15 @@ impl RunCommand for DupesArgs {
 
         // Group consecutive equal hashes; keep only groups of >= 2 (the dupes).
         let groups = group_duplicates(hashed);
+
+        // DUPE-V2-02: `--delete` is the DESTRUCTIVE fork. It runs AFTER the read-only
+        // grouping above — so the duplicate DETECTION is byte-identical to read-only
+        // `dupes` — and replaces the read-only render/JSON below with the deletion
+        // plan path. When `--delete` is absent, everything below is the UNCHANGED
+        // read-only command (no write path is ever reached).
+        if self.delete {
+            return run_delete(&groups, self.force);
+        }
 
         // Fork on `is_json_on()` FIRST (Pitfall 1): `render` has the empty-case
         // human line + the per-group lines + the wasted summary — ALL human chrome
@@ -458,6 +494,324 @@ fn accent(s: &str) -> String {
     }
 }
 
+// ===========================================================================
+// DUPE-V2-02 — destructive `dupes --delete` (keep-first, hardlink-safe,
+// dry-run default, `--force`, abort-all-before-any pre-flight).
+// ===========================================================================
+
+/// One group's deletion decision, built from a sorted [`DupeGroup`]:
+/// keep-first (`kept` = `paths[0]`), the candidates to remove (`deleted`), and the
+/// candidates SPARED because they are hardlink aliases of the kept inode
+/// (`kept_aliases` — deleting one frees nothing and destroys a name, RESEARCH
+/// Pitfall 6). `freed` is the bytes a `--force` would actually reclaim
+/// (hardlink-aware: distinct deleted inodes × `size`).
+struct DeleteGroup {
+    size: u64,
+    kept: PathBuf,
+    deleted: Vec<PathBuf>,
+    kept_aliases: Vec<PathBuf>,
+    freed: u64,
+}
+
+/// A pre-flight problem. ANY problem aborts the WHOLE operation before a single
+/// `remove_file` (abort-all-before-any, mirroring `bulk_rename::preflight_plan`).
+enum DeleteProblem {
+    /// A member's stable identity could not be read, so its hardlink relationship to
+    /// the kept member is UNKNOWN. Abort rather than risk deleting a kept alias (or
+    /// sparing a true duplicate) on a guess.
+    UnreadableIdentity { path: PathBuf, source: String },
+    /// Defensive: a group with no member to keep. Structurally impossible under
+    /// keep-first (groups always have `>= 2` members and `paths[0]` is kept), but
+    /// flagged so a future refactor that breaks the invariant ABORTS instead of
+    /// deleting a group's last copy.
+    NoSurvivor { size: u64 },
+}
+
+/// The whole deletion plan: every group's keep/delete decision plus the pre-flight
+/// problems found while building it. Built in ONE pass over the sorted groups so the
+/// destructive phase never recomputes identities (fewer reads = smaller TOCTOU
+/// surface; T-8-05-TOCTOU accepted for a single-process local CLI).
+struct DeletePlan {
+    groups: Vec<DeleteGroup>,
+    problems: Vec<DeleteProblem>,
+}
+
+impl DeletePlan {
+    /// Total files the plan would remove (sum of every group's `deleted`).
+    fn total_deleted(&self) -> usize {
+        self.groups.iter().map(|g| g.deleted.len()).sum()
+    }
+
+    /// Total bytes the plan would reclaim (hardlink-aware per group).
+    fn freed_bytes(&self) -> u64 {
+        self.groups.iter().map(|g| g.freed).sum()
+    }
+}
+
+/// The serde projection of one [`DeleteGroup`] for `box dupes --delete --json`.
+/// Paths are `to_string_lossy()` STRINGS (D-4 — never `to_str().unwrap()`), matching
+/// the human render (no-drift). `kept_aliases` makes the hardlink-safety auditable:
+/// a consumer (and the code-review gate) can SEE which aliases were spared.
+#[derive(serde::Serialize)]
+struct DeleteRow {
+    size: u64,
+    kept: String,
+    kept_aliases: Vec<String>,
+    deleted: Vec<String>,
+}
+
+/// The `box dupes --delete --json` document. A DISTINCT shape from the read-only
+/// `{results,count,wasted_bytes}` (which is unchanged when `--delete` is absent):
+/// `{results:[{size,kept,kept_aliases,deleted}], count, deleted_count, freed_bytes,
+/// dry_run}`. `dry_run` flips with `--force` (D-12 — `--json` is orthogonal to
+/// `--force`).
+#[derive(serde::Serialize)]
+struct DeleteOutput {
+    results: Vec<DeleteRow>,
+    count: usize,
+    deleted_count: usize,
+    freed_bytes: u64,
+    dry_run: bool,
+}
+
+/// DUPE-V2-02 destructive deduplication. Builds the WHOLE deletion plan up front,
+/// runs an abort-all-before-any pre-flight, previews by DEFAULT (dry-run), and
+/// removes the non-kept copies only with `--force` AND a clean pre-flight.
+///
+/// Safety model (D-5, RESEARCH Pitfall 6):
+/// - Keep-first: each group keeps `paths[0]` in the already-sorted order, so a group
+///   can NEVER lose its last real copy.
+/// - Hardlink-safe: a candidate sharing the kept member's `(volume_serial,
+///   file_index)` is SPARED (never a deletion candidate).
+/// - Abort-all-before-any: the plan + pre-flight run to completion before any
+///   `remove_file`; ANY problem aborts the whole operation with NOTHING deleted.
+/// - Dry-run by DEFAULT + every abort path leaves the tree byte-for-byte unchanged.
+fn run_delete(groups: &[DupeGroup], force: bool) -> anyhow::Result<()> {
+    // Build the whole plan first (abort-all-before-any): one identity read per member.
+    let plan = build_delete_plan(groups);
+
+    // PRE-FLIGHT: if ANY problem exists, abort the ENTIRE operation before a single
+    // `remove_file`. Under `--json` keep stdout EMPTY (D-09) — the human plan would
+    // corrupt the machine channel and there is no `{"error":…}` envelope; the
+    // `bail!` reaches the user via stderr (main.rs maps it to exit 1).
+    if !plan.problems.is_empty() {
+        if !crate::core::output::is_json_on() {
+            print_delete_plan(&plan);
+            println!();
+        }
+        anyhow::bail!("{}", delete_abort_summary(&plan.problems));
+    }
+
+    // Fork on `is_json_on()` FIRST (Pitfall 1): all human chrome stays below it.
+    let json = crate::core::output::is_json_on();
+
+    // The no-duplicates human case (the JSON path emits an empty document below).
+    if !json && plan.groups.is_empty() {
+        println!("No duplicate files found.");
+        return Ok(());
+    }
+
+    // Dry-run is the DEFAULT: without `--force`, write NOTHING.
+    if !force {
+        if json {
+            emit_delete_json(&plan, true)?;
+            return Ok(());
+        }
+        print_delete_plan(&plan);
+        println!();
+        println!(
+            "Dry run: would delete {} file(s), freeing {}, across {} duplicate group(s). \
+             Re-run with --force to delete.",
+            plan.total_deleted(),
+            human_size(plan.freed_bytes()),
+            plan.groups.len()
+        );
+        return Ok(());
+    }
+
+    // `--force` AND a clean pre-flight: remove each candidate. The first I/O error
+    // `?`-propagates (exit 1). Every deletion is reached ONLY after the full plan +
+    // pre-flight cleared — no partial deletion is possible before that point.
+    let mut deleted = 0usize;
+    for group in &plan.groups {
+        for path in &group.deleted {
+            std::fs::remove_file(path)
+                .with_context(|| format!("deleting {}", path.display()))?;
+            deleted += 1;
+        }
+    }
+
+    if json {
+        emit_delete_json(&plan, false)?;
+        return Ok(());
+    }
+    println!();
+    println!(
+        "Done: deleted {deleted} file(s), freed {}, across {} duplicate group(s).",
+        human_size(plan.freed_bytes()),
+        plan.groups.len()
+    );
+    Ok(())
+}
+
+/// Build the deletion plan from the already-sorted duplicate groups (keep-first,
+/// hardlink-safe), collecting any pre-flight problems as it goes. ONE
+/// [`file_identity`] read per member; the kept member is `paths[0]`; a candidate is
+/// a deletion target unless its identity equals the kept member's identity (a
+/// hardlink alias of the kept inode — SPARED). `freed` per group = distinct deleted
+/// inodes × `size` (hardlink-aware), which equals the read-only `wasted_space`
+/// figure for the group.
+fn build_delete_plan(groups: &[DupeGroup]) -> DeletePlan {
+    let mut out_groups = Vec::new();
+    let mut problems = Vec::new();
+
+    for g in groups {
+        // Keep-first: the FIRST member in the already-sorted group order.
+        let Some((kept, rest)) = g.paths.split_first() else {
+            // Defensive only — group_duplicates never emits a group of < 2.
+            problems.push(DeleteProblem::NoSurvivor { size: g.size });
+            continue;
+        };
+
+        // The kept member's identity is required to recognize its hardlink aliases.
+        let kept_id = match file_identity(kept) {
+            Ok(id) => Some(id),
+            Err(e) => {
+                problems.push(DeleteProblem::UnreadableIdentity {
+                    path: kept.clone(),
+                    source: format!("{e:#}"),
+                });
+                None
+            }
+        };
+
+        let mut deleted = Vec::new();
+        let mut kept_aliases = Vec::new();
+        let mut deleted_ids: HashSet<(u32, u64)> = HashSet::new();
+        for cand in rest {
+            match file_identity(cand) {
+                Ok(id) => {
+                    if Some(id) == kept_id {
+                        // A hardlink alias of the kept inode — NEVER delete it
+                        // (frees nothing, destroys a name). Keep it on disk.
+                        kept_aliases.push(cand.clone());
+                    } else {
+                        deleted_ids.insert(id);
+                        deleted.push(cand.clone());
+                    }
+                }
+                Err(e) => {
+                    problems.push(DeleteProblem::UnreadableIdentity {
+                        path: cand.clone(),
+                        source: format!("{e:#}"),
+                    });
+                }
+            }
+        }
+
+        // Invariant: the kept member is never itself a deletion candidate, so a
+        // group always retains >= 1 real copy (keep-first). Pinned in dev/test
+        // builds so a future refactor that breaks it trips here.
+        debug_assert!(
+            !deleted.iter().any(|d| d == kept),
+            "the kept member must never be a deletion candidate"
+        );
+
+        let freed = (deleted_ids.len() as u64) * g.size;
+        out_groups.push(DeleteGroup {
+            size: g.size,
+            kept: kept.clone(),
+            deleted,
+            kept_aliases,
+            freed,
+        });
+    }
+
+    DeletePlan {
+        groups: out_groups,
+        problems,
+    }
+}
+
+/// Print the deletion plan: per group, the kept member, any hardlink aliases kept,
+/// and the copies that would be / were removed. Human chrome only — never reached
+/// under `--json` (the `is_json_on()` fork guards every caller).
+fn print_delete_plan(plan: &DeletePlan) {
+    if plan.groups.is_empty() {
+        println!("No duplicate files found.");
+        return;
+    }
+    for g in &plan.groups {
+        println!("{}", accent(&format!("{} each", human_size(g.size))));
+        println!("  keep   {}", g.kept.display());
+        for a in &g.kept_aliases {
+            println!("  keep   {} (hardlink alias of kept)", a.display());
+        }
+        for d in &g.deleted {
+            println!("  delete {}", d.display());
+        }
+        println!();
+    }
+}
+
+/// Emit the `--delete --json` document with the `dry_run` marker reflecting the
+/// mode. Paths serialized via `to_string_lossy` (D-4) so a non-UTF-8 NTFS name never
+/// panics.
+fn emit_delete_json(plan: &DeletePlan, dry_run: bool) -> anyhow::Result<()> {
+    let results = plan
+        .groups
+        .iter()
+        .map(|g| DeleteRow {
+            size: g.size,
+            kept: g.kept.to_string_lossy().into_owned(),
+            kept_aliases: g
+                .kept_aliases
+                .iter()
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect(),
+            deleted: g
+                .deleted
+                .iter()
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect(),
+        })
+        .collect::<Vec<_>>();
+    let doc = DeleteOutput {
+        count: plan.groups.len(),
+        deleted_count: plan.total_deleted(),
+        freed_bytes: plan.freed_bytes(),
+        results,
+        dry_run,
+    };
+    crate::core::output::emit_json(&doc)
+}
+
+/// The abort summary for a failed pre-flight: a problem count, the `no files were
+/// deleted` guarantee, and a one-line explanation per problem.
+fn delete_abort_summary(problems: &[DeleteProblem]) -> String {
+    let n = problems.len();
+    let noun = if n == 1 { "problem" } else { "problems" };
+    let mut out = format!("Aborted: {n} {noun} detected; no files were deleted.");
+    for p in problems {
+        out.push(' ');
+        match p {
+            DeleteProblem::UnreadableIdentity { path, source } => {
+                out.push_str(&format!(
+                    "could not read the file identity of {} ({source}).",
+                    path.display()
+                ));
+            }
+            DeleteProblem::NoSurvivor { size } => {
+                out.push_str(&format!(
+                    "a {} duplicate group has no member to keep.",
+                    human_size(*size)
+                ));
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -522,5 +876,110 @@ mod tests {
         let a = hash_reader_blake3(&b"AAAA"[..]).unwrap();
         let b = hash_reader_blake3(&b"BBBB"[..]).unwrap();
         assert_ne!(a, b, "distinct content must hash differently");
+    }
+
+    // --- DUPE-V2-02: build_delete_plan (keep-first, hardlink-safe, pre-flight) ----
+
+    /// Keep-first over the sorted group: `paths[0]` is kept; every other DISTINCT
+    /// copy is a deletion candidate; `freed` = distinct deleted inodes × size; no
+    /// pre-flight problems on readable files.
+    #[test]
+    fn build_delete_plan_keep_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let payload = b"build_delete_plan keep-first payload\n";
+        // Three distinct on-disk copies (separate inodes), named so the sort is a,b,c.
+        let a = root.join("a.bin");
+        let b = root.join("b.bin");
+        let c = root.join("c.bin");
+        std::fs::write(&a, payload).unwrap();
+        std::fs::write(&b, payload).unwrap();
+        std::fs::write(&c, payload).unwrap();
+
+        let group = DupeGroup {
+            size: payload.len() as u64,
+            paths: vec![a.clone(), b.clone(), c.clone()], // already sorted
+        };
+        let plan = build_delete_plan(&[group]);
+
+        assert!(plan.problems.is_empty(), "readable files yield no problems");
+        assert_eq!(plan.groups.len(), 1);
+        let g = &plan.groups[0];
+        assert_eq!(g.kept, a, "keep-first keeps paths[0]");
+        assert_eq!(g.deleted, vec![b, c], "the other two copies are candidates");
+        assert!(g.kept_aliases.is_empty(), "no hardlinks => no spared aliases");
+        assert_eq!(plan.total_deleted(), 2);
+        assert_eq!(
+            plan.freed_bytes(),
+            2 * payload.len() as u64,
+            "freed = 2 distinct deleted inodes × size"
+        );
+    }
+
+    /// A hardlink alias of the kept member is SPARED (in `kept_aliases`, never in
+    /// `deleted`); a distinct copy in the same group IS a deletion candidate.
+    #[test]
+    fn build_delete_plan_spares_hardlink_alias() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let payload = b"build_delete_plan hardlink-safe payload\n";
+        let original = root.join("original.bin");
+        let alias = root.join("alias.bin");
+        let copy = root.join("copy.bin");
+        std::fs::write(&original, payload).unwrap();
+        std::fs::write(&copy, payload).unwrap();
+        if std::fs::hard_link(&original, &alias).is_err() {
+            eprintln!("skipping build_delete_plan_spares_hardlink_alias: hard_link unsupported");
+            return;
+        }
+
+        // Sorted ascending: alias < copy < original -> keep-first keeps alias.
+        let group = DupeGroup {
+            size: payload.len() as u64,
+            paths: vec![alias.clone(), copy.clone(), original.clone()],
+        };
+        let plan = build_delete_plan(&[group]);
+
+        assert!(plan.problems.is_empty());
+        let g = &plan.groups[0];
+        assert_eq!(g.kept, alias, "keep-first keeps the alias (sorted first)");
+        // original shares alias's inode -> spared; copy is distinct -> deletable.
+        assert_eq!(
+            g.kept_aliases,
+            vec![original],
+            "the kept member's hardlink alias is spared"
+        );
+        assert_eq!(g.deleted, vec![copy], "a distinct copy is still a candidate");
+        assert_eq!(
+            plan.freed_bytes(),
+            payload.len() as u64,
+            "only the one distinct deleted inode is freed"
+        );
+    }
+
+    /// An unreadable member identity is a pre-flight PROBLEM (abort-all-before-any):
+    /// build_delete_plan records it so `run_delete` aborts before any deletion.
+    #[test]
+    fn build_delete_plan_unreadable_identity_is_a_problem() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let payload = b"build_delete_plan pre-flight payload\n";
+        let kept = root.join("kept.bin");
+        std::fs::write(&kept, payload).unwrap();
+        // A candidate path that does not exist -> file_identity errors.
+        let missing = root.join("does-not-exist.bin");
+
+        let group = DupeGroup {
+            size: payload.len() as u64,
+            paths: vec![kept, missing.clone()],
+        };
+        let plan = build_delete_plan(&[group]);
+
+        assert!(
+            plan.problems
+                .iter()
+                .any(|p| matches!(p, DeleteProblem::UnreadableIdentity { path, .. } if path == &missing)),
+            "an unreadable candidate identity must be a pre-flight problem"
+        );
     }
 }
