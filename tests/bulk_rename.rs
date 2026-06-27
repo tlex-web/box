@@ -616,3 +616,134 @@ fn json_abort_empty_stdout() {
         );
     }
 }
+
+// --- RENM-V2-01 (Wave-0 RED) — --case transforms + {n} numbering ----------------
+//
+// `bulk-rename` gains `--case upper|lower|title` (folded over the resulting name
+// AFTER `re.replace`; `title` on the stem only) and a literal `{n}` token expanded
+// with `--number-width`/`--start`/`--step` over the deterministic SORTED plan order
+// (reproducible — RESEARCH Pitfall 7). Both run BEFORE the unchanged collision/
+// cycle/separator pre-flight (D-21). The matching pure unit tests for
+// `apply_number_and_case` / `title_case_stem` land in `bulk_rename/mod.rs` (08-03
+// Task 3, run via `cargo test --bin box apply_number_and_case`).
+
+/// RENM-V2-01 / `case_transforms` — `--case upper|lower|title` folds the resulting
+/// name. `upper`/`lower` fold the WHOLE name (extension included); `title`
+/// capitalizes the STEM only and leaves the extension untouched (here: lowercase).
+#[test]
+fn case_transforms() {
+    // The pattern `$^` never matches (end-then-start), so `re.replace` is a no-op
+    // and ONLY --case transforms the name — proving --case applies even with no
+    // textual replacement.
+    // --case upper: whole name uppercased (extension too).
+    {
+        let dir = assert_fs::TempDir::new().unwrap();
+        dir.child("report.txt").write_str("x").unwrap();
+        bulk_rename(dir.path(), r"$^", "", &["--case", "upper", "--force"]).success();
+        let names = listed_names(dir.path());
+        assert!(
+            names.iter().any(|n| n == "REPORT.TXT"),
+            "--case upper must uppercase the whole name, got {names:?}"
+        );
+    }
+    // --case lower: whole name lowercased.
+    {
+        let dir = assert_fs::TempDir::new().unwrap();
+        dir.child("REPORT.TXT").write_str("x").unwrap();
+        bulk_rename(dir.path(), r"$^", "", &["--case", "lower", "--force"]).success();
+        let names = listed_names(dir.path());
+        assert!(
+            names.iter().any(|n| n == "report.txt"),
+            "--case lower must lowercase the whole name, got {names:?}"
+        );
+    }
+    // --case title: stem capitalized per word, extension left as-is (lowercase).
+    {
+        let dir = assert_fs::TempDir::new().unwrap();
+        dir.child("hello_world.txt").write_str("x").unwrap();
+        bulk_rename(dir.path(), r"$^", "", &["--case", "title", "--force"]).success();
+        let names = listed_names(dir.path());
+        assert!(
+            names.iter().any(|n| n == "Hello_World.txt"),
+            "--case title must title-case the stem and keep the extension lowercase, got {names:?}"
+        );
+    }
+}
+
+/// RENM-V2-01 / `numbering_sorted_reproducible` — a `{n}` replacement numbers files
+/// over the SORTED source order (reproducible across runs), honoring
+/// `--number-width` (zero-pad), `--start` (first value), and `--step` (increment).
+#[test]
+fn numbering_sorted_reproducible() {
+    // A fresh dir whose CREATION order differs from sorted order, so a sorted
+    // counter is distinguishable from walk/creation order.
+    fn make() -> assert_fs::TempDir {
+        let dir = assert_fs::TempDir::new().unwrap();
+        dir.child("zebra.dat").write_str("z").unwrap();
+        dir.child("alpha.dat").write_str("a").unwrap();
+        dir.child("mike.dat").write_str("m").unwrap();
+        dir
+    }
+
+    // Replace the whole base name with `item_{n}.dat`; width 3, start 1, step 1.
+    let dir1 = make();
+    bulk_rename(
+        dir1.path(),
+        r".+",
+        "item_{n}.dat",
+        &["--number-width", "3", "--start", "1", "--step", "1", "--force"],
+    )
+    .success();
+    let mut names1 = listed_names(dir1.path());
+    names1.sort();
+    assert_eq!(
+        names1,
+        vec!["item_001.dat", "item_002.dat", "item_003.dat"],
+        "{{n}} must zero-pad to width 3 starting at 1"
+    );
+
+    // Reproducible AND sorted-order: a second run on a fresh identical dir maps the
+    // sorted-first source (alpha, content "a") -> 001, mike ("m") -> 002, zebra
+    // ("z") -> 003 — proving the counter follows SORTED source order, not walk
+    // order, identically across runs.
+    let dir2 = make();
+    bulk_rename(
+        dir2.path(),
+        r".+",
+        "item_{n}.dat",
+        &["--number-width", "3", "--force"],
+    )
+    .success();
+    assert_eq!(
+        fs::read(dir2.path().join("item_001.dat")).unwrap(),
+        b"a",
+        "sorted-first source (alpha) must get counter 001"
+    );
+    assert_eq!(
+        fs::read(dir2.path().join("item_002.dat")).unwrap(),
+        b"m",
+        "sorted-second source (mike) must get counter 002"
+    );
+    assert_eq!(
+        fs::read(dir2.path().join("item_003.dat")).unwrap(),
+        b"z",
+        "sorted-third source (zebra) must get counter 003"
+    );
+
+    // --start 10 --step 5 variant: 10, 15, 20 (width 2).
+    let dir3 = make();
+    bulk_rename(
+        dir3.path(),
+        r".+",
+        "n{n}.dat",
+        &["--number-width", "2", "--start", "10", "--step", "5", "--force"],
+    )
+    .success();
+    let mut names3 = listed_names(dir3.path());
+    names3.sort();
+    assert_eq!(
+        names3,
+        vec!["n10.dat", "n15.dat", "n20.dat"],
+        "--start 10 --step 5 must yield 10, 15, 20"
+    );
+}

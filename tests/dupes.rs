@@ -463,3 +463,115 @@ fn json_paths_sorted_within_group() {
         "`.results[*].paths` must be sorted ascending within a group (WR-05): {paths:?}"
     );
 }
+
+// --- DUPE-V2-01 (Wave-0 RED) — multi-stage hashing + hardlink-aware collapse -----
+//
+// `box dupes` runs a size → partial-BLAKE3 → full-BLAKE3 cascade and is
+// hardlink-aware: paths sharing one NTFS file-index `(volume_serial, file_index)`
+// are COLLAPSED before computing wasted space, so a hardlink alias is never
+// counted as wasted (RESEARCH Pitfall 6). These map 1:1 to the 08-03 DUPE-V2-01
+// acceptance rows.
+
+/// DUPE-V2-01 / `multistage_splits` — two files of identical byte SIZE but
+/// DIFFERENT content land in DIFFERENT groups (the cascade splits them via the
+/// partial+full hash, not a size-only heuristic); a true-duplicate trio still
+/// groups as ONE.
+#[test]
+fn multistage_splits() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+
+    // Same size (64 bytes), different content within the first 16 KiB → the
+    // partial stage already splits them; the full stage confirms.
+    fs::write(root.join("diff_a.bin"), vec![b'A'; 64]).unwrap();
+    fs::write(root.join("diff_b.bin"), vec![b'B'; 64]).unwrap();
+
+    // A true-duplicate trio (byte-identical) → exactly one group of three.
+    let dup = b"identical trio payload - must group as one\n";
+    fs::write(root.join("trio_1.bin"), dup).unwrap();
+    fs::write(root.join("trio_2.bin"), dup).unwrap();
+    fs::write(root.join("trio_3.bin"), dup).unwrap();
+
+    let out = dupes_output(root, &["--json"]);
+    assert!(out.status.success(), "box dupes --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .expect("`.results` must be an array");
+    // Exactly ONE group survives — the trio. The same-size/different-content pair
+    // is split by the content hash (the cascade's whole point).
+    assert_eq!(
+        results.len(),
+        1,
+        "only the true-duplicate trio may group; same-size/different-content must split: {v}"
+    );
+    let paths = results[0]
+        .get("paths")
+        .and_then(|p| p.as_array())
+        .expect("`.results[0].paths` must be an array");
+    assert_eq!(paths.len(), 3, "the trio groups all three identical files: {v}");
+
+    // The same-size/different-content pair must not appear in any group.
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        !stdout.contains("diff_a.bin") && !stdout.contains("diff_b.bin"),
+        "same-size/different-content files must NOT be grouped:\n{stdout}"
+    );
+}
+
+/// DUPE-V2-01 / `hardlink_not_wasted` — a real `std::fs::hard_link` pair (ONE inode,
+/// two names) is collapsed: the shared inode is counted ONCE, so the alias is NEVER
+/// reported as wasted space (`wasted_bytes = (distinct_inodes - 1) * size`, RESEARCH
+/// Pitfall 6). The two aliases still form a content-duplicate group, but it wastes
+/// ZERO bytes — in both the `--json` field and the human summary.
+#[test]
+fn hardlink_not_wasted() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+
+    let payload = vec![b'H'; 5000];
+    let original = root.join("original.bin");
+    let alias = root.join("alias.bin");
+    fs::write(&original, &payload).unwrap();
+    // A real hardlink: same inode, two names. If the platform/volume refuses
+    // (e.g. a non-NTFS temp dir), skip — hardlink identity is NTFS-specific here.
+    if std::fs::hard_link(&original, &alias).is_err() {
+        eprintln!("skipping hardlink_not_wasted: hard_link unsupported on this volume");
+        return;
+    }
+
+    // --- JSON: wasted_bytes must be 0 (alias collapsed, frees nothing) ---
+    let out = dupes_output(root, &["--json"]);
+    assert!(out.status.success(), "box dupes --json should exit 0");
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    let wasted = v
+        .get("wasted_bytes")
+        .and_then(|w| w.as_u64())
+        .expect("`.wasted_bytes` must be numeric");
+    assert_eq!(
+        wasted, 0,
+        "a hardlink alias must NOT be counted as wasted space (shared inode collapsed): {v}"
+    );
+    // The two aliases still group by content (identical bytes).
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .expect("`.results` must be an array");
+    assert_eq!(
+        results.len(),
+        1,
+        "the hardlink pair still forms one content group: {v}"
+    );
+
+    // --- Human: the wasted summary reports 0 B for the collapsed pair ---
+    let human = dupes(root, &[]).success().get_output().stdout.clone();
+    let stdout = String::from_utf8(human).unwrap();
+    assert!(
+        stdout.contains("0 B wasted"),
+        "the human summary must report 0 B wasted for a hardlink pair:\n{stdout}"
+    );
+}
