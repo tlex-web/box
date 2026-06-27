@@ -16,6 +16,23 @@
 //!    otherwise execute via [`safe_copy`] (timestamps preserved) + D-11 real-run
 //!    summary. Copy I/O is `.context(...)`-wrapped so deep-path (>260) failures
 //!    surface loudly, never silently dropped (FOUND-06).
+//!
+//! **Destructive `--move` (FLAT-V2-02).** `--move` relocates files instead of
+//! copying, reusing the SAME pipeline above (separator validation, containment
+//! guard, occupied seed, [`build_plan`]) so every FLAT-V2-01 filter applies
+//! identically — only the execution differs ([`run_move`]):
+//! - **Dry-run is the DEFAULT** (the D-5 destructive template): `--move` writes
+//!   NOTHING and previews the relocation plan unless `--force` is given (the
+//!   inverse of copy mode, where `--dry-run` is opt-in). An explicit `--dry-run`
+//!   also forces a preview even alongside `--force`.
+//! - **`--force` relocates in TWO phases** so a mid-batch failure can never lose
+//!   data (Pitfall 5): copy + verify EVERY file (via [`safe_copy`] create-new,
+//!   then confirm the destination exists with a matching size) BEFORE deleting any
+//!   source; only once the whole batch is copied+verified are the sources deleted.
+//!   A failed/short copy therefore never deletes a source, and every abort path
+//!   (containment refusal, dry-run, mid-batch copy error) leaves the source tree
+//!   byte-for-byte unchanged. Emptied source DIRECTORIES are left in place (only
+//!   files relocate).
 
 pub mod rename;
 
@@ -64,6 +81,18 @@ pub struct FlattenArgs {
     /// with `.` and, on Windows, the FILE_ATTRIBUTE_HIDDEN flag).
     #[arg(long)]
     pub include_hidden: bool,
+    /// DESTRUCTIVE: relocate files instead of copying — each file is copied,
+    /// verified (destination exists with a matching size), then the source is
+    /// deleted. Dry-run by DEFAULT: previews the plan and writes nothing unless
+    /// `--force` is also given. Every abort path leaves the source tree unchanged;
+    /// empty source directories are left in place. (`move` is a Rust keyword, so the
+    /// field is `move_`; the CLI flag stays `--move`.)
+    #[arg(long = "move")]
+    pub move_: bool,
+    /// Actually perform a `--move` relocation. Without it, `--move` only previews
+    /// (dry-run). Ignored when `--move` is absent.
+    #[arg(long)]
+    pub force: bool,
 }
 
 /// What the plan will do with one source file.
@@ -231,6 +260,17 @@ impl RunCommand for FlattenArgs {
             separator,
         )?;
 
+        // FLAT-V2-02 — destructive `--move`: relocate (copy → verify → delete)
+        // instead of copy. The shared setup above (separator validation, the
+        // containment guard, the occupied seed, and `build_plan`) has already run,
+        // so every FLAT-V2-01 filter applies identically — only the execution
+        // differs. Dry-run is the DEFAULT here (the destructive template); an
+        // explicit `--dry-run` also forces a preview even alongside `--force`.
+        if self.move_ {
+            let execute = self.force && !self.dry_run;
+            return run_move(&plan, &out_root, execute);
+        }
+
         // (5) Dry-run prints and writes nothing; real run copies.
         if self.dry_run {
             // Fork on `is_json_on()` FIRST (Pitfall 1): under --json emit the PLAN
@@ -382,6 +422,130 @@ impl RunCommand for FlattenArgs {
         );
         Ok(())
     }
+}
+
+/// Execute (or preview) the destructive FLAT-V2-02 `--move` relocation.
+///
+/// **Dry-run-DEFAULT (the destructive template):** when `execute` is false this
+/// writes NOTHING and emits the relocation plan — the [`FlattenOutput`] plan
+/// projection with `dry_run: true` under `--json`, otherwise the human preview
+/// rows + the dry-run summary. This inverts copy mode's opt-in `--dry-run` so a
+/// destructive run can never be accidental.
+///
+/// **`execute` (from `--force`):** relocate each planned file in TWO phases so a
+/// mid-batch failure can never lose data (Pitfall 5, threat T-8-04):
+/// 1. **Copy + verify EVERY file** — [`safe_copy`] (create-new, never clobbers)
+///    then confirm the destination exists and its byte length equals the source's.
+///    Any error `?`-propagates HERE, with some destinations possibly written but
+///    ZERO sources deleted — so the source tree stays byte-for-byte unchanged.
+/// 2. **Delete EVERY source** — reached ONLY when the whole batch copied+verified,
+///    so a failed/short copy can never orphan (delete) a source. Emptied source
+///    DIRECTORIES are deliberately left in place (locked: only files relocate).
+///
+/// The `--json` document reuses [`FlattenOutput`]/[`flatten_rows`] (no-drift):
+/// `dry_run` flips with `execute`, and `copied`/`total_bytes` carry the real
+/// relocation counts.
+fn run_move(plan: &Plan, out_root: &Path, execute: bool) -> anyhow::Result<()> {
+    let json = crate::core::output::is_json_on();
+
+    // Dry-run-DEFAULT: preview only, write nothing, unless --force (execute).
+    if !execute {
+        if json {
+            let doc = FlattenOutput {
+                count: plan.items.len(),
+                results: flatten_rows(plan),
+                dry_run: true,
+                copied: 0,
+                renamed: plan.renamed,
+                skipped: plan.skipped,
+                total_bytes: 0,
+            };
+            crate::core::output::emit_json(&doc)?;
+            return Ok(());
+        }
+        print_plan(plan);
+        println!();
+        println!(
+            "{}",
+            dry_run_summary(plan.to_copy, plan.renamed, plan.skipped)
+        );
+        return Ok(());
+    }
+
+    // Phase 1 — copy + verify every file (NO deletes yet). On any error we
+    // `?`-propagate with zero sources deleted, so the source tree is unchanged.
+    let mut moved = 0usize;
+    let mut bytes_written: u64 = 0;
+    for item in &plan.items {
+        if item.kind == ItemKind::Skip {
+            continue;
+        }
+        let dst_name = item
+            .dst_name
+            .as_deref()
+            .expect("copy/rename items always have a destination");
+        let dst = out_root.join(dst_name);
+        // create-new copy: never clobbers an existing destination (planned
+        // collisions were already renamed via the occupied seed; this is the WR-02
+        // defense-in-depth backstop).
+        let n = safe_copy(&item.src, &dst)
+            .with_context(|| format!("moving {} (copy step)", item.src.display()))?;
+        // Verify BEFORE any delete (Pitfall 5): the destination must exist and its
+        // byte length must equal the source's. A short/failed copy must NEVER reach
+        // the delete phase.
+        let dst_len = std::fs::metadata(&dst)
+            .with_context(|| format!("verifying moved file {}", dst.display()))?
+            .len();
+        let src_len = std::fs::metadata(&item.src)
+            .with_context(|| format!("reading source size for {}", item.src.display()))?
+            .len();
+        if dst_len != src_len {
+            bail!(
+                "move verification failed for {src}: destination {dst} is {dst_len} bytes \
+                 but the source is {src_len} bytes — refusing to delete the source on a \
+                 short copy",
+                src = item.src.display(),
+                dst = dst.display(),
+            );
+        }
+        bytes_written += n;
+        moved += 1;
+    }
+
+    // Phase 2 — every copy verified, so NOW delete each source. Reached only after
+    // the whole batch copied, so no copy error can ever delete a source. Emptied
+    // source DIRECTORIES are left in place (locked: only files relocate).
+    for item in &plan.items {
+        if item.kind == ItemKind::Skip {
+            continue;
+        }
+        std::fs::remove_file(&item.src).with_context(|| {
+            format!("removing source {} after a verified copy", item.src.display())
+        })?;
+    }
+
+    // Output: --json emits the EXECUTED result (dry_run:false, real counts);
+    // otherwise the human rows + the locked D-11 real-run summary.
+    if json {
+        let doc = FlattenOutput {
+            count: plan.items.len(),
+            results: flatten_rows(plan),
+            dry_run: false,
+            copied: moved,
+            renamed: plan.renamed,
+            skipped: plan.skipped,
+            total_bytes: bytes_written,
+        };
+        crate::core::output::emit_json(&doc)?;
+        return Ok(());
+    }
+    print_plan(plan);
+    println!();
+    println!(
+        "{}",
+        real_run_summary(moved, plan.renamed, plan.skipped, &human_size(bytes_written))
+    );
+    Ok(())
 }
 
 /// Parse a `--extensions` list into a lowercased set of bare extensions
