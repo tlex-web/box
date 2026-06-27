@@ -111,16 +111,21 @@ Plans:
   4. **Destructive — `bulk-rename --backup`**: writes a recoverable pre-rename backup of each affected file before the rename plan executes, and a failed/aborted run leaves the directory recoverable.
   5. Every depth flag respects the spine: `box du --on-disk --json`, `box tree --dirs-only --json`, etc. still emit one clean JSON document with the new fields and no ANSI/progress contamination.
 
-**Plans**: TBD
+**Plans**: 6 plans
 
 Plans:
 
-- [ ] 08-01: TBD — `hash` multi-file + coreutils format + progress (HASH-V2-02); `flatten` filters + progress (FLAT-V2-01).
-- [ ] 08-02: TBD — `tree` gitignore/dirs-only/ignore/sort-by-size (TREE-V2-01); `du` percentage/colors/exclude + `--on-disk` Win32 (DU-V2-01, DU-V2-02).
-- [ ] 08-03: TBD — `dupes` multi-stage + hardlink-aware (DUPE-V2-01); `bulk-rename` case + numbering (RENM-V2-01).
-- [ ] 08-04: TBD — **DESTRUCTIVE (own plan + adversarial review):** `flatten --move` (FLAT-V2-02).
-- [ ] 08-05: TBD — **DESTRUCTIVE (own plan + adversarial review):** `dupes --delete` (DUPE-V2-02).
-- [ ] 08-06: TBD — **DESTRUCTIVE (own plan + adversarial review):** `bulk-rename --backup` (RENM-V2-02).
+**Wave 1**
+
+- [ ] 08-01-PLAN.md — `hash` multi-file + coreutils `digest␣␣filename` + stderr progress (HASH-V2-02); `flatten` --extensions/--separator/--include-hidden + progress (FLAT-V2-01); adds the four Phase-8 deps. [wave 1]
+- [ ] 08-02-PLAN.md — `tree` --gitignore/--ignore/--dirs-only/--sort size (TREE-V2-01); `du` percentage column/band color/--exclude + --on-disk Win32 (DU-V2-01, DU-V2-02). [wave 1]
+- [ ] 08-03-PLAN.md — `dupes` multi-stage (size→partial→full BLAKE3) + hardlink-aware collapse (DUPE-V2-01); `bulk-rename` --case + {n} numbering (RENM-V2-01). [wave 1]
+
+**Wave 2** *(destructive — each own plan + mandatory adversarial review; depends on its Wave-1 sibling)*
+
+- [ ] 08-04-PLAN.md — **DESTRUCTIVE:** `flatten --move` copy→verify→delete, dry-run default + --force (FLAT-V2-02). [wave 2, depends_on 08-01]
+- [ ] 08-05-PLAN.md — **DESTRUCTIVE:** `dupes --delete` keep-first, hardlink-safe, abort-all-before-any (DUPE-V2-02). [wave 2, depends_on 08-03]
+- [ ] 08-06-PLAN.md — **DESTRUCTIVE:** `bulk-rename --backup` JSON undo manifest fsync'd before first rename (RENM-V2-02). [wave 2, depends_on 08-03]
 
 **Code-review gate**: Plans 08-04, 08-05, 08-06 each carry mandatory adversarial code review (the v1 Phase-3 bulk-rename gate) — dry-run default, `--force`, abort-all-before-any pre-flight, and a snapshot-the-tree-unchanged test for every abort path.
 **UI hint**: yes
