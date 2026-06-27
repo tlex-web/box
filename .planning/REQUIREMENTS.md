@@ -56,9 +56,9 @@ Each maps to exactly one roadmap phase. REQ-IDs continue the per-command mnemoni
 - [ ] **DUPE-V2-02**: `dupes --delete` removes duplicates safely — keep at least one per group, non-interactive, dry-run default, `--force` to execute, hardlink-safe, abort-all-before-any pre-flight.
 - [ ] **RENM-V2-01**: `bulk-rename` gains case transforms (upper / lower / title) and sequential numbering (`{n}` token with zero-padding).
 - [ ] **RENM-V2-02**: `bulk-rename --backup` writes pre-rename backups before executing a rename plan.
-- [ ] **TREE-V2-01**: `tree` gains `.gitignore` respect, `--dirs-only`, `--ignore <glob>`, and sort-by-size.
-- [ ] **DU-V2-01**: `du` gains an in-line percentage column and color-coded size ranges, plus `--exclude <glob>` (apparent size remains the default).
-- [ ] **DU-V2-02**: `du --on-disk` reports allocated/compressed on-disk size via Win32 `GetCompressedFileSizeW` (correct for sparse/compressed NTFS files).
+- [x] **TREE-V2-01**: `tree` gains `.gitignore` respect, `--dirs-only`, `--ignore <glob>`, and sort-by-size.
+- [x] **DU-V2-01**: `du` gains an in-line percentage column and color-coded size ranges, plus `--exclude <glob>` (apparent size remains the default).
+- [x] **DU-V2-02**: `du --on-disk` reports allocated/compressed on-disk size via Win32 `GetCompressedFileSizeW` (correct for sparse/compressed NTFS files).
 
 ### Dev-transform depth
 
@@ -134,9 +134,9 @@ Each requirement maps to exactly one roadmap phase (finalized 2026-06-25 by road
 | DUPE-V2-02 | 8 | Pending |
 | RENM-V2-01 | 8 | Pending |
 | RENM-V2-02 | 8 | Pending |
-| TREE-V2-01 | 8 | Pending |
-| DU-V2-01 | 8 | Pending |
-| DU-V2-02 | 8 | Pending |
+| TREE-V2-01 | 8 | Complete |
+| DU-V2-01 | 8 | Complete |
+| DU-V2-02 | 8 | Complete |
 | UUID-V2-01 | 9 | Pending |
 | EPOC-V2-01 | 9 | Pending |
 | COLR-V2-01 | 9 | Pending |
