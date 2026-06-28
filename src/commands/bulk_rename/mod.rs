@@ -70,7 +70,7 @@ use walkdir::WalkDir;
 
 use crate::commands::flatten::rename::is_reserved_device_name;
 use crate::commands::RunCommand;
-use crate::core::fs::is_hidden;
+use crate::core::fs::{is_hidden, normalize_path};
 use crate::core::output::{format_row, is_color_on, terminal_width, RowStatus};
 
 /// `box bulk-rename <dir> <pattern> <replacement> [--force] [--recursive]` —
@@ -404,8 +404,17 @@ impl RunCommand for BulkRenameArgs {
         let re = Regex::new(&self.pattern)
             .with_context(|| format!("compiling regex pattern {:?}", self.pattern))?;
 
+        // (1b) WR-02: canonicalize the target dir ONCE (dunce, matching how flatten
+        //      resolves its roots) so every derived path — `item.src`/`item.parent`,
+        //      and thus the `--backup` undo manifest's `old`/`new` entries and its
+        //      top-level `dir` — is ABSOLUTE. The manifest lives in a cwd-independent
+        //      location (`%LOCALAPPDATA%`), so cwd-relative entries (from a relative
+        //      `dir` argument) would be unreconcilable once the cwd changes (D-22).
+        let dir = normalize_path(&self.dir)
+            .with_context(|| format!("resolving target dir {}", self.dir.display()))?;
+
         // (2)/(3) Walk the scope and build the plan.
-        let mut plan = build_plan(&self.dir, &re, &self.replacement, self.recursive)?;
+        let mut plan = build_plan(&dir, &re, &self.replacement, self.recursive)?;
 
         // (3b) RENM-V2-01: expand the literal `{n}` counter and fold `--case` over
         //      the deterministic SORTED plan order (D-21 apply order: re.replace →
@@ -490,7 +499,7 @@ impl RunCommand for BulkRenameArgs {
             let manifest_dir = std::env::var_os("LOCALAPPDATA")
                 .map(PathBuf::from)
                 .map(|p| p.join("box").join("undo"))
-                .unwrap_or_else(|| self.dir.clone());
+                .unwrap_or_else(|| dir.clone());
             std::fs::create_dir_all(&manifest_dir).with_context(|| {
                 format!("creating undo manifest dir {}", manifest_dir.display())
             })?;
@@ -503,7 +512,7 @@ impl RunCommand for BulkRenameArgs {
             let manifest_path = manifest_dir.join(format!("{id}.json"));
             let manifest = BackupManifest {
                 id,
-                dir: self.dir.to_string_lossy().into_owned(),
+                dir: dir.to_string_lossy().into_owned(),
                 entries,
             };
             // Write + fsync the all-`applied:false` manifest BEFORE the first rename.
@@ -950,8 +959,10 @@ struct BackupManifest {
 /// Build the undo-manifest entries from the pre-flight-cleared plan: one entry per
 /// `ItemKind::Rename` item, in plan order (so the executor's per-rename `applied`
 /// flip lines up index-for-index). `old` is the absolute source path (`item.src`);
-/// `new` is `item.parent.join(new_name)`. Both are absolute when the target dir is
-/// absolute. A zero-drift projection of the SAME items the executor consumes.
+/// `new` is `item.parent.join(new_name)`. Both are ABSOLUTE: the target dir is
+/// canonicalized (`normalize_path`) before planning, so even a relative `dir`
+/// argument yields absolute, cwd-independent entries (WR-02). A zero-drift
+/// projection of the SAME items the executor consumes.
 fn build_manifest(plan: &Plan) -> Vec<BackupEntry> {
     plan.items
         .iter()

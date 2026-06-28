@@ -156,6 +156,63 @@ fn backup_manifest_written() {
     );
 }
 
+/// RENM-V2-02 / WR-02 — when invoked with a RELATIVE target dir, the manifest
+/// still records ABSOLUTE `old`/`new` paths. The manifest lives in a
+/// cwd-independent location (`%LOCALAPPDATA%`), so cwd-relative entries would be
+/// unreconcilable once the cwd changes; the command canonicalizes the target dir
+/// before planning. Guards non-UTF-8 names via `to_string_lossy` (D-4).
+#[test]
+fn backup_manifest_absolute_paths_for_relative_dir() {
+    let root = assert_fs::TempDir::new().unwrap();
+    let local = assert_fs::TempDir::new().unwrap();
+    // The renamed files live in <root>/work; we invoke with cwd=<root> and pass the
+    // RELATIVE dir "work" to exercise the cwd-relative path bug.
+    let work = root.child("work");
+    work.create_dir_all().unwrap();
+    work.child("IMG_0042.jpg").write_str("a").unwrap();
+
+    let mut cmd = Command::cargo_bin("box").unwrap();
+    cmd.current_dir(root.path()) // cwd = <root>
+        .arg("bulk-rename")
+        .arg("work") // RELATIVE dir argument
+        .arg(r"IMG_(\d+)")
+        .arg("img_$1")
+        .arg("--backup")
+        .arg("--force")
+        .env("NO_COLOR", "1")
+        .env("LOCALAPPDATA", local.path());
+    let out = cmd.output().expect("run box bulk-rename --backup");
+    assert!(
+        out.status.success(),
+        "--backup --force with a relative dir should exit 0, stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let manifest_path =
+        find_manifest(local.path()).expect("a manifest must be written for a relative dir");
+    let raw = fs::read_to_string(&manifest_path).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&raw).expect("the manifest must be valid JSON");
+    let entries = v
+        .get("entries")
+        .and_then(|e| e.as_array())
+        .expect("`.entries` must be an array");
+    assert_eq!(entries.len(), 1, "one entry per renamed file");
+    for e in entries {
+        let old = e.get("old").and_then(|x| x.as_str()).expect("`old` string");
+        let new = e.get("new").and_then(|x| x.as_str()).expect("`new` string");
+        assert!(
+            Path::new(old).is_absolute(),
+            "`old` must be ABSOLUTE even for a relative dir argument, got: {old}"
+        );
+        assert!(
+            Path::new(new).is_absolute(),
+            "`new` must be ABSOLUTE even for a relative dir argument, got: {new}"
+        );
+    }
+    // The rename happened on disk.
+    assert!(work.path().join("img_0042.jpg").exists());
+}
+
 /// RENM-V2-02 — `--backup` WITHOUT `--force` is a clean no-op: it writes NO
 /// manifest and renames nothing (the manifest is a property of an EXECUTED run).
 #[test]
