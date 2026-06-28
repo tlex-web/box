@@ -222,11 +222,16 @@ impl RunCommand for FlattenArgs {
             .with_context(|| format!("resolving output dir {}", self.out.display()))?;
 
         // (2) Containment guard — abort BEFORE any I/O if the output dir is inside
-        //     the source dir, or the disk fills as the walker re-visits its own
-        //     output (Pitfall 4). `Path::starts_with` is case-sensitive but NTFS
-        //     is not, so compare lowercased.
-        let src_low = src_root.to_string_lossy().to_ascii_lowercase();
-        let out_low = out_root.to_string_lossy().to_ascii_lowercase();
+        //     the source dir, which would relocate/copy files into a subdirectory of
+        //     the source (Pitfall 4). The plan is fully materialized by `build_plan`
+        //     before any copy, so there is no re-visit/infinite-loop — the hazard is
+        //     the containment itself. `Path::starts_with` is case-sensitive but NTFS
+        //     folds the FULL Unicode case table, so compare with `to_lowercase()`
+        //     (matching the occupied seed and `rename::dedupe`/`fold`), not
+        //     ASCII-only — a non-ASCII case pair (`CAFÉ` vs `café`) must still be
+        //     recognized as contained (WR-01).
+        let src_low = src_root.to_string_lossy().to_lowercase();
+        let out_low = out_root.to_string_lossy().to_lowercase();
         if Path::new(&out_low).starts_with(Path::new(&src_low)) {
             bail!(
                 "refusing to flatten: output dir {} is inside source dir {} \
