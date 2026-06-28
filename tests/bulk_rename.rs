@@ -342,8 +342,8 @@ fn renm_dotdot_target_aborts() {
 
 /// RENM-01 / CR-01 — a target with a trailing dot that Windows trims to a
 /// DISTINCT existing file (`src.txt` -> `keep.`, with `keep` already present) is
-/// detected as a clobber-collision in pre-flight and aborts the whole batch (exit
-/// 1) in BOTH dry-run and `--force`, leaving the existing `keep` byte-for-byte
+/// detected as a clobber-collision in pre-flight and aborts the whole batch with
+/// exit 1 in BOTH dry-run and `--force`, leaving the existing `keep` byte-for-byte
 /// intact. This is the core silent-data-loss vector: `std::fs::rename` resolves
 /// `keep.` to `keep` on disk and would otherwise overwrite it.
 #[test]

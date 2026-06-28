@@ -25,7 +25,15 @@ findings:
   warning: 4
   info: 1
   total: 6
-status: issues_found
+status: resolved
+resolved: 2026-06-28
+resolution:
+  CR-01: fixed (10c6b94)
+  WR-01: fixed (1e334cc)
+  WR-02: fixed (807e5b3)
+  WR-03: fixed (32210e8)
+  WR-04: fixed (10c6b94)
+  IN-01: fixed (753530b)
 ---
 
 # Phase 8: Code Review Report
@@ -33,7 +41,7 @@ status: issues_found
 **Reviewed:** 2026-06-28
 **Depth:** standard
 **Files Reviewed:** 16
-**Status:** issues_found
+**Status:** resolved (all 6 findings fixed 2026-06-28; `cargo test` + `cargo clippy -D warnings` green)
 
 ## Summary
 
@@ -221,6 +229,31 @@ trailing comment ("color is applied inside format_row's glyph wrap") confirms it
 has no effect. It is leftover code that reads as if it were doing something.
 
 **Fix:** Delete the line.
+
+## Resolution (2026-06-28)
+
+All six findings fixed; each fix is an atomic commit, and the full `cargo test`
+suite plus `cargo clippy --all-targets -- -D warnings` are green.
+
+- **CR-01 + WR-04** (`10c6b94`) — `bulk-rename` now normalizes every rename target
+  to the Windows-effective on-disk name. `fold` trims trailing dots/spaces before
+  case-folding (so `keep.` and `keep` share one collision key → a trailing-dot
+  clobber of a distinct existing file is caught and aborts), and `injects` refuses
+  reserved device names via a shared `flatten::rename::is_reserved_device_name`
+  predicate (new `Conflict::Reserved` for an accurate abort message). Regression
+  tests added at both the pure-preflight and end-to-end layers.
+- **WR-01** (`1e334cc`) — `flatten` containment guard switched from
+  `to_ascii_lowercase()` to full `to_lowercase()` (consistent with the occupied
+  seed and `rename::dedupe`/`fold`); inaccurate "re-visits its own output" comment
+  corrected.
+- **WR-02** (`807e5b3`) — `bulk-rename` canonicalizes the target dir via
+  `normalize_path` before planning, so the `--backup` manifest records absolute,
+  cwd-independent paths even for a relative `dir` argument. Test added.
+- **WR-03** (`32210e8`) — `write_manifest` now writes to `<id>.json.tmp`, fsyncs,
+  then atomically renames over the target, so a failed flip-write can never
+  truncate the last good manifest. Test added.
+- **IN-01** (`753530b`) — removed the dead `let _ = is_color_on();` no-op and its
+  now-unused import.
 
 ---
 
