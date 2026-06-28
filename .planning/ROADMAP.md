@@ -124,7 +124,7 @@ Plans:
 **Wave 2** *(destructive — each own plan + mandatory adversarial review; depends on its Wave-1 sibling)*
 
 - [x] 08-04-PLAN.md — **DESTRUCTIVE:** `flatten --move` copy→verify→delete, dry-run default + --force (FLAT-V2-02) — two-phase copy+verify-ALL then delete-ALL; adversarial review approved. ✅ 2026-06-28 [wave 2, depends_on 08-01]
-- [ ] 08-05-PLAN.md — **DESTRUCTIVE:** `dupes --delete` keep-first, hardlink-safe, abort-all-before-any (DUPE-V2-02). [wave 2, depends_on 08-03]
+- [x] 08-05-PLAN.md — **DESTRUCTIVE:** `dupes --delete` keep-first, hardlink-safe, abort-all-before-any (DUPE-V2-02) — dry-run default + --force; adversarial review approved. ✅ 2026-06-28 [wave 2, depends_on 08-03]
 - [ ] 08-06-PLAN.md — **DESTRUCTIVE:** `bulk-rename --backup` JSON undo manifest fsync'd before first rename (RENM-V2-02). [wave 2, depends_on 08-03]
 
 **Code-review gate**: Plans 08-04, 08-05, 08-06 each carry mandatory adversarial code review (the v1 Phase-3 bulk-rename gate) — dry-run default, `--force`, abort-all-before-any pre-flight, and a snapshot-the-tree-unchanged test for every abort path.
@@ -204,7 +204,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Windows Platform Integration | v1.0 | 4/4 | Complete | 2026-06-24 |
 | 6. Scriptable-Core Foundation | v2.0 | 2/2 | Complete | 2026-06-25 |
 | 7. Spine Rollout | v2.0 | 3/3 | Complete   | 2026-06-25 |
-| 8. Filesystem Depth | v2.0 | 4/6 | In Progress|  |
+| 8. Filesystem Depth | v2.0 | 5/6 | In Progress|  |
 | 9. Dev-Transform & Visual Depth | v2.0 | 0/3 | Not started | - |
 | 10. Fun & System Depth | v2.0 | 0/2 | Not started | - |
 | 11. Meta-Commands | v2.0 | 0/2 | Not started | - |

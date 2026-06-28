@@ -53,7 +53,7 @@ Each maps to exactly one roadmap phase. REQ-IDs continue the per-command mnemoni
 - [x] **FLAT-V2-01**: `flatten` gains `--extensions <list>`, `--separator <str>`, `--include-hidden`, and a stderr progress bar.
 - [x] **FLAT-V2-02**: `flatten --move` relocates files instead of copying — copy → verify (dest exists + size matches) → delete source; dry-run default, `--force` to execute. *(08-04: two-phase copy+verify-ALL then delete-ALL — D-36, the only ordering keeping the source byte-for-byte unchanged on a mid-batch copy error; empty source dirs preserved; `snapshot_tree` per-abort-path tests; adversarial code-review gate approved)*
 - [x] **DUPE-V2-01**: `dupes` uses multi-stage hashing (size → partial → full BLAKE3) and is hardlink-aware (paths sharing one file-index are collapsed, not counted as wasted space).
-- [ ] **DUPE-V2-02**: `dupes --delete` removes duplicates safely — keep at least one per group, non-interactive, dry-run default, `--force` to execute, hardlink-safe, abort-all-before-any pre-flight.
+- [x] **DUPE-V2-02**: `dupes --delete` removes duplicates safely — keep at least one per group, non-interactive, dry-run default, `--force` to execute, hardlink-safe, abort-all-before-any pre-flight. *(08-05: keep-first over the sorted groups [paths[0] always kept → group never loses its last copy]; hardlink-safe via `file_identity` collapse of the kept inode's aliases; abort-all-before-any pre-flight computes the whole plan [one identity read per member] before any `remove_file`; `--delete --json` carries `dry_run`, abort keeps stdout empty [D-09]; `snapshot_tree` per-abort-path tests; adversarial code-review gate approved)*
 - [x] **RENM-V2-01**: `bulk-rename` gains case transforms (upper / lower / title) and sequential numbering (`{n}` token with zero-padding).
 - [ ] **RENM-V2-02**: `bulk-rename --backup` writes pre-rename backups before executing a rename plan.
 - [x] **TREE-V2-01**: `tree` gains `.gitignore` respect, `--dirs-only`, `--ignore <glob>`, and sort-by-size.
@@ -131,7 +131,7 @@ Each requirement maps to exactly one roadmap phase (finalized 2026-06-25 by road
 | FLAT-V2-01 | 8 | Complete |
 | FLAT-V2-02 | 8 | Complete (08-04 — flatten --move, two-phase copy→verify→delete, adversarial review approved) |
 | DUPE-V2-01 | 8 | Complete |
-| DUPE-V2-02 | 8 | Pending |
+| DUPE-V2-02 | 8 | Complete (08-05 — dupes --delete, keep-first + hardlink-safe + abort-all-before-any, adversarial review approved) |
 | RENM-V2-01 | 8 | Complete |
 | RENM-V2-02 | 8 | Pending |
 | TREE-V2-01 | 8 | Complete |
