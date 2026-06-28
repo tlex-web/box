@@ -25,6 +25,8 @@
 //! requested charset (or the wordlist), constructs the OsRng-backed `rng`, and
 //! prints `--count` results, each on its own stdout line.
 
+use std::io::IsTerminal;
+
 use clap::Args;
 use rand::rngs::OsRng;
 use rand::seq::IndexedRandom; // brings .choose() onto slices (unbiased selection)
@@ -43,10 +45,16 @@ struct PassgenRow {
 /// The `box passgen --json` document (D-01 multi-capable → always-wrapped
 /// `{results, count}`, EXACT uuid copy — passgen can return N lines via `--count`).
 /// SPINE-04 (the human path tees each password to the clipboard via `out_line`).
+///
+/// `entropy_bits` (PASS-V2-01) is a per-CONFIG estimate (not per-row): the
+/// theoretical pool-based entropy of the chosen length/charset (or word count),
+/// the SAME number the human path prints to STDERR. It is a top-level field — the
+/// secret stays the sole stdout content; the entropy is metadata about the run.
 #[derive(serde::Serialize)]
 struct PassgenOutput {
     results: Vec<PassgenRow>,
     count: usize,
+    entropy_bits: f64,
 }
 
 /// The embedded EFF Large (Diceware) wordlist — 7776 words, one per line
@@ -106,6 +114,14 @@ pub struct PassgenArgs {
     /// Exclude symbol characters from the password charset.
     #[arg(long = "no-symbols")]
     pub no_symbols: bool,
+
+    /// Exclude visually-similar characters (i l 1 L o 0 O) from the charset.
+    #[arg(long = "no-similar")]
+    pub no_similar: bool,
+
+    /// Word separator for passphrase mode (default `.`).
+    #[arg(long, default_value = ".")]
+    pub separator: String,
 }
 
 impl RunCommand for PassgenArgs {
@@ -117,11 +133,12 @@ impl RunCommand for PassgenArgs {
 
         // Build the rows ONCE (mirroring uuid's `.map().collect()`) so the SAME
         // values feed the human and JSON paths (no-drift). Each generated line
-        // becomes one `PassgenRow`.
-        let rows: Vec<PassgenRow> = if let Some(n) = self.words {
+        // becomes one `PassgenRow`. `bits` is the per-config entropy estimate the
+        // human path prints to STDERR / the JSON path carries as `entropy_bits`.
+        let (rows, bits): (Vec<PassgenRow>, f64) = if let Some(n) = self.words {
             // Passphrase mode: draw `n` words per line, unbiased via `choose`.
             let wordlist = eff_wordlist();
-            (0..self.count)
+            let rows = (0..self.count)
                 .map(|_| {
                     let phrase: Vec<&str> = (0..n)
                         .map(|_| {
@@ -130,41 +147,59 @@ impl RunCommand for PassgenArgs {
                                 .expect("EFF wordlist is non-empty")
                         })
                         .collect();
-                    // Separator is discretion (D-14). A dot is paste-safe in PS7
-                    // and — unlike a hyphen — never appears inside an EFF word
-                    // (some are hyphenated, e.g. `t-shirt`), so the phrase stays
-                    // one token AND its word boundaries remain unambiguous.
+                    // `--separator` overrides the default `.` join (PASS-V2-01). A
+                    // dot is paste-safe in PS7 and — unlike a hyphen — never appears
+                    // inside an EFF word (some are hyphenated, e.g. `t-shirt`), so
+                    // the default phrase stays one unambiguous token.
                     PassgenRow {
-                        password: phrase.join("."),
+                        password: phrase.join(&self.separator),
                     }
                 })
-                .collect()
+                .collect();
+            // Passphrase entropy: each word contributes log2(7776) ≈ 12.925 bits.
+            (rows, entropy_bits(n, wordlist.len()))
         } else {
             // Character mode: build the requested charset, sample every char
             // unbiased via `choose` — never by modulo-indexing the charset (D-02).
-            let charset = build_charset(self.no_symbols);
-            (0..self.count)
+            // `--no-similar` prunes the look-alikes AND shrinks the entropy pool.
+            let mut charset = build_charset(self.no_symbols);
+            if self.no_similar {
+                drop_similar(&mut charset);
+            }
+            let pool_len = charset.len();
+            let rows = (0..self.count)
                 .map(|_| {
                     let pw: String = (0..self.length)
                         .map(|_| *charset.choose(&mut rng).expect("charset is non-empty"))
                         .collect();
                     PassgenRow { password: pw }
                 })
-                .collect()
+                .collect();
+            (rows, entropy_bits(self.length, pool_len))
         };
 
         // Fork on `is_json_on()` FIRST (Pitfall 1): under `--json` emit the
-        // always-wrapped `{results, count}` document; otherwise print each password
-        // via `out_line` (NOT println!) so `--clip` tees every line (SPINE-04).
+        // always-wrapped `{results, count, entropy_bits}` document; otherwise print
+        // each password via `out_line` (NOT println!) so `--clip` tees every line
+        // (SPINE-04). The entropy NEVER touches stdout (D-14): under --json it is a
+        // structured field; on the human path it goes to STDERR only.
         if crate::core::output::is_json_on() {
             let doc = PassgenOutput {
                 count: rows.len(),
                 results: rows,
+                entropy_bits: bits,
             };
             crate::core::output::emit_json(&doc)?;
         } else {
             for r in &rows {
                 crate::core::output::out_line(&r.password);
+            }
+            // Entropy summary to STDERR ONLY, TTY-gated exactly like the clip
+            // confirmation (so `box passgen 2>log` does not log it and the secret
+            // stays the sole stdout content — D-14 / Pitfall 5). Never reached under
+            // --json (handled above).
+            if std::io::stderr().is_terminal() {
+                eprintln!("entropy: ~{bits:.1} bits");
             }
         }
         Ok(())
@@ -182,6 +217,29 @@ fn build_charset(no_symbols: bool) -> Vec<char> {
         set.extend_from_slice(SYMBOLS);
     }
     set
+}
+
+/// The visually-ambiguous characters `--no-similar` removes (lowercase i / L,
+/// digit one, uppercase L, lowercase o, digit zero, uppercase O).
+const SIMILAR: &str = "il1Lo0O";
+
+/// Remove every [`SIMILAR`] look-alike from a charset in place (`--no-similar`).
+/// Pure so the prune (and its effect on the pool size) is unit-testable. RNG
+/// untouched (T-V6) — only the charset shrinks, never the draw.
+fn drop_similar(set: &mut Vec<char>) {
+    set.retain(|c| !SIMILAR.contains(*c));
+}
+
+/// Theoretical entropy in bits for drawing `len` independent symbols uniformly
+/// from a pool of `pool` symbols: `len * log2(pool)`. Used for both char mode
+/// (`length * log2(pool_size)`) and passphrase mode (`words * log2(7776)`). Pure
+/// so the formula is unit-testable; this is a DISPLAY estimate, not a security
+/// control (the CSPRNG draw is the actual guarantee — T-V6).
+fn entropy_bits(len: usize, pool: usize) -> f64 {
+    if pool <= 1 {
+        return 0.0;
+    }
+    len as f64 * (pool as f64).log2()
 }
 
 /// Parse the embedded EFF wordlist into a `Vec<&'static str>`, one clean word
@@ -249,6 +307,51 @@ mod tests {
         for c in &set {
             assert!(c.is_ascii_alphanumeric(), "no-symbols charset leaked {c:?}");
         }
+    }
+
+    /// `entropy_bits` matches `len * log2(pool)`, and `--no-similar` lowers it by
+    /// shrinking the pool (PASS-V2-01). The default four-class set (77 chars) loses
+    /// all 7 look-alikes (`il1Lo0O` are all alphanumeric) → a 70-char pool, so the
+    /// entropy strictly drops.
+    #[test]
+    fn entropy_bits_matches_formula_and_drops_with_no_similar() {
+        // Char mode: 16 chars over the full 77-symbol pool.
+        let full = build_charset(false);
+        assert_eq!(full.len(), 26 + 26 + 10 + SYMBOLS.len());
+        let full_bits = entropy_bits(16, full.len());
+        assert!(
+            (full_bits - 16.0 * (full.len() as f64).log2()).abs() < 1e-9,
+            "char-mode entropy must equal length * log2(pool)"
+        );
+
+        // `--no-similar` removes all 7 of `il1Lo0O` (every one is alphanumeric).
+        let mut pruned = build_charset(false);
+        drop_similar(&mut pruned);
+        assert_eq!(
+            pruned.len(),
+            full.len() - SIMILAR.chars().count(),
+            "no-similar must drop exactly the 7 look-alikes from the default set"
+        );
+        for c in &pruned {
+            assert!(!SIMILAR.contains(*c), "look-alike {c:?} survived the prune");
+        }
+        let pruned_bits = entropy_bits(16, pruned.len());
+        assert!(
+            pruned_bits < full_bits,
+            "no-similar must lower entropy: {pruned_bits} !< {full_bits}"
+        );
+
+        // Passphrase mode: 4 words over the 7776-word EFF pool ≈ 51.7 bits
+        // (4 * log2(7776) = 4 * 12.925…).
+        let phrase_bits = entropy_bits(4, 7776);
+        assert!(
+            (phrase_bits - 4.0 * 7776f64.log2()).abs() < 1e-9,
+            "passphrase entropy must equal words * log2(7776)"
+        );
+        assert!(
+            (phrase_bits - 51.699).abs() < 0.01,
+            "4 EFF words ≈ 51.7 bits, got {phrase_bits}"
+        );
     }
 
     /// The curated SYMBOLS const contains NONE of the shell/quoting-hostile

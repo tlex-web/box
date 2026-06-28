@@ -133,12 +133,86 @@ fn count_flag_yields_n_distinct_lines() {
 }
 
 /// A successful run writes nothing to stderr (D-14 info-disclosure mitigation:
-/// generated secrets go to stdout only, never logged).
+/// generated secrets go to stdout only, never logged). The PASS-V2-01 entropy
+/// summary is STDERR + TTY-gated, so under the (piped) test harness it is
+/// suppressed — keeping this contract intact.
 #[test]
 fn success_writes_nothing_to_stderr() {
     let mut cmd = Command::cargo_bin("box").unwrap();
     cmd.arg("passgen").env("NO_COLOR", "1");
     cmd.assert().success().stderr(predicate::str::is_empty());
+}
+
+// --- PASS-V2-01: entropy + --no-similar + --separator --------------------------
+
+/// `box passgen --no-similar --length 200` → not one of the look-alike chars
+/// `il1Lo0O` appears (the prune drops them from the pool). A long sample makes a
+/// missed leak vanishingly unlikely.
+#[test]
+fn no_similar_drops_lookalikes() {
+    let out = passgen_stdout(&["--no-similar", "--length", "200"]);
+    let pw = out.lines().next().expect("one line");
+    for c in pw.chars() {
+        assert!(
+            !"il1Lo0O".contains(c),
+            "--no-similar leaked a look-alike char {c:?}: {pw:?}"
+        );
+    }
+}
+
+/// `box passgen --words 4 --separator +` → the passphrase is joined with `+`
+/// instead of the default `.`, splitting into exactly 4 words. `+` is not an EFF
+/// word character, so the split is unambiguous.
+#[test]
+fn separator_overrides_passphrase_join() {
+    let out = passgen_stdout(&["--words", "4", "--separator", "+"]);
+    let line = out.lines().next().expect("one line");
+    assert!(line.contains('+'), "custom separator must appear: {line:?}");
+    assert!(!line.contains('.'), "default dot must not appear: {line:?}");
+    let words: Vec<&str> = line.split('+').filter(|w| !w.is_empty()).collect();
+    assert_eq!(
+        words.len(),
+        4,
+        "--separator + must join 4 words, got {words:?} from {line:?}"
+    );
+}
+
+/// PASS-V2-01 — `box passgen --json` stdout carries a top-level numeric
+/// `entropy_bits`, parses as ONE JSON document, and contains no ANSI escape (the
+/// entropy is a structured field, never prose on stdout — Pitfall 5).
+#[test]
+fn json_carries_entropy_bits() {
+    let out = passgen_output(&["--json"]);
+    assert!(out.status.success(), "box passgen --json should exit 0");
+
+    // Raw-byte purity: the literal field name is present and no ANSI byte leaks.
+    assert!(
+        out.stdout.windows(b"entropy_bits".len()).any(|w| w == b"entropy_bits"),
+        "stdout must carry the entropy_bits field"
+    );
+    assert!(!out.stdout.contains(&0x1Bu8), "no ANSI in --json stdout");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    let bits = v
+        .get("entropy_bits")
+        .and_then(|b| b.as_f64())
+        .expect("`.entropy_bits` must be a number");
+    assert!(bits > 0.0, "entropy must be a positive bit count, got {bits}");
+}
+
+/// PASS-V2-01 / D-14 — the entropy estimate NEVER contaminates stdout on the
+/// human (non-JSON) path: stdout is exactly the one password line, with no
+/// `entropy`/`bits` prose mixed in (the summary is STDERR-only + TTY-gated).
+#[test]
+fn entropy_is_not_on_stdout() {
+    let out = passgen_stdout(&[]);
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines.len(), 1, "human stdout is exactly the secret line: {out:?}");
+    assert!(
+        !out.contains("entropy") && !out.contains("bits"),
+        "entropy prose must never appear on stdout: {out:?}"
+    );
 }
 
 // --- Scriptable spine (SPINE-02 / SPINE-04) — copied from tests/uuid.rs ----------
