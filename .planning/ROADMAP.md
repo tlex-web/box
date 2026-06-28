@@ -142,13 +142,18 @@ Plans:
   3. **Human-verify (PS7):** `box lolcat --animate` produces a smooth animated rainbow in the PowerShell 7 terminal with RAII terminal restore (clean exit on Ctrl+C/q/Esc, no stuck raw mode), and degrades to a static render when piped or under `--json`; `--freq` and `--seed` visibly change the gradient. This criterion is cleared by a human in PS7, not by automated test alone.
   4. New colored output paths (`matrix --color`, `ascii` truecolor, animated `lolcat`) stay gated on `is_color_on()` — piped/`--json` output remains byte-identical minus ANSI.
 
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
 
-- [ ] 09-01: TBD — dev transforms: `uuid` v7 + format flags (UUID-V2-01); `epoch` relative + tz (EPOC-V2-01); `color` CSS + HSL (COLR-V2-01); `json --sort-keys` (JSON-V2-01); `passgen` entropy + `--no-similar` + `--separator` (PASS-V2-01).
-- [ ] 09-02: TBD — visuals: `matrix` color/speed/charset (MTRX-V2-01); `qr` `--save`/EC (QR-V2-01); `ascii` color/braille/invert (ASCI-V2-01).
-- [ ] 09-03: TBD — **HUMAN-VERIFY (PS7):** `lolcat` `--animate`/`--freq`/`--seed` with RAII terminal restore + TTY-gated static fallback (LOL-V2-01).
+**Wave 1**
+
+- [ ] 09-01-PLAN.md — dev transforms: `uuid` v7 + format flags (UUID-V2-01); `epoch` relative + `--tz` (EPOC-V2-01); `color` CSS names + HSL input (COLR-V2-01); `json --sort-keys` (JSON-V2-01); `passgen` entropy + `--no-similar` + `--separator` (PASS-V2-01). [wave 1]
+- [ ] 09-03-PLAN.md — **HUMAN-VERIFY (PS7):** `lolcat` `--animate`/`--freq`/`--seed`/`--duration` with verbatim matrix RAII restore + mandatory `is_terminal()` AND-gate static fallback (LOL-V2-01). [wave 1]
+
+**Wave 2** *(blocked on Wave 1 — shares Cargo.toml; needs the qrcode `["image","svg"]` feature re-enable that lands after 09-01)*
+
+- [ ] 09-02-PLAN.md — visuals: `matrix` `--color`/`--speed`/`--charset` presets (MTRX-V2-01); `qr` `--save` PNG/SVG + `--error-correction` (QR-V2-01); `ascii` truecolor + `--braille` + `--invert` (ASCI-V2-01). [wave 2, depends_on 09-01]
 
 **UI hint**: yes
 
