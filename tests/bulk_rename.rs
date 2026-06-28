@@ -340,6 +340,78 @@ fn renm_dotdot_target_aborts() {
     }
 }
 
+/// RENM-01 / CR-01 — a target with a trailing dot that Windows trims to a
+/// DISTINCT existing file (`src.txt` -> `keep.`, with `keep` already present) is
+/// detected as a clobber-collision in pre-flight and aborts the whole batch (exit
+/// 1) in BOTH dry-run and `--force`, leaving the existing `keep` byte-for-byte
+/// intact. This is the core silent-data-loss vector: `std::fs::rename` resolves
+/// `keep.` to `keep` on disk and would otherwise overwrite it.
+#[test]
+fn renm_trailing_dot_clobber_of_existing_aborts() {
+    for force in [false, true] {
+        let dir = assert_fs::TempDir::new().unwrap();
+        dir.child("keep").write_str("KEEP").unwrap();
+        dir.child("src.txt").write_str("SRC").unwrap();
+
+        let before = snapshot_names(dir.path());
+
+        // `^src\.txt$` -> `keep.`: Windows resolves `keep.` to `keep` on disk, which
+        // already exists -> must abort as a collision, never clobber.
+        let args: &[&str] = if force { &["--force"] } else { &[] };
+        bulk_rename(dir.path(), r"^src\.txt$", "keep.", args)
+            .failure()
+            .code(1)
+            .stderr(predicate::str::contains("Aborted"))
+            .stdout(predicate::str::contains("[collision]"));
+
+        let after = snapshot_names(dir.path());
+        assert_eq!(
+            before, after,
+            "a trailing-dot clobber must leave the tree byte-for-byte unchanged (force={force})"
+        );
+        // The existing file's content specifically survived (no silent overwrite).
+        assert_eq!(
+            fs::read(dir.path().join("keep")).unwrap(),
+            b"KEEP",
+            "the existing `keep` must NOT be overwritten (force={force})"
+        );
+    }
+}
+
+/// RENM-01 / WR-04 — a rename target that is a Windows reserved DEVICE name
+/// (`CON`, `NUL`, `COM1`…) is refused in pre-flight and aborts the whole batch
+/// (exit 1) in BOTH dry-run and `--force`, leaving the tree unchanged. Unlike
+/// `flatten` (which rewrites `CON` -> `CON_`), bulk-rename refuses so the
+/// requested name is never silently altered.
+#[test]
+fn renm_reserved_device_name_target_aborts() {
+    for force in [false, true] {
+        let dir = assert_fs::TempDir::new().unwrap();
+        dir.child("a.txt").write_str("payload").unwrap();
+
+        let before = snapshot_names(dir.path());
+
+        // `^a\.txt$` -> `CON`: a reserved device name, refused outright.
+        let args: &[&str] = if force { &["--force"] } else { &[] };
+        bulk_rename(dir.path(), r"^a\.txt$", "CON", args)
+            .failure()
+            .code(1)
+            .stderr(predicate::str::contains("Aborted").and(
+                predicate::str::contains("reserved").or(predicate::str::contains("refused")),
+            ));
+
+        let after = snapshot_names(dir.path());
+        assert_eq!(
+            before, after,
+            "a reserved-name target must leave the tree byte-for-byte unchanged (force={force})"
+        );
+        assert!(
+            dir.path().join("a.txt").exists(),
+            "the source file must survive the refused reserved-name rename (force={force})"
+        );
+    }
+}
+
 /// RENM-01 — directories and symlinks become `-` rows, and the replacement is
 /// FIRST-match only (D-17): `2024_2024.log` with pattern `2024` -> `x` yields
 /// `x_2024.log`, not `x_x.log`.

@@ -68,6 +68,7 @@ use clap::Args;
 use regex::Regex;
 use walkdir::WalkDir;
 
+use crate::commands::flatten::rename::is_reserved_device_name;
 use crate::commands::RunCommand;
 use crate::core::fs::is_hidden;
 use crate::core::output::{format_row, is_color_on, terminal_width, RowStatus};
@@ -202,6 +203,15 @@ enum Conflict {
         /// The injecting target.
         target: String,
     },
+    /// A target is a Windows reserved DEVICE name (`CON`/`NUL`/`COM1`…) — refused
+    /// outright (WR-04). Unlike `flatten`, which rewrites `CON` -> `CON_`,
+    /// `bulk-rename` aborts so the user's requested name is never silently altered.
+    Reserved {
+        /// The renaming source.
+        source: String,
+        /// The reserved-name target.
+        target: String,
+    },
 }
 
 /// One rename a directory wants to perform: its on-disk source name and the new
@@ -233,13 +243,15 @@ struct Rename {
 /// 3. **Cycles/swaps:** any target equal to ANOTHER item's source (compared
 ///    case-folded, since the move would land on that still-present file) is a
 ///    [`Conflict::Cycle`] — v1 detects and aborts (no temp-name pass).
-/// 4. **Path-separator / traversal refusal:** any target containing `/` or `\`,
-///    OR a target that escapes its directory (`..`, `.`, or any name that is
-///    purely dots/spaces — which Windows trims to a degenerate target) is a
-///    [`Conflict::Separator`] (mirrors flatten's `encode_no_separator`). Such a
-///    name cannot be a base name inside the parent directory, so it can never be
-///    "safe": `PathBuf::join("..")` resolves to the GRANDPARENT and `join(".")`
-///    to the parent itself, escaping the intended target dir (CR-01).
+/// 4. **Path-separator / traversal / reserved-name refusal:** any target
+///    containing `/` or `\`, OR one that escapes its directory (`..`, `.`, or any
+///    name that is purely dots/spaces — which Windows trims to a degenerate
+///    target) is a [`Conflict::Separator`]; a target that is a Windows reserved
+///    DEVICE name (`CON`/`NUL`/`COM1`…, WR-04) is a [`Conflict::Reserved`]. Both
+///    mirror flatten's hardened name model and can never be a safe base name, so
+///    they abort before any rename: `PathBuf::join("..")` resolves to the
+///    GRANDPARENT and `join(".")` to the parent itself, escaping the intended
+///    target dir (CR-01), and a reserved name targets a device, not a file.
 ///
 /// Note: no-op renames (`new == old` byte-exact) are filtered out by the caller
 /// BEFORE this runs (they are `(unchanged)` skips), so a name folding to its own
@@ -247,18 +259,16 @@ struct Rename {
 fn preflight(renames: &[Rename], existing: &[String]) -> Vec<Conflict> {
     let mut conflicts = Vec::new();
 
-    // Rule 4 first: a separator-injecting or directory-escaping target can never
-    // be safe, regardless of collisions. Refuse it outright.
+    // Rule 4 first: a separator-injecting, directory-escaping, or reserved-device
+    // -name target can never be safe, regardless of collisions. Refuse it outright,
+    // classifying WHY (separator/escape vs reserved name) for an accurate message.
     for r in renames {
-        if injects(&r.new) {
-            conflicts.push(Conflict::Separator {
-                source: r.old.clone(),
-                target: r.new.clone(),
-            });
+        if let Some(conflict) = refusal(r) {
+            conflicts.push(conflict);
         }
     }
-    // The set of renames that are NOT separator-injecting/escaping; only these
-    // participate in the collision/cycle analysis (a refused one already aborts).
+    // The set of renames that are NOT refused; only these participate in the
+    // collision/cycle analysis (a refused one already aborts).
     let safe: Vec<&Rename> = renames.iter().filter(|r| !injects(&r.new)).collect();
 
     // Rule 1: seed the occupied set from on-disk names NOT being renamed away.
@@ -336,27 +346,55 @@ fn preflight(renames: &[Rename], existing: &[String]) -> Vec<Conflict> {
     conflicts
 }
 
-/// Whether a rename target is a path-separator injection OR a directory-escaping
-/// / degenerate name that can never be a safe base name inside the parent dir
-/// (CR-01). Refused in pre-flight as a [`Conflict::Separator`], mirroring
-/// `flatten::rename`'s `..`/`.`/empty handling:
+/// Whether a rename target must be REFUSED outright (it can never be a safe base
+/// name inside the parent dir, regardless of collisions). Mirrors
+/// `flatten::rename`'s hardened name model (CR-01 / WR-04):
 /// - contains `/` or `\` — a path separator that would write outside the dir;
 /// - is exactly `..` (`join` -> the GRANDPARENT) or `.` (`join` -> the parent);
 /// - is purely dots and/or spaces (e.g. `...`, `  `) — Windows trims trailing
-///   dots/spaces, so such a name collapses to ``/`.`/`..`, a degenerate target.
+///   dots/spaces, so such a name collapses to ``/`.`/`..`, a degenerate target;
+/// - is a Windows reserved DEVICE name (`CON`/`NUL`/`COM1`…) — targets a device,
+///   not a file (WR-04), so we refuse rather than silently rewrite it.
 fn injects(name: &str) -> bool {
     name.contains('/')
         || name.contains('\\')
         || name == ".."
         || name == "."
         || name.trim_matches(['.', ' ']).is_empty()
+        || is_reserved_device_name(name)
 }
 
-/// Full-Unicode case fold for collision keys (WR-01) — matches
-/// `flatten::rename::dedupe`, so non-ASCII case pairs (`RÉSUMÉ` vs `résumé`) also
-/// collide on the case-insensitive NTFS filesystem.
+/// Classify a refused target into its [`Conflict`] reason, or `None` when the
+/// target is a safe base name. A reserved DEVICE name (`CON`/`NUL`/`COM1`…) is a
+/// [`Conflict::Reserved`]; any other refused target (separator / `..`/`.` /
+/// degenerate) is a [`Conflict::Separator`]. Keeps the abort message accurate.
+fn refusal(r: &Rename) -> Option<Conflict> {
+    if !injects(&r.new) {
+        return None;
+    }
+    if is_reserved_device_name(&r.new) {
+        Some(Conflict::Reserved {
+            source: r.old.clone(),
+            target: r.new.clone(),
+        })
+    } else {
+        Some(Conflict::Separator {
+            source: r.old.clone(),
+            target: r.new.clone(),
+        })
+    }
+}
+
+/// Full-Unicode case fold for collision keys, on the name Windows will ACTUALLY
+/// create on disk. `std::fs::rename` (`MoveFileExW`) strips trailing dots/spaces
+/// from the final path component, so `keep.` and `keep` resolve to the SAME file —
+/// the collision key MUST trim them too, or a trailing-dot target would slip past
+/// the pre-flight and silently clobber a distinct existing file (CR-01). Matches
+/// `flatten::rename::sanitize_reserved`'s whole-name trim and `dedupe`'s
+/// full-Unicode (not ASCII-only) fold, so non-ASCII case pairs (`RÉSUMÉ` vs
+/// `résumé`) also collide on the case-insensitive NTFS filesystem (WR-01).
 fn fold(name: &str) -> String {
-    name.to_lowercase()
+    name.trim_end_matches(['.', ' ']).to_lowercase()
 }
 
 impl RunCommand for BulkRenameArgs {
@@ -1076,6 +1114,11 @@ fn conflict_reason(item: &PlanItem, conflicts: &[Conflict]) -> Option<String> {
                     return Some("[separator]".to_string());
                 }
             }
+            Conflict::Reserved { source, target } => {
+                if source == &item.old_name && target == new {
+                    return Some("[reserved]".to_string());
+                }
+            }
         }
     }
     None
@@ -1107,6 +1150,11 @@ fn abort_summary(conflicts: &[Conflict]) -> String {
             Conflict::Separator { source, target } => {
                 out.push_str(&format!(
                     "{source} renames to {target}, which contains a path separator (refused)."
+                ));
+            }
+            Conflict::Reserved { source, target } => {
+                out.push_str(&format!(
+                    "{source} renames to {target}, which is a Windows reserved device name (refused)."
                 ));
             }
         }
@@ -1276,6 +1324,61 @@ mod tests {
         for ok in ["a.txt", ".gitignore", "..a", "a..b", "report.final.txt"] {
             assert!(!injects(ok), "{ok:?} must be classified as safe");
         }
+    }
+
+    /// CR-01 — a target with a trailing dot that Windows trims to a DISTINCT
+    /// existing on-disk name (`src.txt` -> `keep.`, with `keep` present and not
+    /// renamed away) must be detected as a clobber-collision. Before the fold fix
+    /// `fold("keep.") = "keep."` differed from `fold("keep") = "keep"` and this
+    /// silently overwrote `keep` on disk.
+    #[test]
+    fn trailing_dot_clobbers_existing() {
+        let renames = vec![rn("src.txt", "keep.")];
+        let conflicts = preflight(&renames, &["src.txt".into(), "keep".into()]);
+        assert!(
+            conflicts
+                .iter()
+                .any(|c| matches!(c, Conflict::Collision { target, .. } if fold(target) == "keep")),
+            "keep. must be detected as clobbering the existing keep: {conflicts:?}"
+        );
+    }
+
+    /// CR-01 — two sources whose targets differ only by a Windows-trimmed trailing
+    /// dot (`x` and `x.`) both land on `x` on disk, so they must fold to one key and
+    /// be flagged as a two-sources-one-target collision (not silently overwrite).
+    /// (`x.` cannot be created on disk on Windows, so this lives at the pure layer.)
+    #[test]
+    fn trailing_dot_targets_collide() {
+        let renames = vec![rn("a.txt", "x"), rn("b.txt", "x.")];
+        let conflicts = preflight(&renames, &["a.txt".into(), "b.txt".into()]);
+        assert!(
+            conflicts
+                .iter()
+                .any(|c| matches!(c, Conflict::Collision { .. })),
+            "x and x. must collide on the Windows-effective name: {conflicts:?}"
+        );
+    }
+
+    /// WR-04 — a target that is a Windows reserved DEVICE name is refused as a
+    /// [`Conflict::Reserved`] (case-insensitive, with or without an extension),
+    /// aborting the batch instead of silently rewriting it the way flatten does.
+    #[test]
+    fn reserved_device_name_target_refused() {
+        for target in ["CON", "con", "nul.txt", "COM1", "LPT9.dat", "PRN"] {
+            let conflicts = preflight(&[rn("a.txt", target)], &["a.txt".into()]);
+            assert!(
+                conflicts
+                    .iter()
+                    .any(|c| matches!(c, Conflict::Reserved { target: t, .. } if t == target)),
+                "reserved target {target:?} must be refused: {conflicts:?}"
+            );
+        }
+        // A name merely CONTAINING a reserved stem is fine (`console`, `contact`).
+        let ok = preflight(&[rn("a.txt", "console.txt")], &["a.txt".into()]);
+        assert!(
+            ok.is_empty(),
+            "a non-reserved name must not be refused: {ok:?}"
+        );
     }
 
     /// A clean plan (distinct targets, no clobbers, no cycles, no separators)

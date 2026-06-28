@@ -90,6 +90,24 @@ pub fn sanitize_reserved(name: &str) -> String {
     }
 }
 
+/// Whether `name`'s Windows-effective component is a reserved DEVICE name
+/// (`CON`/`PRN`/`AUX`/`NUL`/`COM1-9`/`LPT1-9`, case-insensitive, with or without an
+/// extension, ignoring the trailing dots/spaces Windows trims). Shares the
+/// [`RESERVED`] list with [`sanitize_reserved`] so the two destructive commands
+/// agree on one device-name model (WR-04 / CR-01).
+///
+/// `flatten` *rewrites* a reserved name through [`sanitize_reserved`] (`CON` ->
+/// `CON_`); `bulk-rename` instead *refuses* such a target outright (abort), so it
+/// needs the predicate, not the rewrite.
+pub fn is_reserved_device_name(name: &str) -> bool {
+    let stem = match name.rsplit_once('.') {
+        Some((s, _)) => s,
+        None => name,
+    };
+    let stem = stem.trim_end_matches(['.', ' ']);
+    RESERVED.iter().any(|r| r.eq_ignore_ascii_case(stem))
+}
+
 /// Append `_1`, `_2`, … before the extension until the (case-folded) name is free
 /// in `occupied`. NTFS is case-insensitive over the FULL Unicode case table, so
 /// keying is done on `to_lowercase()` (not `to_ascii_lowercase()`) to catch both
@@ -327,5 +345,30 @@ mod tests {
     fn dedupe_returns_unchanged_when_free() {
         let occ = occupied(&["other.txt"]);
         assert_eq!(dedupe("readme.txt", &occ), "readme.txt");
+    }
+
+    /// WR-04 — `is_reserved_device_name` recognizes every reserved device stem
+    /// (case-insensitive, with/without an extension, ignoring trailing dots/spaces
+    /// Windows trims) and leaves ordinary names alone. `bulk-rename` shares this
+    /// predicate to REFUSE such a target instead of rewriting it.
+    #[test]
+    fn is_reserved_device_name_matches_reserved_set() {
+        for bad in [
+            "CON", "con", "NUL", "nul.txt", "PRN.log", "aux", "COM1", "com9.dat", "LPT3",
+            "lpt9.bin", "Con ", "NUL.",
+        ] {
+            assert!(is_reserved_device_name(bad), "{bad:?} must be reserved");
+        }
+        for ok in [
+            "report.txt",
+            "console.txt",
+            "contact",
+            "com10",
+            "lpt0",
+            "con_",
+            "scon",
+        ] {
+            assert!(!is_reserved_device_name(ok), "{ok:?} must NOT be reserved");
+        }
     }
 }
