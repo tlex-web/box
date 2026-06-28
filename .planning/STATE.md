@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
 status: executing
-stopped_at: Completed 08-05-PLAN.md (DUPE-V2-02 dupes --delete)
-last_updated: "2026-06-28T02:10:00.000Z"
+stopped_at: Completed 08-06-PLAN.md (RENM-V2-02 bulk-rename --backup)
+last_updated: "2026-06-28T03:30:00.000Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 11
-  completed_plans: 10
-  percent: 91
+  completed_plans: 11
+  percent: 100
 ---
 
 # Project State: box — Rust CLI Toolbox
 
 **Last updated:** 2026-06-28
-**Updated by:** execute-plan (08-05 complete — DUPE-V2-02 `dupes --delete`: destructive dedup, dry-run DEFAULT + `--force`, KEEP-FIRST over the sorted groups [paths[0] always retained → a group can never lose its last copy], HARDLINK-SAFE [an alias sharing the kept inode's `(volume_serial,file_index)` is never a deletion candidate], ABORT-ALL-BEFORE-ANY pre-flight [the whole plan, one identity read per member, computed before any `remove_file`], `--delete --json` carries `dry_run` and abort keeps stdout empty [D-09]; new tests/dupes_delete.rs with snapshot_tree before==after per abort path; the mandatory adversarial code-review gate was approved; D-37 logged [pre-flight does I/O — honest clarification, not a behavioral deviation]; full suite + clippy green; next: Wave 2 last destructive plan 08-06 bulk-rename --backup)
+**Updated by:** execute-plan (08-06 complete — RENM-V2-02 `bulk-rename --backup`: a JSON undo MANIFEST [a zero-drift serde projection of the pre-flight-cleared `Plan`, one `{old,new,applied}` per renamed file with ABSOLUTE paths] written + `File::sync_all()`'d to `%LOCALAPPDATA%\box\undo\box-undo-<unix_millis>.json` [OUTSIDE the renamed tree, LOCALAPPDATA not APPDATA] BEFORE the first `std::fs::rename`, then each entry flips `applied:true` [rewrite+fsync] as its rename returns → a mid-batch I/O error leaves an `applied`-partitioned, reconcilable manifest; `--backup` is a no-op on dry-run, `--force`-only, path echoed to stderr, abort writes NEITHER manifest NOR rename; `--undo` replay Deferred; new tests/bulk_rename_backup.rs with manifest-written/dry-run-noop/abort-writes-nothing/partition-recoverable [real locked-target mid-batch] tests; the mandatory adversarial code-review gate was approved; D-38 logged [manifest not byte copies, D-22 applied]; full suite + clippy green. **Phase 8 implementation complete — all 10 reqs done; awaiting orchestrator phase verification + close-out.**)
 
 ---
 
@@ -37,10 +37,10 @@ See: .planning/PROJECT.md · .planning/ROADMAP.md · .planning/REQUIREMENTS.md (
 
 Phase: 08 (filesystem-depth) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: All 6 plans complete — Phase 8 implementation done; awaiting orchestrator phase verification + close-out (phase NOT yet formally completed)
 Last activity: 2026-06-28
 
-Progress: [█████████░] 91%
+Progress: [██████████] 100%
 
 ## Phase Map
 
@@ -50,7 +50,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 |-------|------|-------------|--------|
 | 6 | Scriptable-Core Foundation | SPINE-01, SPINE-03, SPINE-05, HASH-V2-01 (4) | Complete (2/2 plans — all 4 reqs done) |
 | 7 | Spine Rollout | SPINE-02, SPINE-04 (2) | Complete (3/3 plans — 07-01 Wave-7a + 07-02 Wave-7b + 07-03 Wave-7c done; --json on 16/16, --clip on 6/6 new; SPINE-02/SPINE-04 done) |
-| 8 | Filesystem Depth | HASH-V2-02, FLAT-V2-01/02, DUPE-V2-01/02, RENM-V2-01/02, TREE-V2-01, DU-V2-01/02 (10) | Executing (5/6 plans — Wave 1: 08-01 HASH-V2-02 + FLAT-V2-01, 08-02 TREE-V2-01 + DU-V2-01/02, 08-03 DUPE-V2-01 + RENM-V2-01 done; Wave 2: 08-04 FLAT-V2-02 flatten --move + 08-05 DUPE-V2-02 dupes --delete done [both adversarial reviews approved]; 08-06 remains) |
+| 8 | Filesystem Depth | HASH-V2-02, FLAT-V2-01/02, DUPE-V2-01/02, RENM-V2-01/02, TREE-V2-01, DU-V2-01/02 (10) | Executing — all 6 plans done, awaiting phase verification (Wave 1: 08-01 HASH-V2-02 + FLAT-V2-01, 08-02 TREE-V2-01 + DU-V2-01/02, 08-03 DUPE-V2-01 + RENM-V2-01; Wave 2: 08-04 FLAT-V2-02 flatten --move + 08-05 DUPE-V2-02 dupes --delete + 08-06 RENM-V2-02 bulk-rename --backup [all 3 adversarial reviews approved]; all 10 reqs complete) |
 | 9 | Dev-Transform & Visual Depth | UUID-V2-01, EPOC-V2-01, COLR-V2-01, JSON-V2-01, PASS-V2-01, LOL-V2-01, MTRX-V2-01, QR-V2-01, ASCI-V2-01 (9) | Not started |
 | 10 | Fun & System Depth | COW-V2-01, FORT-V2-01, 8BAL-V2-01, ROST-V2-01, POMO-V2-01/02, WTHR-V2-01 (7) | Not started |
 | 11 | Meta-Commands | CFG-01, CMP-01 (2) | Not started |
@@ -59,7 +59,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 
 ## Performance Metrics
 
-**Plans executed (v2.0):** 10 / 18 planned
+**Plans executed (v2.0):** 11 / 18 planned
 **v1.0 (archived):** 22 plans, 22 succeeded, 0 failed, 5/5 phases — see `.planning/MILESTONES.md`.
 
 | Phase | Plan | Duration | Tasks | Files |
@@ -74,6 +74,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 | 8 | 08-03 | ~30 min | 3 | 4 |
 | 8 | 08-04 | ~10 min | 3 (2 code + 1 review gate) | 2 |
 | 8 | 08-05 | ~25 min | 3 (2 code + 1 review gate) | 2 |
+| 8 | 08-06 | ~20 min | 3 (2 code + 1 review gate) | 2 |
 
 ---
 
@@ -123,6 +124,8 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 
 | **D-37 (08-05) DUPE-V2-02: `dupes --delete` keep-first over the sorted groups + hardlink-safe via `file_identity` collapse + abort-all-before-any pre-flight; the pre-flight DOES I/O (one `file_identity` read per member during `build_delete_plan`) — an honest clarification of the plan's "pure pass" wording, NOT a behavioral deviation** (dry-run is the DEFAULT, `--force` to execute) | Hardlink-safe candidate selection cannot be pure: it must read each member's `(volume_serial, file_index)` to know whether a candidate is an alias of the kept inode. The abort-all-before-any guarantee is preserved verbatim — the ENTIRE plan (every keep/delete/alias decision) is computed before a single `remove_file`; ANY pre-flight problem `bail!`s (exit 1) with NOTHING deleted (the human plan printed only `if !is_json_on()`, so `--json` abort keeps stdout empty, D-09). Keep-first takes `paths[0]` over the already-deterministic 08-03 `(hash,path)` sort, so a group can NEVER lose its last real copy (keep-≥1 is structural, threat T-8-05). Candidates = `paths[1..]` MINUS any sharing the kept member's identity (an alias of the kept inode is never deleted — frees nothing, destroys a name, Pitfall 6 / T-8-05-HL). `remove_file` is reached only under `--force` AND a clean pre-flight, `?`-propagating on first error (T-8-05-PARTIAL). `--delete --json` emits a `DeleteOutput` (per-group kept/deleted projection) with a `dry_run` marker flipping with `--force`, within the `{results,count,…}` family; read-only `dupes` (no `--delete`) byte-identical to 08-03. `snapshot_tree(before)==snapshot_tree(after)` per abort path is the data-loss backstop. Trade-off reviewed + accepted at the mandatory adversarial code-review gate (TOCTOU between identity-read and delete = accepted T-8-05-TOCTOU, single-process local CLI). |
 
+| **D-38 (08-06) RENM-V2-02: `bulk-rename --backup` writes a JSON undo MANIFEST (not byte copies — D-22 applied) + `File::sync_all()`'d BEFORE the first `std::fs::rename`, with each entry flipping `applied:true` (rewrite+fsync) as its rename returns → an `applied`-partitioned, reconcilable manifest on any mid-batch error** (dry-run no-op, `--force`-only) | A pure `std::fs::rename` (`MoveFileExW`) changes only the NAME, so the `{old → new}` map IS the entire reversible state — copying file bytes protects data that was never at risk and doubles disk for no recoverability gain. A pure `build_manifest(plan)` maps every `ItemKind::Rename` item to a `BackupEntry { old, new, applied:false }` (ABSOLUTE paths via `parent.join(...)` + `to_string_lossy()`, D-4) — a zero-drift serde projection of the SAME pre-flight-cleared `Plan` the executor consumes (wrapped in `BackupManifest { id, dir, entries }`). The FULL all-`applied:false` manifest is `write_manifest`'d (`serde_json::to_writer_pretty` + `File::sync_all()`) to `%LOCALAPPDATA%\box\undo\box-undo-<unix_millis>.json` (LOCALAPPDATA not APPDATA, OUTSIDE the renamed tree so `--recursive` never re-walks it + renaming the target dir never orphans it, Pitfall 8; fallback to the target dir only if LOCALAPPDATA unset; `<id>` sortable, A5) strictly AFTER `preflight_plan` returns clean and BEFORE the first rename; the path is echoed to stderr. Inside the `--force` loop each `std::fs::rename(...)` Ok flips that entry's `applied:true` + rewrite+fsync, so a mid-batch I/O error leaves a manifest whose flags EXACTLY partition done (new exists/old gone) vs pending (old exists) — the dir is reconcilable. `--backup` is orthogonal to and only meaningful with `--force` (dry-run no-op); the abort-all-before-any `bail!` (unchanged) writes NEITHER manifest NOR rename; non-`--backup` `bulk-rename` byte-identical to 08-03. `--undo` replay explicitly Deferred (manual reverse documented in the module doc). New `tests/bulk_rename_backup.rs` points the command's LOCALAPPDATA at a 2nd temp dir; `backup_partition_recoverable` induces a REAL mid-batch failure (a locked target) and asserts the applied-flag partition against on-disk reality. Reviewed + approved at the mandatory adversarial code-review gate (T-8-06/-LOC/-ABORT/-SILENT/-DOS mitigated; T-8-06-ACCUM accepted — manifests accumulate, no auto-cleanup, hold only path names). |
+
 Full v1.0 decision log preserved in PROJECT.md Key Decisions + `.planning/milestones/v1.0-ROADMAP.md`.
 
 ### Critical Pitfalls to Remember (carried from v1 + new for v2)
@@ -159,11 +162,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then this file for position/context.
 
-**Last session:** 2026-06-28T02:10:00.000Z
-**Stopped at:** Completed 08-05-PLAN.md (DUPE-V2-02 dupes --delete)
+**Last session:** 2026-06-28T03:30:00.000Z
+**Stopped at:** Completed 08-06-PLAN.md (RENM-V2-02 bulk-rename --backup)
 **Resume file:** None
 
-**Next action:** Phase 8 **Wave 1 complete (08-01/02/03); Wave 2 nearly done — 08-04 + 08-05 done**. ONE destructive plan remains, with mandatory adversarial review + a snapshot-the-tree-unchanged assertion per abort path: **08-06 `bulk-rename --backup`** (JSON undo manifest in `%LOCALAPPDATA%\box\undo\`, fsync before first rename; depends_on 08-03). 08-05 shipped `dupes --delete`: destructive dedup, dry-run DEFAULT + `--force`, **KEEP-FIRST** over the sorted groups (paths[0] always retained → a group can never lose its last copy), **HARDLINK-SAFE** (an alias sharing the kept inode's `(volume_serial,file_index)` is never a deletion candidate), **ABORT-ALL-BEFORE-ANY** pre-flight (D-37 — the whole plan, one identity read per member, computed before any `remove_file`; ANY problem aborts with nothing deleted), `--delete --json` carries `dry_run` and abort keeps stdout empty (D-09); new `tests/dupes_delete.rs` with `snapshot_tree` before==after per abort path; the adversarial code-review gate was approved. **08-06 reuse:** the dry-run-default → `--force` destructive template + the abort-all-before-any plan-then-execute pattern + the `snapshot_tree` per-abort-path test discipline established in 08-04/08-05; plus the existing `bulk-rename` abort-all pre-flight as its backstop. Full `cargo test` green and clippy `--all-targets -D warnings` clean.
+**Next action:** **Phase 8 (Filesystem Depth) implementation is COMPLETE — all 6 plans done, all 10 requirements delivered.** Wave 1: 08-01 (HASH-V2-02 + FLAT-V2-01), 08-02 (TREE-V2-01 + DU-V2-01/02), 08-03 (DUPE-V2-01 + RENM-V2-01); Wave 2 (destructive, each with an approved adversarial code-review gate): 08-04 (FLAT-V2-02 flatten --move), 08-05 (DUPE-V2-02 dupes --delete), 08-06 (RENM-V2-02 bulk-rename --backup). **08-06 shipped** `bulk-rename --backup`: a JSON undo MANIFEST (a zero-drift serde projection of the pre-flight-cleared `Plan` — one `{old,new,applied}` per renamed file, ABSOLUTE paths) `File::sync_all()`'d to `%LOCALAPPDATA%\box\undo\box-undo-<unix_millis>.json` (OUTSIDE the renamed tree, LOCALAPPDATA not APPDATA, Pitfall 8) BEFORE the first `std::fs::rename`, then each entry flips `applied:true` (rewrite+fsync) as its rename returns → an `applied`-partitioned, reconcilable manifest on a mid-batch error (D-38); `--backup` is a dry-run no-op + `--force`-only, path echoed to stderr, the abort-all-before-any `bail!` writes NEITHER manifest NOR rename; `--undo` replay Deferred; new `tests/bulk_rename_backup.rs` (manifest-written/dry-run-noop/abort-writes-nothing/partition-recoverable via a real locked-target mid-batch). **The orchestrator now owns Phase 8 verification + `phase.complete` — the phase is NOT yet formally marked complete here.** One out-of-scope follow-up carried forward: a `style: cargo fmt` repo-root sweep to clear the pre-existing formatting drift logged in `deferred-items.md` (the 08-06 gates `cargo test` + `cargo clippy --all-targets -D warnings` are both clean; the two 08-06-authored files are fmt-clean). After phase close-out: **Phase 9 (Dev-Transform & Visual Depth)** — UUID/EPOC/COLR/JSON/PASS + visuals LOL/MTRX/QR/ASCI. Full `cargo test` green and clippy `--all-targets -D warnings` clean.
 
 ---
 *State reset to v2.0 phase map: 2026-06-25 by roadmapper (v1.0 plan-by-plan execution log archived with the milestone; v2.0 accumulated context — locked decisions D-1..D-7, v2 pitfalls, the v1→v2 architecture graft — preserved above).*

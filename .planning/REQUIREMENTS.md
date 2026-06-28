@@ -55,7 +55,7 @@ Each maps to exactly one roadmap phase. REQ-IDs continue the per-command mnemoni
 - [x] **DUPE-V2-01**: `dupes` uses multi-stage hashing (size → partial → full BLAKE3) and is hardlink-aware (paths sharing one file-index are collapsed, not counted as wasted space).
 - [x] **DUPE-V2-02**: `dupes --delete` removes duplicates safely — keep at least one per group, non-interactive, dry-run default, `--force` to execute, hardlink-safe, abort-all-before-any pre-flight. *(08-05: keep-first over the sorted groups [paths[0] always kept → group never loses its last copy]; hardlink-safe via `file_identity` collapse of the kept inode's aliases; abort-all-before-any pre-flight computes the whole plan [one identity read per member] before any `remove_file`; `--delete --json` carries `dry_run`, abort keeps stdout empty [D-09]; `snapshot_tree` per-abort-path tests; adversarial code-review gate approved)*
 - [x] **RENM-V2-01**: `bulk-rename` gains case transforms (upper / lower / title) and sequential numbering (`{n}` token with zero-padding).
-- [ ] **RENM-V2-02**: `bulk-rename --backup` writes pre-rename backups before executing a rename plan.
+- [x] **RENM-V2-02**: `bulk-rename --backup` writes pre-rename backups before executing a rename plan. *(08-06: a JSON undo MANIFEST — a zero-drift serde projection of the pre-flight-cleared `Plan`, one `{old,new,applied}` per renamed file with ABSOLUTE paths — written + `File::sync_all()`'d to `%LOCALAPPDATA%\box\undo\box-undo-<unix_millis>.json` [OUTSIDE the renamed tree, LOCALAPPDATA not APPDATA] BEFORE the first `std::fs::rename`, then each entry flips `applied:true` [rewrite+fsync] as its rename returns → an `applied`-partitioned, reconcilable manifest on a mid-batch error [D-22/D-38]; `--backup` is a dry-run no-op + `--force`-only, path echoed to stderr, abort writes NEITHER manifest NOR rename; `--undo` replay Deferred; `tests/bulk_rename_backup.rs` manifest-written/dry-run-noop/abort-writes-nothing/partition-recoverable [real locked-target mid-batch]; adversarial code-review gate approved)*
 - [x] **TREE-V2-01**: `tree` gains `.gitignore` respect, `--dirs-only`, `--ignore <glob>`, and sort-by-size.
 - [x] **DU-V2-01**: `du` gains an in-line percentage column and color-coded size ranges, plus `--exclude <glob>` (apparent size remains the default).
 - [x] **DU-V2-02**: `du --on-disk` reports allocated/compressed on-disk size via Win32 `GetCompressedFileSizeW` (correct for sparse/compressed NTFS files).
@@ -133,7 +133,7 @@ Each requirement maps to exactly one roadmap phase (finalized 2026-06-25 by road
 | DUPE-V2-01 | 8 | Complete |
 | DUPE-V2-02 | 8 | Complete (08-05 — dupes --delete, keep-first + hardlink-safe + abort-all-before-any, adversarial review approved) |
 | RENM-V2-01 | 8 | Complete |
-| RENM-V2-02 | 8 | Pending |
+| RENM-V2-02 | 8 | Complete (08-06 — bulk-rename --backup, JSON undo manifest fsync'd before first rename + applied-partition reconcilable, adversarial review approved) |
 | TREE-V2-01 | 8 | Complete |
 | DU-V2-01 | 8 | Complete |
 | DU-V2-02 | 8 | Complete |
