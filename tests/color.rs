@@ -83,6 +83,83 @@ fn out_of_range_rgb_exits_1_clean() {
         .stderr(predicate::str::is_empty().not());
 }
 
+// --- COLR-V2-01: CSS named colors (both directions) + HSL input ----------------
+
+/// Capture `box color <input> --json` as a parsed JSON value (exit 0, NO_COLOR).
+fn color_json(input: &str) -> serde_json::Value {
+    let mut cmd = Command::cargo_bin("box").unwrap();
+    cmd.arg("color").arg(input).arg("--json").env("NO_COLOR", "1");
+    let out = cmd.output().expect("run box color --json");
+    assert!(out.status.success(), "box color {input:?} --json should exit 0");
+    serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value")
+}
+
+/// CSS name → RGB: the four anchors resolve to their known hex via the CLI.
+#[test]
+fn css_name_resolves_to_rgb() {
+    assert_eq!(
+        color_json("black").get("hex").and_then(|h| h.as_str()),
+        Some("#000000")
+    );
+    assert_eq!(
+        color_json("white").get("hex").and_then(|h| h.as_str()),
+        Some("#ffffff")
+    );
+    assert_eq!(
+        color_json("rebeccapurple").get("hex").and_then(|h| h.as_str()),
+        Some("#663399")
+    );
+    assert_eq!(
+        color_json("cornflowerblue").get("hex").and_then(|h| h.as_str()),
+        Some("#6495ed")
+    );
+}
+
+/// `box color "hsl(210, 100%, 50%)"` parses to the expected RGB block (and the
+/// space form agrees). The human block shows the resolved hex/rgb.
+#[test]
+fn hsl_input_parses_to_block() {
+    let comma = color_stdout("hsl(210, 100%, 50%)");
+    assert!(comma.contains("#0080FF"), "hsl → #0080FF: {comma:?}");
+    assert!(comma.contains("rgb(0, 128, 255)"), "hsl → rgb: {comma:?}");
+    // The modern space form resolves to the same block.
+    let space = color_stdout("hsl(210 100% 50%)");
+    assert_eq!(space, comma, "space-form HSL must match comma-form");
+}
+
+/// RGB→name (both directions): for an EXACT keyword the JSON `name` == `nearest`;
+/// for an arbitrary color `name` is null and `nearest` is non-empty. Both fields
+/// are ALWAYS present.
+#[test]
+fn json_name_and_nearest_always_present() {
+    // Exact keyword (#ff0000 == red): name == nearest == "red".
+    let red = color_json("#ff0000");
+    assert_eq!(red.get("name").and_then(|n| n.as_str()), Some("red"));
+    assert_eq!(red.get("nearest").and_then(|n| n.as_str()), Some("red"));
+
+    // Arbitrary color (#3b82f6): name is null, nearest is a non-empty keyword.
+    let arb = color_json("#3b82f6");
+    assert!(
+        arb.get("name").is_some() && arb.get("name").unwrap().is_null(),
+        "arbitrary color → name: null (present, null): {arb}"
+    );
+    let nearest = arb
+        .get("nearest")
+        .and_then(|n| n.as_str())
+        .expect("nearest must always be a string");
+    assert!(!nearest.is_empty(), "nearest must be non-empty: {arb}");
+}
+
+/// Malformed `hsl(...)` → exit 1, empty stdout, non-empty stderr, no panic (V5).
+#[test]
+fn malformed_hsl_exits_1_clean() {
+    color("hsl(400, 100%, 50%)")
+        .failure()
+        .code(1)
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty().not());
+}
+
 // --- Scriptable spine (SPINE-02 / SPINE-04) — copied from tests/uuid.rs ----------
 //
 // color is a SCALAR command with the D-17 LOCKED NESTED shape:
