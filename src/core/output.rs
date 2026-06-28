@@ -35,14 +35,30 @@ pub fn is_color_on() -> bool {
     COLOR_ON.load(Ordering::Relaxed)
 }
 
-/// True when colored output should be emitted: the `--no-color` flag is unset,
-/// the `NO_COLOR` env var is unset, **and** stdout is a real terminal (D-10).
+/// True when colored output should be emitted. Precedence (highest first):
+///   1. `--no-color` flag OR `NO_COLOR` set → OFF (the suppress overrides win).
+///   2. `CLICOLOR_FORCE` set to a non-empty, non-`0` value → ON, **even when stdout
+///      is not a TTY** (the canonical companion of `NO_COLOR`).
+///   3. otherwise → ON iff stdout is a real terminal (D-10).
 ///
 /// This is the single gate (FOUND-04). Piping `box <cmd>` to a file or another
-/// process makes `stdout().is_terminal()` false, so color is suppressed without
-/// any per-`println!` checks.
+/// process makes `stdout().is_terminal()` false, so color is normally suppressed
+/// without any per-`println!` checks. The `CLICOLOR_FORCE` escape hatch is exactly
+/// why a command that mutates terminal state (the animated `lolcat` loop) MUST
+/// *also* gate on `is_terminal()` and never on `is_color_on()` alone — color can be
+/// forced true on a pipe, and writing a raw-mode/alt-screen escape to a pipe is the
+/// SC3-forbidden hazard (T-09-03-PIPE).
 pub fn color_enabled(no_color_flag: bool) -> bool {
-    !no_color_flag && std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal()
+    if no_color_flag || std::env::var_os("NO_COLOR").is_some() {
+        return false;
+    }
+    if std::env::var("CLICOLOR_FORCE")
+        .map(|v| !v.is_empty() && v != "0")
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    std::io::stdout().is_terminal()
 }
 
 /// Decide color once at startup and install it as the global owo-colors override.
@@ -92,6 +108,18 @@ static CLIP_BUF: Mutex<String> = Mutex::new(String::new());
 /// restoring the strict dead-code gate on this primitive.
 pub fn is_json_on() -> bool {
     JSON_ON.load(Ordering::Relaxed)
+}
+
+/// Whether `--clip` is active (tee primary output to the clipboard). Set once by
+/// [`init_output`], mirroring [`is_json_on`].
+///
+/// Consumed by display-only commands that mutate terminal state (the animated
+/// `lolcat` loop) as part of the MANDATORY TTY/color AND-gate: a command must NOT
+/// enter a raw-mode/alt-screen loop when output is being teed to the clipboard
+/// channel (`init_output` already forces color OFF under `--clip`, so this is the
+/// belt-and-suspenders half of the gate — T-09-03-PIPE / SC4).
+pub fn is_clip_on() -> bool {
+    CLIP_ON.load(Ordering::Relaxed)
 }
 
 /// Lift the two global spine bools into atomics ONCE in `main()`, mirroring
