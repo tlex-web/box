@@ -122,6 +122,63 @@ fn json_piped_no_ansi() {
     );
 }
 
+// --- JSON-V2-01: opt-in --sort-keys --------------------------------------------
+
+/// `box json --sort-keys` recursively sorts object keys: `{"b":1,"a":2}` →
+/// `a` before `b` in the output (the opposite of the preserve-order default).
+#[test]
+fn sort_keys_sorts_object_keys() {
+    let out = {
+        let mut cmd = Command::cargo_bin("box").unwrap();
+        cmd.arg("json")
+            .arg("--sort-keys")
+            .env("NO_COLOR", "1")
+            .write_stdin("{\"b\":1,\"a\":2}");
+        cmd.output().expect("run box json --sort-keys")
+    };
+    assert!(out.status.success(), "box json --sort-keys should exit 0");
+    let s = String::from_utf8(out.stdout).expect("stdout is UTF-8");
+    let a_at = s.find("\"a\"").expect("`a` present");
+    let b_at = s.find("\"b\"").expect("`b` present");
+    assert!(a_at < b_at, "--sort-keys must order a before b: {s:?}");
+}
+
+/// `box json` (no `--sort-keys`) PRESERVES input order — the default is unchanged.
+/// (Mirrors `preserves_input_key_order`, paired here as the --sort-keys
+/// counter-control so the contrast is explicit.)
+#[test]
+fn plain_json_still_preserves_order() {
+    let out = json_stdout("{\"b\":1,\"a\":2}", false);
+    let b_at = out.find("\"b\"").expect("`b` present");
+    let a_at = out.find("\"a\"").expect("`a` present");
+    assert!(
+        b_at < a_at,
+        "without --sort-keys input order is preserved (b before a): {out:?}"
+    );
+}
+
+/// `box json --sort-keys --json` emits a SORTED machine document (the sort is
+/// applied before the `is_json_on()` fork, so it feeds emit_json too).
+#[test]
+fn sort_keys_json_mode_sorts() {
+    let out = {
+        let mut cmd = Command::cargo_bin("box").unwrap();
+        cmd.arg("json")
+            .args(["--sort-keys", "--json"])
+            .env("NO_COLOR", "1")
+            .write_stdin("{\"b\":1,\"a\":2}");
+        cmd.output().expect("run box json --sort-keys --json")
+    };
+    assert!(out.status.success(), "box json --sort-keys --json should exit 0");
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    assert!(v.as_object().is_some(), "still an object");
+    let s = String::from_utf8(out.stdout).expect("stdout is UTF-8");
+    let a_at = s.find("\"a\"").expect("`a` present");
+    let b_at = s.find("\"b\"").expect("`b` present");
+    assert!(a_at < b_at, "--sort-keys --json must emit sorted: {s:?}");
+}
+
 // --- Scriptable spine (SPINE-02 / SPINE-04) — D-16 identity passthrough --------
 //
 // json is a Wave-7c odd-fit and the ONE sanctioned direct-serde command: under

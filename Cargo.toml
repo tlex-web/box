@@ -37,6 +37,10 @@ base64 = "0.22.1"
 # default-features off trims oldtime/wasmbind; `clock` keeps `Local` (pulls
 # iana-time-zone transitively); `std` for the rest of the API (D-01).
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+# epoch --tz <IANA zone> (EPOC-V2-01 / D-1). Pure-Rust bundled IANA tz database
+# (phf-based), no C/system deps → +crt-static/PS7-clean. `Tz: FromStr` validates
+# zone names; `%Z` renders the abbreviation (e.g. JST), unit-tested (A1).
+chrono-tz = "0.10"
 # OsRng for passgen (CSPRNG) + rng() for the whimsy commands (D-08).
 rand = "0.9"
 blake3 = "1.8.5"
