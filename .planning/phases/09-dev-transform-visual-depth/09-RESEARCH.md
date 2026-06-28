@@ -404,17 +404,19 @@ None — existing test infrastructure (harness + dev-deps + per-command unit+int
 
 > All other claims are VERIFIED against cached crate source (uuid v7/fmt, qrcode features/render modules) or CITED to crates.io/docs.rs (chrono-tz deps + `Tz: FromStr`). The seam verifications are VERIFIED against the real project source at the cited line numbers.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`qr --save` + `--json` simultaneous behavior**
    - What we know: `--save` is the action (writes the file); `--json` is the output mode (metadata-only doc, D-14). CONTEXT.md says JSON gains `saved_path` on `--save`.
    - What's unclear: whether `box qr "x" --save out.png --json` writes the file AND emits the metadata doc (most consistent), or treats `--json` as suppressing the write.
    - Recommendation: write the file AND emit the doc with `saved_path` set — `--save` and `--json` are orthogonal (action vs mode). Lock with an integration test. Planner to confirm in 09-02.
+   - **RESOLVED:** adopted by 09-02 Task 2 — under `--save --json`, write the file AND emit the metadata document with `saved_path` (orthogonal action-vs-mode); locked by a must_haves truth + integration test.
 
 2. **`lolcat --animate --duration` default value**
    - What we know: `--duration 0` = run-until-keypress; default is "a few seconds — lolcat parity" (`Instant`-based).
    - What's unclear: the exact default seconds.
    - Recommendation: pick a small default (e.g. 3–5s) as executor discretion; document it in `--help`. Not a blocker.
+   - **RESOLVED:** 09-03 Task 1 sets the default to **3 seconds**, documented in `--help`; `--duration 0` = run-until-keypress.
 
 ## Sources
 
