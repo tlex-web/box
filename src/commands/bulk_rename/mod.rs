@@ -71,7 +71,7 @@ use walkdir::WalkDir;
 use crate::commands::flatten::rename::is_reserved_device_name;
 use crate::commands::RunCommand;
 use crate::core::fs::{is_hidden, normalize_path};
-use crate::core::output::{format_row, is_color_on, terminal_width, RowStatus};
+use crate::core::output::{format_row, terminal_width, RowStatus};
 
 /// `box bulk-rename <dir> <pattern> <replacement> [--force] [--recursive]` —
 /// regex bulk rename with a dry-run-first, abort-on-collision safety model
@@ -615,7 +615,6 @@ impl RunCommand for BulkRenameArgs {
 
         println!();
         println!("Done: renamed {renamed} files, {unchanged} unchanged, {skipped} skipped.");
-        let _ = is_color_on(); // color is applied inside format_row's glyph wrap
         Ok(())
     }
 }
