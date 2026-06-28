@@ -29,6 +29,35 @@
 //! 5. Dry-run prints the plan + the D-19 dry-run summary and returns; `--force`
 //!    executes `std::fs::rename` per file (`.context(...)`-wrapped) only AFTER a
 //!    clean pre-flight.
+//!
+//! ## `--backup` undo manifest (RENM-V2-02, D-22)
+//!
+//! `--backup` writes a JSON undo MANIFEST, NOT file copies. A pure rename
+//! (`MoveFileExW`) changes only the NAME, so the entire reversible state is the
+//! `{old → new}` map — copying bytes would protect data that was never at risk.
+//! The manifest is a zero-drift serde projection of the already-built,
+//! pre-flight-cleared [`Plan`] (one `{old, new, applied}` record per renamed file,
+//! ABSOLUTE paths via `to_string_lossy`, D-4).
+//!
+//! - **Location:** `%LOCALAPPDATA%\box\undo\<id>.json` (`LOCALAPPDATA`, NOT
+//!   `APPDATA`), `<id>` a sortable `box-undo-<unix_millis>` (A5). It lives OUTSIDE
+//!   the renamed tree so `--recursive` never re-walks it and it survives renaming
+//!   the target dir; falls back to the target dir only if `LOCALAPPDATA` is unset.
+//!   The path is echoed to stderr (stdout stays pure under `--json`).
+//! - **Durability ordering (Pitfall 8):** the FULL manifest (every entry
+//!   `applied:false`) is written + `File::sync_all()` (fsync)'d BEFORE the first
+//!   `fs::rename`; each entry flips `applied:true` (rewrite + fsync) as its rename
+//!   returns. A mid-batch I/O error (the existing `?`-propagation → exit 1) leaves
+//!   a manifest whose `applied` flags EXACTLY partition done-vs-pending → the
+//!   directory is reconcilable by reversing only the applied entries.
+//! - **`--force`-only:** `--backup` is orthogonal to and only meaningful with
+//!   `--force`; on a dry-run it is a clean no-op. The manifest write is strictly
+//!   AFTER a clean pre-flight, so the abort-all-before-any path writes neither the
+//!   manifest nor any rename.
+//! - **Deferred:** an automated `box bulk-rename --undo` replay subcommand —
+//!   RENM-V2-02 needs only the backup written + the dir recoverable, both
+//!   satisfied by the manifest plus a one-line manual reverse of the applied
+//!   `{old, new}` pairs.
 
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -90,6 +119,12 @@ pub struct BulkRenameArgs {
     /// Increment between consecutive `{n}` values.
     #[arg(long, default_value_t = 1, value_name = "N")]
     pub step: usize,
+    /// Write a recoverable JSON undo manifest to `%LOCALAPPDATA%\box\undo\<id>.json`
+    /// (outside the renamed tree) before the first rename, fsync'd, flipping each
+    /// entry's `applied` flag as its rename returns. Only meaningful with `--force`;
+    /// a no-op on a dry-run (RENM-V2-02, D-22).
+    #[arg(long)]
+    pub backup: bool,
 }
 
 /// What the plan will do with one file.
@@ -404,6 +439,44 @@ impl RunCommand for BulkRenameArgs {
         // --json the applied rename rows are EMITTED as one document, while the
         // human --force path stays silent-on-success (only a "Done:" summary).
         let json = crate::core::output::is_json_on();
+
+        // RENM-V2-02 / D-22: when `--backup` is set (only meaningful with
+        // `--force`), write the FULL undo manifest (every entry `applied:false`) and
+        // `File::sync_all()` it BEFORE the first `std::fs::rename`, then flip each
+        // entry as its rename returns. This runs strictly AFTER the clean pre-flight
+        // above, so a colliding plan never reaches here — abort writes no manifest.
+        let mut backup: Option<(PathBuf, BackupManifest)> = if self.backup {
+            let entries = build_manifest(&plan);
+            // `%LOCALAPPDATA%\box\undo\` — OUTSIDE the renamed tree (Pitfall 8);
+            // LOCALAPPDATA, not APPDATA. Fall back to the target dir only if unset.
+            let manifest_dir = std::env::var_os("LOCALAPPDATA")
+                .map(PathBuf::from)
+                .map(|p| p.join("box").join("undo"))
+                .unwrap_or_else(|| self.dir.clone());
+            std::fs::create_dir_all(&manifest_dir).with_context(|| {
+                format!("creating undo manifest dir {}", manifest_dir.display())
+            })?;
+            // `<id>` = a sortable timestamp `box-undo-<unix_millis>` (A5).
+            let millis = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0);
+            let id = format!("box-undo-{millis}");
+            let manifest_path = manifest_dir.join(format!("{id}.json"));
+            let manifest = BackupManifest {
+                id,
+                dir: self.dir.to_string_lossy().into_owned(),
+                entries,
+            };
+            // Write + fsync the all-`applied:false` manifest BEFORE the first rename.
+            write_manifest(&manifest_path, &manifest)?;
+            // Echo the manifest path to stderr (stdout stays pure under --json).
+            eprintln!("Backup manifest: {}", manifest_path.display());
+            Some((manifest_path, manifest))
+        } else {
+            None
+        };
+
         let mut renamed = 0usize;
         for item in &plan.items {
             match item.kind {
@@ -431,6 +504,16 @@ impl RunCommand for BulkRenameArgs {
                     std::fs::rename(&item.src, &dst).with_context(|| {
                         format!("renaming {} -> {}", item.src.display(), dst.display())
                     })?;
+                    // D-22: this rename returned Ok — flip its manifest entry's
+                    // `applied` flag and persist (rewrite + fsync) so the on-disk
+                    // flags always partition done-vs-pending. The manifest entries
+                    // are built from `ItemKind::Rename` items in plan order, so
+                    // `renamed` (incremented BELOW) indexes the next entry; use it
+                    // as the current entry index here, before the increment.
+                    if let Some((path, manifest)) = backup.as_mut() {
+                        manifest.entries[renamed].applied = true;
+                        write_manifest(path, manifest)?;
+                    }
                     renamed += 1;
                     if !json {
                         println!(
@@ -801,6 +884,68 @@ fn rename_rows(plan: &Plan) -> Vec<RenameRow> {
             reason: item.reason.clone(),
         })
         .collect()
+}
+
+/// One `{old, new, applied}` record in the `--backup` undo manifest (RENM-V2-02,
+/// D-22): the ABSOLUTE source path, the ABSOLUTE destination path, and whether the
+/// rename has been applied yet. Both paths are `to_string_lossy` (D-4 — never
+/// `to_str().unwrap()`, which panics on non-UTF-8 NTFS names).
+#[derive(serde::Serialize)]
+struct BackupEntry {
+    old: String,
+    new: String,
+    applied: bool,
+}
+
+/// The `--backup` undo manifest (RENM-V2-02, D-22): a sortable `id`, the target
+/// `dir`, and one [`BackupEntry`] per renamed file. A zero-drift serde projection
+/// of the pre-flight-cleared [`Plan`] — write + fsync the FULL manifest (all
+/// `applied:false`) BEFORE the first rename, then flip each entry as its rename
+/// returns so the on-disk flags always partition done-vs-pending.
+#[derive(serde::Serialize)]
+struct BackupManifest {
+    id: String,
+    dir: String,
+    entries: Vec<BackupEntry>,
+}
+
+/// Build the undo-manifest entries from the pre-flight-cleared plan: one entry per
+/// `ItemKind::Rename` item, in plan order (so the executor's per-rename `applied`
+/// flip lines up index-for-index). `old` is the absolute source path (`item.src`);
+/// `new` is `item.parent.join(new_name)`. Both are absolute when the target dir is
+/// absolute. A zero-drift projection of the SAME items the executor consumes.
+fn build_manifest(plan: &Plan) -> Vec<BackupEntry> {
+    plan.items
+        .iter()
+        .filter(|item| item.kind == ItemKind::Rename)
+        .map(|item| {
+            let new_name = item
+                .new_name
+                .as_deref()
+                .expect("rename items always have a new name");
+            BackupEntry {
+                old: item.src.to_string_lossy().into_owned(),
+                new: item.parent.join(new_name).to_string_lossy().into_owned(),
+                applied: false,
+            }
+        })
+        .collect()
+}
+
+/// Atomically-as-possible persist the manifest: (re)create the file, write it
+/// pretty-printed, and `File::sync_all()` (fsync) so the bytes are durable on disk
+/// before the next rename runs. Called once for the all-`applied:false` manifest
+/// before the first rename, then once per rename to flip an `applied` flag —
+/// keeping the on-disk `applied` flags a faithful partition of done-vs-pending even
+/// across a crash or a mid-batch I/O error (Pitfall 8).
+fn write_manifest(path: &Path, manifest: &BackupManifest) -> anyhow::Result<()> {
+    let file = std::fs::File::create(path)
+        .with_context(|| format!("creating undo manifest {}", path.display()))?;
+    serde_json::to_writer_pretty(&file, manifest)
+        .with_context(|| format!("writing undo manifest {}", path.display()))?;
+    file.sync_all()
+        .with_context(|| format!("fsync'ing undo manifest {}", path.display()))?;
+    Ok(())
 }
 
 /// The base name of `path` as an owned `String`.

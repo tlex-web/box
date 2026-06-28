@@ -120,8 +120,7 @@ fn backup_manifest_written() {
 
     // Valid JSON: one {old,new,applied} per renamed file, absolute paths, all true.
     let raw = fs::read_to_string(&manifest_path).unwrap();
-    let v: serde_json::Value =
-        serde_json::from_str(&raw).expect("the manifest must be valid JSON");
+    let v: serde_json::Value = serde_json::from_str(&raw).expect("the manifest must be valid JSON");
     let entries = v
         .get("entries")
         .and_then(|e| e.as_array())
