@@ -105,6 +105,84 @@ fn regex_lite_match(pattern: &str) -> impl Fn(&str) -> bool {
     move |s: &str| p.eval(s)
 }
 
+// --- UUID-V2-01: v7 + the four wrapping forms ----------------------------------
+
+/// `box uuid --braces --urn` → exit 2 (clap `conflicts_with`): the two wrapping
+/// forms are mutually exclusive and clap rejects the pair as a usage error.
+#[test]
+fn braces_and_urn_conflict_exits_2() {
+    uuid(&["--braces", "--urn"]).failure().code(2);
+}
+
+/// `box uuid --no-hyphens` → one 32-hex-digit line with no hyphens (Form::Simple).
+#[test]
+fn no_hyphens_is_32_hex() {
+    let lines = uuid_lines(&["--no-hyphens"]);
+    assert_eq!(lines.len(), 1, "expected one line, got {lines:?}");
+    let s = &lines[0];
+    assert_eq!(s.len(), 32, "simple form is 32 hex digits: {s:?}");
+    assert!(!s.contains('-'), "simple form has no hyphens: {s:?}");
+    assert!(
+        s.chars().all(|c| c.is_ascii_hexdigit()),
+        "simple form is all hex: {s:?}"
+    );
+}
+
+/// `box uuid --braces` → the 36-char hyphenated form wrapped in `{…}`.
+#[test]
+fn braces_wraps_in_curlies() {
+    let lines = uuid_lines(&["--braces"]);
+    assert_eq!(lines.len(), 1);
+    let s = &lines[0];
+    assert!(s.starts_with('{') && s.ends_with('}'), "braces form: {s:?}");
+    assert_eq!(s.len(), 38, "braces form is 36 + 2 braces: {s:?}");
+}
+
+/// `box uuid --urn` → the canonical form prefixed with `urn:uuid:`.
+#[test]
+fn urn_prefixes_scheme() {
+    let lines = uuid_lines(&["--urn"]);
+    assert_eq!(lines.len(), 1);
+    assert!(
+        lines[0].starts_with("urn:uuid:"),
+        "urn form must carry the scheme prefix: {:?}",
+        lines[0]
+    );
+}
+
+/// `box uuid --v7 --json` → `version == "v7"` and the canonical value's version
+/// nibble (position 14) is `'7'`.
+#[test]
+fn v7_json_reports_version_seven() {
+    let out = uuid_output(&["--v7", "--json"]);
+    assert!(out.status.success(), "box uuid --v7 --json should exit 0");
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    let elem = &v.get("results").and_then(|r| r.as_array()).unwrap()[0];
+    assert_eq!(
+        elem.get("version"),
+        Some(&serde_json::json!("v7")),
+        "`--v7` → version \"v7\""
+    );
+    let uuid_str = elem.get("uuid").and_then(|u| u.as_str()).unwrap();
+    assert_eq!(
+        uuid_str.as_bytes()[14],
+        b'7',
+        "v7 canonical version nibble must be '7': {uuid_str}"
+    );
+}
+
+/// `box uuid --no-hyphens --upper` → a 32-char uppercase hex line (the two
+/// composable flags stack: form first, case post-pass).
+#[test]
+fn no_hyphens_upper_composes() {
+    let lines = uuid_lines(&["--no-hyphens", "--upper"]);
+    assert_eq!(lines.len(), 1);
+    let s = &lines[0];
+    assert_eq!(s.len(), 32);
+    assert_eq!(*s, s.to_uppercase(), "--upper uppercases the simple form: {s:?}");
+}
+
 // --- Scriptable spine (SPINE-01 / SPINE-03) — the copy-me Phase-7 template -----
 //
 // uuid is the first --json/--clip consumer of the wave-1 spine. These tests are

@@ -29,12 +29,18 @@ dunce = "1.0"
 # Phase-2 pure-transform crates (added once here so Wave-2 command plans never
 # touch the manifest — D-01 lean bundle):
 # `v4` auto-enables rng+std+getrandom; Display gives RFC-4122 lowercase-hyphenated.
-uuid = { version = "1.23.3", features = ["v4"] }
+# `v7` (UUID-V2-01) adds `Uuid::now_v7()` (time-ordered); the four wrapping forms
+# (.hyphenated/.simple/.braced/.urn) are const fn and need NO feature.
+uuid = { version = "1.23.3", features = ["v4", "v7"] }
 # STANDARD + URL_SAFE_NO_PAD engines; zero transitive deps.
 base64 = "0.22.1"
 # default-features off trims oldtime/wasmbind; `clock` keeps `Local` (pulls
 # iana-time-zone transitively); `std` for the rest of the API (D-01).
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+# epoch --tz <IANA zone> (EPOC-V2-01 / D-1). Pure-Rust bundled IANA tz database
+# (phf-based), no C/system deps → +crt-static/PS7-clean. `Tz: FromStr` validates
+# zone names; `%Z` renders the abbreviation (e.g. JST), unit-tested (A1).
+chrono-tz = "0.10"
 # OsRng for passgen (CSPRNG) + rng() for the whimsy commands (D-08).
 rand = "0.9"
 blake3 = "1.8.5"

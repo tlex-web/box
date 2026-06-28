@@ -41,6 +41,9 @@ pub struct JsonArgs {
     /// Minify instead of pretty-printing.
     #[arg(long)]
     pub compact: bool,
+    /// Recursively sort object keys (arrays keep their order).
+    #[arg(long = "sort-keys")]
+    pub sort_keys: bool,
 }
 
 impl RunCommand for JsonArgs {
@@ -59,6 +62,16 @@ impl RunCommand for JsonArgs {
             // returns a `Result` (T-04J-02). Pinned by `tests/json.rs`.
             Err(e) => anyhow::bail!("at line {} column {}: {e}", e.line(), e.column()),
             Ok(value) => {
+                // JSON-V2-01 — opt-in `--sort-keys` recursively sorts object keys
+                // (arrays keep order) BEFORE the output fork, so it feeds emit_json
+                // / pretty / compact / colorize identically. `preserve_order` stays
+                // the default — keys are NEVER sorted implicitly.
+                let value = if self.sort_keys {
+                    sort_value(value)
+                } else {
+                    value
+                };
+
                 // D-16 identity passthrough (the ONE sanctioned direct-serde
                 // command, a root-rule EXCEPTION alongside tree): under --json emit
                 // the parsed `Value` VERBATIM via `emit_json` — pure (no BOM,
@@ -91,6 +104,24 @@ impl RunCommand for JsonArgs {
                 Ok(())
             }
         }
+    }
+}
+
+/// Recursively rebuild a [`Value`] with every object's keys in sorted order
+/// (JSON-V2-01). Arrays keep their element order; scalars are returned as-is. With
+/// `preserve_order` ON the `Map` is an insertion-ordered `IndexMap`, so collecting
+/// the sorted `(key, value)` pairs back into a `Map` yields a sorted document.
+/// Pure + crate-free so the recursion is unit-testable without spawning the binary.
+fn sort_value(v: Value) -> Value {
+    match v {
+        Value::Object(map) => {
+            let mut entries: Vec<(String, Value)> =
+                map.into_iter().map(|(k, val)| (k, sort_value(val))).collect();
+            entries.sort_by(|a, b| a.0.cmp(&b.0));
+            Value::Object(entries.into_iter().collect())
+        }
+        Value::Array(items) => Value::Array(items.into_iter().map(sort_value).collect()),
+        other => other,
     }
 }
 
@@ -254,6 +285,42 @@ mod tests {
         assert!(out.contains('1'), "number 1 present: {out:?}");
         assert!(out.contains("true"), "bool true present: {out:?}");
         assert!(out.contains("null"), "null present: {out:?}");
+    }
+
+    /// JSON-V2-01 — `sort_value` recursively sorts object keys (nested objects
+    /// too) while arrays keep their element order. `{"b":…,"a":{"d":…,"c":…}}` →
+    /// top-level `a` before `b`, nested `c` before `d`, and `[3,1,2]` unchanged.
+    #[test]
+    fn sort_value_sorts_nested_keys_arrays_keep_order() {
+        let v: Value =
+            serde_json::from_str(r#"{"b":1,"a":{"d":4,"c":3},"arr":[3,1,2]}"#).unwrap();
+        let sorted = sort_value(v);
+        let s = serde_json::to_string(&sorted).unwrap();
+
+        // Top-level keys sorted: a < arr < b.
+        let a_at = s.find("\"a\"").unwrap();
+        let arr_at = s.find("\"arr\"").unwrap();
+        let b_at = s.find("\"b\"").unwrap();
+        assert!(a_at < arr_at && arr_at < b_at, "top-level keys must sort: {s}");
+
+        // Nested object keys sorted: c < d.
+        let c_at = s.find("\"c\"").unwrap();
+        let d_at = s.find("\"d\"").unwrap();
+        assert!(c_at < d_at, "nested object keys must sort: {s}");
+
+        // Arrays keep element order (NOT sorted): [3,1,2] stays [3,1,2].
+        assert!(s.contains("[3,1,2]"), "arrays must keep element order: {s}");
+    }
+
+    /// JSON-V2-01 — `sort_value` is the identity (modulo key order) on a document
+    /// with already-sorted keys, and leaves scalars untouched.
+    #[test]
+    fn sort_value_leaves_scalars_and_arrays() {
+        assert_eq!(sort_value(serde_json::json!(42)), serde_json::json!(42));
+        assert_eq!(
+            sort_value(serde_json::json!([3, 1, 2])),
+            serde_json::json!([3, 1, 2])
+        );
     }
 
     /// An empty object and empty array collapse to `{}` / `[]` (no inner newline),

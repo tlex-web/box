@@ -110,6 +110,118 @@ fn date_string_prints_timestamp() {
     );
 }
 
+// --- EPOC-V2-01: relative time + --tz ------------------------------------------
+
+/// `box epoch <int>` appends a relative-time suffix to BOTH the Local and UTC
+/// lines. 1700000000 (2023-11-14) is firmly in the past relative to any sane test
+/// clock, so each line carries `… ago`.
+#[test]
+fn integer_lines_carry_relative_suffix() {
+    let out = {
+        let mut cmd = Command::cargo_bin("box").unwrap();
+        cmd.arg("epoch").arg("1700000000").env("NO_COLOR", "1");
+        cmd.output().expect("run box epoch 1700000000")
+    };
+    assert!(out.status.success(), "box epoch 1700000000 should exit 0");
+    let stdout = String::from_utf8(out.stdout).expect("stdout is UTF-8");
+    let lines: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+    assert_eq!(lines.len(), 2, "still two lines without --tz, got {lines:?}");
+    for line in &lines {
+        assert!(
+            line.contains("ago)"),
+            "each line must carry a parenthesized relative suffix: {line:?}"
+        );
+    }
+}
+
+/// `box epoch --tz Asia/Tokyo 1700000000` adds a third line carrying the zone
+/// abbreviation `JST` and the numeric offset `+0900`.
+#[test]
+fn tz_adds_third_zone_line() {
+    let out = {
+        let mut cmd = Command::cargo_bin("box").unwrap();
+        cmd.arg("epoch")
+            .args(["--tz", "Asia/Tokyo", "1700000000"])
+            .env("NO_COLOR", "1");
+        cmd.output().expect("run box epoch --tz Asia/Tokyo 1700000000")
+    };
+    assert!(out.status.success(), "box epoch --tz <int> should exit 0");
+    let stdout = String::from_utf8(out.stdout).expect("stdout is UTF-8");
+    let lines: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+    assert_eq!(lines.len(), 3, "--tz adds a third line, got {lines:?}");
+    assert!(stdout.contains("JST"), "third line carries JST: {stdout:?}");
+    assert!(stdout.contains("+0900"), "third line carries +0900: {stdout:?}");
+}
+
+/// `box epoch --tz Not/AZone 1700000000` → exit 1 with an IANA hint, empty
+/// stdout, no panic.
+#[test]
+fn bad_tz_exits_1_with_hint() {
+    epoch(&["--tz", "Not/AZone", "1700000000"])
+        .failure()
+        .code(1)
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("timezone"));
+}
+
+/// `box epoch now` / a date-string arg stay BARE integers (no relative suffix) —
+/// scripting-clean. The existing `no_arg_prints_current_timestamp` /
+/// `date_string_prints_timestamp` pin the format; this adds the explicit
+/// no-relative-leak assertion the acceptance criteria call out.
+#[test]
+fn now_and_date_string_have_no_relative_suffix() {
+    // now mode (no arg) → a single bare integer line, no "ago"/"in ".
+    let now_out = {
+        let mut cmd = Command::cargo_bin("box").unwrap();
+        cmd.arg("epoch").env("NO_COLOR", "1");
+        cmd.output().expect("run box epoch")
+    };
+    let now_stdout = String::from_utf8(now_out.stdout).expect("stdout is UTF-8");
+    assert!(
+        !now_stdout.contains("ago") && !now_stdout.contains("in "),
+        "now mode must stay a bare integer: {now_stdout:?}"
+    );
+
+    // date-string mode → the bare timestamp only.
+    let ds_out = {
+        let mut cmd = Command::cargo_bin("box").unwrap();
+        cmd.arg("epoch")
+            .arg("2023-11-14T22:13:20+00:00")
+            .env("NO_COLOR", "1");
+        cmd.output().expect("run box epoch <rfc3339>")
+    };
+    let ds_stdout = String::from_utf8(ds_out.stdout).expect("stdout is UTF-8");
+    assert_eq!(
+        ds_stdout.trim(),
+        "1700000000",
+        "date-string mode is a bare timestamp, no suffix: {ds_stdout:?}"
+    );
+}
+
+/// EPOC-V2-01 JSON — `relative` is ALWAYS present; `tz` appears ONLY under `--tz`.
+#[test]
+fn json_relative_always_tz_conditional() {
+    // No --tz → `relative` present, `tz` absent.
+    let plain = epoch_output(&["1700000000", "--json"]);
+    let pv: serde_json::Value =
+        serde_json::from_slice(&plain.stdout).expect("one JSON value");
+    assert!(
+        pv.get("relative").and_then(|r| r.as_str()).is_some(),
+        "`.relative` must always be present: {pv}"
+    );
+    assert!(pv.get("tz").is_none(), "`.tz` absent without --tz: {pv}");
+
+    // With --tz → `tz` present and carrying the zone abbreviation.
+    let zoned = epoch_output(&["1700000000", "--tz", "Asia/Tokyo", "--json"]);
+    let zv: serde_json::Value =
+        serde_json::from_slice(&zoned.stdout).expect("one JSON value");
+    let tz = zv
+        .get("tz")
+        .and_then(|t| t.as_str())
+        .expect("`.tz` present under --tz");
+    assert!(tz.contains("JST"), "`.tz` carries the abbreviation: {tz}");
+}
+
 // --- Scriptable spine (SPINE-02 / SPINE-04) — copied from tests/uuid.rs ----------
 //
 // epoch is a SCALAR command with the D-17 LOCKED UNIFIED shape: `{epoch, utc, local}`
