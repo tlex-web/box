@@ -981,19 +981,38 @@ fn build_manifest(plan: &Plan) -> Vec<BackupEntry> {
         .collect()
 }
 
-/// Atomically-as-possible persist the manifest: (re)create the file, write it
-/// pretty-printed, and `File::sync_all()` (fsync) so the bytes are durable on disk
-/// before the next rename runs. Called once for the all-`applied:false` manifest
-/// before the first rename, then once per rename to flip an `applied` flag —
-/// keeping the on-disk `applied` flags a faithful partition of done-vs-pending even
-/// across a crash or a mid-batch I/O error (Pitfall 8).
+/// Durably persist the manifest via write-to-temp-then-atomic-rename: write a
+/// sibling `<id>.json.tmp`, `File::sync_all()` (fsync) it, then `std::fs::rename`
+/// it over the target (an atomic replace — `MoveFileExW` on Windows). Called once
+/// for the all-`applied:false` manifest before the first rename, then once per
+/// rename to flip an `applied` flag.
+///
+/// WR-03: the previous `File::create(path)` TRUNCATED the manifest in place before
+/// serializing, so a per-flip rewrite that failed AFTER truncation (disk full,
+/// transient I/O error) would destroy the record of the renames that already
+/// succeeded — defeating the very Pitfall-8 reconcilability the manifest exists
+/// for. Writing to a temp file and renaming means a failed write leaves the last
+/// good manifest fully intact; the on-disk `applied` flags stay a faithful
+/// partition of done-vs-pending across a crash or a mid-batch I/O error.
 fn write_manifest(path: &Path, manifest: &BackupManifest) -> anyhow::Result<()> {
-    let file = std::fs::File::create(path)
-        .with_context(|| format!("creating undo manifest {}", path.display()))?;
-    serde_json::to_writer_pretty(&file, manifest)
-        .with_context(|| format!("writing undo manifest {}", path.display()))?;
-    file.sync_all()
-        .with_context(|| format!("fsync'ing undo manifest {}", path.display()))?;
+    // Same directory as the target so the rename is a same-volume atomic replace.
+    let tmp = path.with_extension("json.tmp");
+    {
+        let file = std::fs::File::create(&tmp)
+            .with_context(|| format!("creating undo manifest temp {}", tmp.display()))?;
+        serde_json::to_writer_pretty(&file, manifest)
+            .with_context(|| format!("writing undo manifest temp {}", tmp.display()))?;
+        file.sync_all()
+            .with_context(|| format!("fsync'ing undo manifest temp {}", tmp.display()))?;
+        // `file` is dropped (closed) here, before the rename — no open handle.
+    }
+    std::fs::rename(&tmp, path).with_context(|| {
+        format!(
+            "atomically replacing undo manifest {} with {}",
+            path.display(),
+            tmp.display()
+        )
+    })?;
     Ok(())
 }
 

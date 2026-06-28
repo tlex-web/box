@@ -250,6 +250,47 @@ fn backup_dryrun_noop() {
     );
 }
 
+/// RENM-V2-02 / WR-03 — `write_manifest` persists via temp-file-then-atomic-rename,
+/// so a successful run leaves exactly the final `<id>.json` and NO `<id>.json.tmp`
+/// scratch file behind. This confirms the atomic-replace path ran (a failed write
+/// can never truncate the last good manifest in place).
+#[test]
+fn backup_manifest_atomic_no_tmp_leftover() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let local = assert_fs::TempDir::new().unwrap();
+    dir.child("IMG_0042.jpg").write_str("a").unwrap();
+    dir.child("IMG_0043.jpg").write_str("b").unwrap();
+
+    let out = run_backup(
+        dir.path(),
+        local.path(),
+        r"IMG_(\d+)",
+        "img_$1",
+        &["--backup", "--force"],
+    );
+    assert!(
+        out.status.success(),
+        "--backup --force should exit 0, stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let undo = local.path().join("box").join("undo");
+    let mut json = 0;
+    let mut tmp = 0;
+    for e in fs::read_dir(&undo).unwrap().flatten() {
+        match e.path().extension().and_then(|x| x.to_str()) {
+            Some("json") => json += 1,
+            Some("tmp") => tmp += 1,
+            _ => {}
+        }
+    }
+    assert_eq!(json, 1, "exactly one final manifest must remain");
+    assert_eq!(
+        tmp, 0,
+        "no <id>.json.tmp scratch file may be left behind (atomic rename consumes it)"
+    );
+}
+
 /// RENM-V2-02 — a plan the pre-flight REJECTS (a collision) with `--backup
 /// --force` writes NEITHER the manifest NOR any rename: abort-all-before-any still
 /// wins and nothing on disk changes (snapshot-the-tree-unchanged). The manifest
