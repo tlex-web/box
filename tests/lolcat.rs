@@ -12,6 +12,19 @@
 //!      removed before re-emit, neutralizing terminal-escape injection
 //!      (T-04L-01 / D-13).
 //!
+//! LOL-V2-01 (`--animate`) automatable subset (the on-screen smoothness + clean
+//! terminal restore are the PS7 human-verify gate — 09-03 Task 3, NOT here):
+//!   4. piped/non-TTY `--animate` degrades to the static one-pass render — exits
+//!      cleanly, emits no `\x1b`, and is byte-identical to the non-animate render
+//!      (SC3/SC4): the loop NEVER runs off-TTY.
+//!   5. the piped `--animate` invocation does NOT hang on `event::poll` without a
+//!      TTY (guarded by an `assert_cmd` timeout that kills + fails on a hang).
+//!   6. `--freq`/`--seed` change the COLORED static render: with `CLICOLOR_FORCE`
+//!      forcing color on a pipe, two different `--seed` values differ, AND even
+//!      then `--animate` STILL degrades to static (no alt-screen escape) — the
+//!      real T-09-03-PIPE proof that `is_terminal()` (not `is_color_on()`) gates
+//!      the raw-mode loop.
+//!
 //! Mirrors the `tests/color.rs` runner shape (`cargo_bin("box")`, `NO_COLOR=1`,
 //! `assert!(!out.contains('\u{1b}'))`). Input is fed via `.write_stdin(...)` so
 //! the piped (non-TTY) branch of `read_input` is exercised.
@@ -100,5 +113,151 @@ fn lone_carriage_return_is_stripped() {
     assert_eq!(
         text, "ab\n",
         "lone CR is dropped, leaving the visible chars and the \\n: {text:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// LOL-V2-01 — `--animate` automatable subset (the PS7 smoothness/restore gate is
+// Task 3, not here). assert_cmd captures stdout via a pipe, so every run below is
+// non-TTY by construction — exactly the degrade path these tests pin.
+// ---------------------------------------------------------------------------
+
+use std::time::Duration;
+
+/// The crossterm "enter alternate screen" escape (`ESC [ ? 1049 h`). Its presence
+/// in piped output would mean the raw-mode loop ran off-TTY — the SC3-forbidden
+/// hazard. The degrade path must NEVER emit it.
+const ALT_SCREEN_ENTER: &[u8] = b"\x1b[?1049h";
+
+/// Run `box lolcat <args...>` against the compiled binary with a hard 10s timeout
+/// (so a hang on `event::poll` FAILS the test instead of blocking CI), explicit
+/// color env, and optional piped stdin. Returns the raw `Output` for byte asserts.
+///
+/// * `no_color`    — set `NO_COLOR=1` (force color OFF) when true.
+/// * `force_color` — set `CLICOLOR_FORCE=1` (force color ON even on a pipe) when
+///   true; mutually exclusive with `no_color` (NO_COLOR wins in the gate anyway).
+fn run_lolcat(
+    args: &[&str],
+    stdin: Option<&str>,
+    no_color: bool,
+    force_color: bool,
+) -> std::process::Output {
+    let mut cmd = Command::cargo_bin("box").unwrap();
+    cmd.arg("lolcat").args(args);
+    cmd.timeout(Duration::from_secs(10));
+    // Pin the color decision deterministically regardless of the host env.
+    cmd.env_remove("NO_COLOR").env_remove("CLICOLOR_FORCE");
+    if no_color {
+        cmd.env("NO_COLOR", "1");
+    }
+    if force_color {
+        cmd.env("CLICOLOR_FORCE", "1");
+    }
+    if let Some(s) = stdin {
+        cmd.write_stdin(s);
+    }
+    cmd.output().expect("run box lolcat")
+}
+
+/// (4) Piped/non-TTY `--animate` under NO_COLOR DEGRADES to the static render:
+/// exits 0, emits NO `\x1b` byte (and no alt-screen escape), and is byte-identical
+/// to the non-animate render. Proves the loop is unreachable off-TTY (SC3/SC4).
+/// Covers both the arg form (`box lolcat "x" --animate`) and the stdin-piped form.
+#[test]
+fn piped_animate_degrades_to_static_byte_identical() {
+    // Arg form.
+    let animate = run_lolcat(&["Hello World", "--animate"], None, true, false);
+    let static_ = run_lolcat(&["Hello World"], None, true, false);
+    assert!(
+        animate.status.success(),
+        "piped `lolcat <text> --animate` must exit 0 (stderr: {})",
+        String::from_utf8_lossy(&animate.stderr)
+    );
+    assert!(
+        !animate.stdout.contains(&0x1b),
+        "piped --animate (NO_COLOR) must emit no \\x1b byte: {:?}",
+        String::from_utf8_lossy(&animate.stdout)
+    );
+    assert!(
+        !animate.stdout.windows(ALT_SCREEN_ENTER.len()).any(|w| w == ALT_SCREEN_ENTER),
+        "piped --animate must NEVER emit the alternate-screen escape (SC3)"
+    );
+    assert_eq!(
+        animate.stdout, static_.stdout,
+        "piped --animate must be byte-identical to the static one-pass render"
+    );
+
+    // Stdin-piped form: `echo hi | box lolcat --animate`.
+    let animate_in = run_lolcat(&["--animate"], Some("line one\nline two\n"), true, false);
+    let static_in = run_lolcat(&[], Some("line one\nline two\n"), true, false);
+    assert!(animate_in.status.success(), "piped-stdin --animate must exit 0");
+    assert!(
+        !animate_in.stdout.contains(&0x1b),
+        "piped-stdin --animate must emit no \\x1b byte"
+    );
+    assert_eq!(
+        animate_in.stdout, static_in.stdout,
+        "piped-stdin --animate must equal the static render byte-for-byte"
+    );
+}
+
+/// (5) Non-hanging smoke: a piped `--animate` invocation TERMINATES promptly
+/// without a TTY. If the `is_terminal()` gate were missing the process would call
+/// `enable_raw_mode()` + block on `event::poll` forever; the 10s `run_lolcat`
+/// timeout would then kill it and `status.success()` would be false. A clean exit
+/// proves the loop was never entered.
+#[test]
+fn piped_animate_does_not_hang() {
+    let out = run_lolcat(&["x", "--animate", "--duration", "0"], None, true, false);
+    assert!(
+        out.status.success(),
+        "piped --animate --duration 0 must return immediately (degrade path), not hang"
+    );
+}
+
+/// (6a) `--seed` changes the COLORED static render. Color cannot be observed when
+/// piped UNLESS forced, so set `CLICOLOR_FORCE=1`: now the piped static render is
+/// colored, two different `--seed` values produce different ANSI bytes, and both
+/// carry an `\x1b` (proving color was actually on — otherwise the diff would be
+/// vacuous). The *visible* on-screen effect remains the PS7 human gate (Task 3).
+#[test]
+fn seed_changes_colored_static_output() {
+    let seed0 = run_lolcat(&["Hello World", "--seed", "0"], None, false, true);
+    let seed50 = run_lolcat(&["Hello World", "--seed", "50"], None, false, true);
+    assert!(seed0.status.success() && seed50.status.success(), "both runs exit 0");
+    assert!(
+        seed0.stdout.contains(&0x1b) && seed50.stdout.contains(&0x1b),
+        "CLICOLOR_FORCE must make the piped static render colored (\\x1b present)"
+    );
+    assert_ne!(
+        seed0.stdout, seed50.stdout,
+        "two different --seed values must produce a different colored gradient"
+    );
+}
+
+/// (6b) The real T-09-03-PIPE proof: even with `CLICOLOR_FORCE` forcing color ON,
+/// a piped `--animate` STILL degrades to the static render — it does NOT enter the
+/// raw-mode loop, because the gate keys on `is_terminal()`, not `is_color_on()`.
+/// The output is colored (forced) yet byte-identical to the non-animate colored
+/// render and carries NO alternate-screen escape.
+#[test]
+fn forced_color_piped_animate_still_degrades_to_static() {
+    let animate = run_lolcat(&["Hello World", "--animate"], None, false, true);
+    let static_ = run_lolcat(&["Hello World"], None, false, true);
+    assert!(
+        animate.status.success(),
+        "forced-color piped --animate must exit 0 (degrade), not hang or error"
+    );
+    assert!(
+        animate.stdout.contains(&0x1b),
+        "with CLICOLOR_FORCE the degraded render is colored (\\x1b present)"
+    );
+    assert!(
+        !animate.stdout.windows(ALT_SCREEN_ENTER.len()).any(|w| w == ALT_SCREEN_ENTER),
+        "even under CLICOLOR_FORCE, --animate must NOT enter the alternate screen on a pipe (T-09-03-PIPE)"
+    );
+    assert_eq!(
+        animate.stdout, static_.stdout,
+        "forced-color --animate must equal the colored static render byte-for-byte"
     );
 }
