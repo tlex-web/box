@@ -148,7 +148,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 09-01-PLAN.md — dev transforms: `uuid` v7 + format flags (UUID-V2-01); `epoch` relative + `--tz` (EPOC-V2-01); `color` CSS names + HSL input (COLR-V2-01); `json --sort-keys` (JSON-V2-01); `passgen` entropy + `--no-similar` + `--separator` (PASS-V2-01). [wave 1]
+- [x] 09-01-PLAN.md — dev transforms: `uuid` v7 + format flags (UUID-V2-01); `epoch` relative + `--tz` (EPOC-V2-01); `color` CSS names + HSL input (COLR-V2-01); `json --sort-keys` (JSON-V2-01); `passgen` entropy + `--no-similar` + `--separator` (PASS-V2-01). [wave 1]
 - [ ] 09-03-PLAN.md — **HUMAN-VERIFY (PS7):** `lolcat` `--animate`/`--freq`/`--seed`/`--duration` with verbatim matrix RAII restore + mandatory `is_terminal()` AND-gate static fallback (LOL-V2-01). [wave 1]
 
 **Wave 2** *(blocked on Wave 1 — shares Cargo.toml; needs the qrcode `["image","svg"]` feature re-enable that lands after 09-01)*
@@ -210,7 +210,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Scriptable-Core Foundation | v2.0 | 2/2 | Complete | 2026-06-25 |
 | 7. Spine Rollout | v2.0 | 3/3 | Complete   | 2026-06-25 |
 | 8. Filesystem Depth | v2.0 | 6/6 | In Progress|  |
-| 9. Dev-Transform & Visual Depth | v2.0 | 0/3 | Not started | - |
+| 9. Dev-Transform & Visual Depth | v2.0 | 1/3 | In Progress|  |
 | 10. Fun & System Depth | v2.0 | 0/2 | Not started | - |
 | 11. Meta-Commands | v2.0 | 0/2 | Not started | - |
 
