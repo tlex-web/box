@@ -99,8 +99,12 @@ None - no external service configuration required.
 - No new dependencies, no schema/API-surface changes; the `--json` current-only shape is byte-unchanged.
 - Ready for orchestrator phase verification + close-out.
 
-## Self-Check: PENDING
-(appended below after verification)
+## Self-Check: PASSED
+
+- Files verified present: `src/commands/weather/mod.rs`, `tests/weather.rs`, `.planning/phases/10-fun-system-depth/10-06-SUMMARY.md`
+- Commits verified in git log: `83615ec`, `69be222`, `58e2047`, `f638159`, `1bc9550`
+- Full `cargo test` green (235 unit + all integration suites, 0 failures); `cargo clippy --all-targets -D warnings` clean
+- Source assertions confirmed: `forecast_days=7` (mod.rs:513), `n <= 7` (mod.rs:534), `location.trim()` rebind (mod.rs:114), `location_key(&location)` (mod.rs:126)
 
 ---
 *Phase: 10-fun-system-depth*
