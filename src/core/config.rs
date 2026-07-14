@@ -26,24 +26,57 @@ use std::sync::OnceLock;
 use anyhow::Context;
 
 use crate::commands::hash::Algo;
+use crate::commands::weather::Units;
 use crate::core::errors::BoxError;
 
-/// Config-overridable settings (SPINE-05). Every field is `Option<T>` with NO
-/// clap `default_value` so `Some` = user/file set it, `None` = fall through to a
-/// lower precedence tier (Anti-Pattern 3).
+/// Config-overridable settings (SPINE-05), grouped into per-command nested TOML
+/// tables (D-13). Every leaf field is `Option<T>` with NO clap `default_value` so
+/// `Some` = user/file set it, `None` = fall through to a lower precedence tier
+/// (Anti-Pattern 3). Each sub-struct also carries [`Default`] so a whole table may
+/// be absent (→ all-`None`), while the fields keep their `Some`/`None` semantics.
 ///
-/// `#[serde(default, deny_unknown_fields)]`: a missing key deserializes to `None`
-/// silently, an unknown key is a loud error (→ [`BoxError::Config`], exit 2, D-10).
+/// `#[serde(default, deny_unknown_fields)]` (top level AND every sub-struct): a
+/// missing key/table deserializes to `None`/`Default` silently, an unknown key —
+/// top-level OR nested — is a loud error (→ [`BoxError::Config`], exit 2, D-10).
 ///
-/// Phase-6 LEAN scope (CONTEXT Claude's Discretion): the struct carries ONLY
-/// `default_hash_algo`. It grows one field per command as Phase 7+ adopts the spine.
+/// D-13 migrated the Phase-6 FLAT `default_hash_algo` key into `[hash] default_algo`
+/// and added the `[weather]` table (the schema Phase 11's `box config get/set
+/// weather.location` locks against). The one-time break to any hand-authored flat
+/// `config.toml` is accepted (a stray top-level `default_hash_algo` is now an
+/// unknown key → exit 2).
 #[derive(Debug, Default, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
-    /// The default `hash` algorithm restored from config (the `hash.default_algo`
-    /// escape hatch for the BLAKE3-default breaking change). Flat key
-    /// `default_hash_algo = "sha256"` in Phase-6 lean scope.
-    pub default_hash_algo: Option<Algo>,
+    /// `[hash]` — the `hash` command's config defaults.
+    pub hash: HashConfig,
+    /// `[weather]` — the `weather` command's config defaults (consumed by 10-05).
+    pub weather: WeatherConfig,
+}
+
+/// The `[hash]` table (D-13). Carries the BLAKE3-default escape hatch:
+/// `[hash] default_algo = "sha256"` restores SHA-256 (config beats the built-in
+/// BLAKE3; CLI still beats config).
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct HashConfig {
+    /// The default `hash` algorithm restored from config — the `[hash] default_algo`
+    /// escape hatch for the BLAKE3-default breaking change.
+    pub default_algo: Option<Algo>,
+}
+
+/// The `[weather]` table (D-13). Holds the stored-default location and unit system
+/// the weather depth work (10-05) resolves through the config-precedence chain.
+/// `units` is the typed [`Units`] enum (imported exactly like [`Algo`]) so an
+/// invalid value is a loud config error rather than a silently-ignored string.
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct WeatherConfig {
+    /// `[weather] location` — the stored default city / `lat,lon` used when the
+    /// CLI positional is omitted (10-05 wires the `cli.or(config)` resolution).
+    pub location: Option<String>,
+    /// `[weather] units` — the stored default unit system (`metric`/`imperial`),
+    /// deserialized via the lowercase serde rename on [`Units`].
+    pub units: Option<Units>,
 }
 
 /// Process-global config, set once by [`init_config`].
@@ -52,8 +85,8 @@ static CONFIG: OnceLock<Config> = OnceLock::new();
 /// The loaded config. Panics if [`init_config`] has not run — it is called once in
 /// `main()` before dispatch, so any command that reaches this has a config.
 ///
-/// Live as of Plan 06-02: `hash` reads `config().default_hash_algo` in its
-/// compute-default precedence chain, so the forward-compat `#[allow(dead_code)]`
+/// Live as of Plan 06-02 (nested since D-13): `hash` reads `config().hash.default_algo`
+/// in its compute-default precedence chain, so the forward-compat `#[allow(dead_code)]`
 /// has been removed (allow-then-remove, mirroring errors.rs's `MissingInput`
 /// history), restoring the strict dead-code gate.
 pub fn config() -> &'static Config {
@@ -132,6 +165,7 @@ pub fn resolve_algo(cli: Option<Algo>, env: Option<Algo>, cfg: Option<Algo>) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::weather::Units;
 
     /// SPINE-05 / Pitfall 3 — prove CLI > env > config > builtin as a known-answer
     /// matrix, terminal-free and without touching a real config file. Runnable via
@@ -157,21 +191,42 @@ mod tests {
         assert_eq!(resolve_algo(None, None, None), Algo::Blake3);
     }
 
-    /// A valid config round-trips the lowercase TOML value into the `Option<Algo>`
-    /// field (the `#[serde(rename_all = "lowercase")]` on `Algo` doing its job).
+    /// A valid NESTED config round-trips the lowercase TOML values into the typed
+    /// `Option` fields (D-13): `[hash] default_algo` parses into `Option<Algo>`
+    /// (the `#[serde(rename_all = "lowercase")]` on `Algo` doing its job), and an
+    /// empty config leaves every nested field `None` (silent default).
     #[test]
     fn valid_config_parses() {
-        let cfg: Config = toml::from_str("default_hash_algo = \"sha256\"").unwrap();
-        assert_eq!(cfg.default_hash_algo, Some(Algo::Sha256));
+        let cfg: Config = toml::from_str("[hash]\ndefault_algo = \"sha256\"").unwrap();
+        assert_eq!(cfg.hash.default_algo, Some(Algo::Sha256));
 
-        // An empty config is valid: the missing key → None (silent default).
+        // An empty config is valid: every nested key → None (silent default).
         let empty: Config = toml::from_str("").unwrap();
-        assert_eq!(empty.default_hash_algo, None);
+        assert_eq!(empty.hash.default_algo, None);
+        assert_eq!(empty.weather.location, None);
+        assert_eq!(empty.weather.units, None);
     }
 
-    /// D-10 — malformed TOML (and an unknown key under `deny_unknown_fields`) maps
-    /// to [`BoxError::Config`] via the same `load`-style mapping, so `main()`'s
-    /// downcast routes it to exit 2. Asserts the downcast is `BoxError::Config`.
+    /// D-13 — `[weather] location`/`units` parse into the nested `WeatherConfig`;
+    /// the units value round-trips through the lowercase serde rename on
+    /// `weather::Units` (mirroring `hash::Algo`), so `[weather] units = "imperial"`
+    /// deserializes to `Some(Units::Imperial)`.
+    #[test]
+    fn weather_nested_parses() {
+        let cfg: Config =
+            toml::from_str("[weather]\nlocation = \"London\"\nunits = \"imperial\"").unwrap();
+        assert_eq!(cfg.weather.location.as_deref(), Some("London"));
+        assert_eq!(cfg.weather.units, Some(Units::Imperial));
+
+        // The other spelling round-trips too.
+        let metric: Config = toml::from_str("[weather]\nunits = \"metric\"").unwrap();
+        assert_eq!(metric.weather.units, Some(Units::Metric));
+    }
+
+    /// D-10 / D-13 — malformed TOML, an unknown key (top-level OR nested under
+    /// `deny_unknown_fields`), and an invalid enum value (`units = "kelvin"`) all
+    /// map to [`BoxError::Config`] via the same `load`-style mapping, so `main()`'s
+    /// downcast routes each to exit 2. Asserts the downcast is `BoxError::Config`.
     #[test]
     fn malformed_maps_to_config_error() {
         // Mirror `load`'s mapping: toml::from_str error → BoxError::Config.
@@ -183,25 +238,20 @@ mod tests {
                 message: err.to_string(),
             })
         };
+        let is_config_err = |err: anyhow::Error, what: &str| {
+            assert!(
+                matches!(err.downcast_ref::<BoxError>(), Some(BoxError::Config { .. })),
+                "{what} must downcast to BoxError::Config, got: {err:#}"
+            );
+        };
 
-        // Syntactically invalid TOML.
-        let err = map("default_hash_algo = ");
-        assert!(
-            matches!(
-                err.downcast_ref::<BoxError>(),
-                Some(BoxError::Config { .. })
-            ),
-            "malformed TOML must downcast to BoxError::Config, got: {err:#}"
-        );
-
-        // An unknown key under deny_unknown_fields.
-        let err = map("bogus_key = 1");
-        assert!(
-            matches!(
-                err.downcast_ref::<BoxError>(),
-                Some(BoxError::Config { .. })
-            ),
-            "unknown key must downcast to BoxError::Config, got: {err:#}"
-        );
+        // Syntactically invalid TOML (a value is missing).
+        is_config_err(map("[hash]\ndefault_algo = "), "malformed TOML");
+        // An unknown TOP-LEVEL key under deny_unknown_fields.
+        is_config_err(map("bogus_key = 1"), "unknown top-level key");
+        // An unknown key NESTED inside a known table (HashConfig also denies).
+        is_config_err(map("[hash]\nbogus = 1"), "unknown nested key");
+        // An invalid units enum value — kelvin is not metric|imperial.
+        is_config_err(map("[weather]\nunits = \"kelvin\""), "invalid units value");
     }
 }

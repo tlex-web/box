@@ -296,15 +296,15 @@ fn run_compute(cli_algo: Option<Algo>, paths: Vec<String>) -> anyhow::Result<()>
     // Resolve the algorithm ONCE via the EXISTING CLI > env > config > builtin
     // chain (do not duplicate the resolver): an explicit `--algo`, else
     // `BOX_HASH_DEFAULT_ALGO` (reusing `parse_algo`), else the config
-    // `default_hash_algo`, else the v2 builtin BLAKE3 (D-04). Every file in the
-    // batch shares this one algorithm.
+    // `[hash] default_algo` (nested since D-13), else the v2 builtin BLAKE3
+    // (D-04). Every file in the batch shares this one algorithm.
     let algo = cli_algo
         .or_else(|| {
             std::env::var("BOX_HASH_DEFAULT_ALGO")
                 .ok()
                 .and_then(|s| parse_algo(&s))
         })
-        .or(crate::core::config::config().default_hash_algo)
+        .or(crate::core::config::config().hash.default_algo)
         .unwrap_or(Algo::Blake3);
 
     // Empty Vec → a single stdin target (label `-`); else one target per path.

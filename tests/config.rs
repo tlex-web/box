@@ -116,7 +116,9 @@ fn malformed_exit2() {
 #[test]
 fn hash_default_override() {
     let appdata = assert_fs::TempDir::new().unwrap();
-    write_config(&appdata, "default_hash_algo = \"sha256\"\n");
+    // D-13: the escape hatch now lives under the nested `[hash]` table
+    // (`default_hash_algo` flat key → `[hash] default_algo`).
+    write_config(&appdata, "[hash]\ndefault_algo = \"sha256\"\n");
 
     // A `b"box"` fixture in its own temp dir (kept separate from the APPDATA dir).
     let work = assert_fs::TempDir::new().unwrap();
@@ -139,4 +141,70 @@ fn hash_default_override() {
         .success()
         .code(0)
         .stdout(predicate::str::contains(row_blake3));
+}
+
+/// D-13 / SPINE-05 tolerance — a VALID nested `[weather]` table (the schema
+/// Phase 11's `box config get/set weather.location` locks against) parses cleanly:
+/// a normal `box uuid` still exits 0 with NO stderr, exactly like the
+/// missing-config case. Proves the migration widened the schema without
+/// regressing the silent-default tolerance.
+/// Runnable via `cargo test --test config valid_weather_config_is_silent`.
+#[test]
+fn valid_weather_config_is_silent() {
+    let appdata = assert_fs::TempDir::new().unwrap();
+    write_config(&appdata, "[weather]\nlocation = \"London\"\nunits = \"imperial\"\n");
+
+    let out = box_cmd(&appdata, "uuid", &[])
+        .output()
+        .expect("run box uuid");
+
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "a valid nested config must not error `box uuid`, got code {:?} / stderr: {}",
+        out.status.code(),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        !String::from_utf8_lossy(&out.stdout).trim().is_empty(),
+        "box uuid must still print a UUID on stdout"
+    );
+    assert!(
+        out.stderr.is_empty(),
+        "a valid config must produce no stderr, got: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// D-13 — an INVALID nested enum value (`[weather] units = "kelvin"`, which is
+/// neither `metric` nor `imperial`) is a malformed config: it aborts BEFORE the
+/// op with exit 2 and an `error:` line on stderr, exactly like an unknown key.
+/// The typed `Option<Units>` field is what makes a bad value loud instead of
+/// silently ignored.
+/// Runnable via `cargo test --test config unknown_units_exit2`.
+#[test]
+fn unknown_units_exit2() {
+    let appdata = assert_fs::TempDir::new().unwrap();
+    write_config(&appdata, "[weather]\nunits = \"kelvin\"\n");
+
+    let out = box_cmd(&appdata, "uuid", &[])
+        .output()
+        .expect("run box uuid");
+
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "an invalid units value must exit 2, got {:?}",
+        out.status.code()
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("error:"),
+        "an invalid units value must print an `error:` line on stderr, got: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        out.stdout.is_empty(),
+        "an invalid config must abort before the op (empty stdout), got: {}",
+        String::from_utf8_lossy(&out.stdout)
+    );
 }
