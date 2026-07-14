@@ -77,23 +77,49 @@ fn eight_ball_stdout(args: &[&str]) -> String {
         .to_string()
 }
 
-/// `box 8ball "Will it work?"` → one of the canonical 20.
+/// `box 8ball "Will it work?"` → the rendered output CONTAINS one of the canonical
+/// 20 (the answer is now shown inside the ASCII 8-ball art, 8BAL-V2-01 / D-05, so
+/// it is a substring of stdout rather than the whole trimmed buffer).
 #[test]
 fn with_question_returns_one_of_the_20() {
-    let answer = eight_ball_stdout(&["Will it work?"]);
+    let out = eight_ball_stdout(&["Will it work?"]);
     assert!(
-        CANONICAL_20.contains(&answer.as_str()),
-        "8ball answer {answer:?} is not one of the canonical 20"
+        CANONICAL_20.iter().any(|a| out.contains(a)),
+        "8ball output {out:?} must contain one of the canonical 20"
     );
 }
 
-/// `box 8ball` (no question) → still one of the canonical 20.
+/// `box 8ball` (no question) → still renders one of the canonical 20 in the art.
 #[test]
 fn without_question_returns_one_of_the_20() {
-    let answer = eight_ball_stdout(&[]);
+    let out = eight_ball_stdout(&[]);
     assert!(
-        CANONICAL_20.contains(&answer.as_str()),
-        "8ball (no question) answer {answer:?} is not one of the canonical 20"
+        CANONICAL_20.iter().any(|a| out.contains(a)),
+        "8ball (no question) output {out:?} must contain one of the canonical 20"
+    );
+}
+
+/// 8BAL-V2-01 / D-05 — `box 8ball` renders a compact ASCII 8-ball (multi-line art)
+/// around the drawn answer; the answer appears verbatim on its own line so it stays
+/// a findable substring. Piped/NO_COLOR output is plain ASCII (no ANSI escape).
+#[test]
+fn renders_ascii_ball_around_answer() {
+    let out = eight_ball_output(&[]);
+    assert!(out.status.success(), "box 8ball should exit 0");
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    let lines: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+    assert!(
+        lines.len() >= 3,
+        "the ASCII 8-ball is multi-line art, got {} line(s): {stdout:?}",
+        lines.len()
+    );
+    assert!(
+        CANONICAL_20.iter().any(|a| stdout.contains(a)),
+        "the drawn answer must appear in the art: {stdout:?}"
+    );
+    assert!(
+        !stdout.as_bytes().contains(&0x1Bu8),
+        "NO_COLOR output must contain no ANSI escape: {stdout:?}"
     );
 }
 
@@ -165,5 +191,40 @@ fn json_purity() {
         &out.stdout[..3.min(out.stdout.len())],
         b"\xEF\xBB\xBF",
         "no UTF-8 BOM"
+    );
+}
+
+/// 8BAL-V2-01 / D-05 — `box 8ball --json` carries a `sentiment` field alongside
+/// `text`, whose value is EXACTLY one of the three snake_case tones
+/// (`affirmative` / `non_committal` / `negative`); the machine document stays
+/// ANSI-free (sentiment color is `is_color_on()`-gated, forced off under `--json`).
+#[test]
+fn json_carries_sentiment_field() {
+    let out = eight_ball_output(&["Will it work?", "--json"]);
+    assert!(out.status.success(), "box 8ball --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+
+    let sentiment = v
+        .get("sentiment")
+        .and_then(|s| s.as_str())
+        .expect("`.sentiment` must be a string");
+    assert!(
+        matches!(sentiment, "affirmative" | "non_committal" | "negative"),
+        "`.sentiment` {sentiment:?} must be one of affirmative|non_committal|negative"
+    );
+
+    // The text is still the flat scalar answer; sentiment is derived from it.
+    let text = v.get("text").and_then(|t| t.as_str()).expect("`.text`");
+    assert!(
+        CANONICAL_20.contains(&text),
+        "`.text` {text:?} must be one of the canonical 20"
+    );
+
+    // PURITY — the sentiment color decoration must NEVER leak into --json stdout.
+    assert!(
+        !out.stdout.contains(&0x1Bu8),
+        "no ANSI escape may appear in --json stdout (sentiment color is gated off)"
     );
 }

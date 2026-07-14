@@ -116,13 +116,15 @@ fn main() -> ExitCode {
             // Lowercase `error:` prefix (matches clap's style), stderr only so
             // stdout stays clean for pipes (FOUND-03, D-06).
             eprintln!("error: {e:#}");
-            // Three typed variants are *usage*/config errors and must surface as
+            // Four typed variants are *usage*/config errors and must surface as
             // exit 2 — same single-owner mapping pattern as the clap parse-error
             // path above:
             //   - `MissingInput`: no arg + interactive TTY (D-04 branch 3).
             //   - `UnsupportedHashLength`: a `box hash --verify <hex>` whose length
             //     matches no algorithm (D-04). A mismatched-but-valid `--verify` is
             //     a plain `anyhow` error → exit 1, NOT this variant (Pitfall 1).
+            //   - `UnknownFigure`: a `box cowsay --figure <name>` naming no built-in
+            //     figure (COW-V2-01 / D-02) — a fixed-roster usage mistake.
             //   - `Config`: a malformed/unknown-key `%APPDATA%\box\config.toml`
             //     aborts BEFORE dispatch (D-10). A MISSING file is never this error
             //     (it silently falls back to Config::default()).
@@ -132,6 +134,7 @@ fn main() -> ExitCode {
                 Some(
                     crate::core::errors::BoxError::MissingInput
                     | crate::core::errors::BoxError::UnsupportedHashLength { .. }
+                    | crate::core::errors::BoxError::UnknownFigure { .. }
                     | crate::core::errors::BoxError::Config { .. },
                 ) => ExitCode::from(2),
                 _ => ExitCode::from(1),
