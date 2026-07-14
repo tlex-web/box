@@ -132,4 +132,16 @@ pub enum Commands {
     /// location whether or not it exists. Settable keys: `hash.default_algo`,
     /// `weather.location`, `weather.units`.
     Config(crate::commands::config::ConfigArgs),
+    /// Generate a shell completion script
+    ///
+    /// `box completions <shell>` emits a static completion script for bash, zsh,
+    /// fish, powershell, or elvish, generated from the live `box` command tree — so
+    /// it reflects every subcommand and flag automatically. The script is written to
+    /// stdout only, prefixed with an inert `#`-comment registration header.
+    ///
+    /// To enable PowerShell 7 tab-completion, add this one-liner to your `$PROFILE`
+    /// (or re-run `install.ps1 -RegisterCompletions`):
+    ///
+    ///   box completions powershell | Out-String | Invoke-Expression
+    Completions(crate::commands::completions::CompletionsArgs),
 }

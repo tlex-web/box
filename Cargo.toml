@@ -11,6 +11,13 @@ path = "src/main.rs"
 [dependencies]
 # CLI
 clap = { version = "4.6", features = ["derive"] }
+# completions (CMP-01 / D-12). The ONE net-new crate this phase — the first-party
+# clap-rs shell-completion generator, pinned to match `clap 4.6` (no duplicate clap
+# version). `clap_complete::Shell` is a ValueEnum (bash|zsh|fish|powershell|elvish)
+# and `generate()` drives off `CommandFactory` on the live `Cli`, so the emitted
+# script auto-reflects every Phase-6..10 flag. Legitimacy verified on crates.io
+# (first-party clap-rs origin, 4.6.x release) at the Task-1 blocking-human gate.
+clap_complete = "4.6"
 anyhow = "1.0"
 thiserror = "2.0"
 # Terminal

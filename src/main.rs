@@ -107,6 +107,7 @@ fn main() -> ExitCode {
                 Commands::Pomodoro(args) => args.run(),
                 Commands::Weather(args) => args.run(),
                 Commands::Config(args) => args.run(),
+                Commands::Completions(args) => args.run(),
             }
         })
         .and_then(|()| crate::core::output::flush_clip());
