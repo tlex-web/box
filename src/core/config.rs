@@ -26,24 +26,57 @@ use std::sync::OnceLock;
 use anyhow::Context;
 
 use crate::commands::hash::Algo;
+use crate::commands::weather::Units;
 use crate::core::errors::BoxError;
 
-/// Config-overridable settings (SPINE-05). Every field is `Option<T>` with NO
-/// clap `default_value` so `Some` = user/file set it, `None` = fall through to a
-/// lower precedence tier (Anti-Pattern 3).
+/// Config-overridable settings (SPINE-05), grouped into per-command nested TOML
+/// tables (D-13). Every leaf field is `Option<T>` with NO clap `default_value` so
+/// `Some` = user/file set it, `None` = fall through to a lower precedence tier
+/// (Anti-Pattern 3). Each sub-struct also carries [`Default`] so a whole table may
+/// be absent (→ all-`None`), while the fields keep their `Some`/`None` semantics.
 ///
-/// `#[serde(default, deny_unknown_fields)]`: a missing key deserializes to `None`
-/// silently, an unknown key is a loud error (→ [`BoxError::Config`], exit 2, D-10).
+/// `#[serde(default, deny_unknown_fields)]` (top level AND every sub-struct): a
+/// missing key/table deserializes to `None`/`Default` silently, an unknown key —
+/// top-level OR nested — is a loud error (→ [`BoxError::Config`], exit 2, D-10).
 ///
-/// Phase-6 LEAN scope (CONTEXT Claude's Discretion): the struct carries ONLY
-/// `default_hash_algo`. It grows one field per command as Phase 7+ adopts the spine.
+/// D-13 migrated the Phase-6 FLAT `default_hash_algo` key into `[hash] default_algo`
+/// and added the `[weather]` table (the schema Phase 11's `box config get/set
+/// weather.location` locks against). The one-time break to any hand-authored flat
+/// `config.toml` is accepted (a stray top-level `default_hash_algo` is now an
+/// unknown key → exit 2).
 #[derive(Debug, Default, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
-    /// The default `hash` algorithm restored from config (the `hash.default_algo`
-    /// escape hatch for the BLAKE3-default breaking change). Flat key
-    /// `default_hash_algo = "sha256"` in Phase-6 lean scope.
-    pub default_hash_algo: Option<Algo>,
+    /// `[hash]` — the `hash` command's config defaults.
+    pub hash: HashConfig,
+    /// `[weather]` — the `weather` command's config defaults (consumed by 10-05).
+    pub weather: WeatherConfig,
+}
+
+/// The `[hash]` table (D-13). Carries the BLAKE3-default escape hatch:
+/// `[hash] default_algo = "sha256"` restores SHA-256 (config beats the built-in
+/// BLAKE3; CLI still beats config).
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct HashConfig {
+    /// The default `hash` algorithm restored from config — the `[hash] default_algo`
+    /// escape hatch for the BLAKE3-default breaking change.
+    pub default_algo: Option<Algo>,
+}
+
+/// The `[weather]` table (D-13). Holds the stored-default location and unit system
+/// the weather depth work (10-05) resolves through the config-precedence chain.
+/// `units` is the typed [`Units`] enum (imported exactly like [`Algo`]) so an
+/// invalid value is a loud config error rather than a silently-ignored string.
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct WeatherConfig {
+    /// `[weather] location` — the stored default city / `lat,lon` used when the
+    /// CLI positional is omitted (10-05 wires the `cli.or(config)` resolution).
+    pub location: Option<String>,
+    /// `[weather] units` — the stored default unit system (`metric`/`imperial`),
+    /// deserialized via the lowercase serde rename on [`Units`].
+    pub units: Option<Units>,
 }
 
 /// Process-global config, set once by [`init_config`].
@@ -52,8 +85,8 @@ static CONFIG: OnceLock<Config> = OnceLock::new();
 /// The loaded config. Panics if [`init_config`] has not run — it is called once in
 /// `main()` before dispatch, so any command that reaches this has a config.
 ///
-/// Live as of Plan 06-02: `hash` reads `config().default_hash_algo` in its
-/// compute-default precedence chain, so the forward-compat `#[allow(dead_code)]`
+/// Live as of Plan 06-02 (nested since D-13): `hash` reads `config().hash.default_algo`
+/// in its compute-default precedence chain, so the forward-compat `#[allow(dead_code)]`
 /// has been removed (allow-then-remove, mirroring errors.rs's `MissingInput`
 /// history), restoring the strict dead-code gate.
 pub fn config() -> &'static Config {

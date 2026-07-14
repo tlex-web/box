@@ -57,7 +57,15 @@ const BASE_URL_ENV: &str = "BOX_WEATHER_BASE_URL";
 /// own API default → the no-flag path sends no unit params). `Imperial` appends
 /// the server-side unit params (D-11). A clap `ValueEnum` so an invalid value is
 /// a usage error → clap exit 2 (never the command's exit 1).
-#[derive(Debug, Clone, Copy, ValueEnum)]
+///
+/// Config-deserializable since D-13 (mirrors `hash::Algo` at `hash/mod.rs:114`):
+/// `serde::Deserialize` + `#[serde(rename_all = "lowercase")]` lets `[weather]
+/// units = "imperial"` parse into `Some(Units::Imperial)` through the nested
+/// `WeatherConfig`; `PartialEq, Eq` make it assertable in the config round-trip
+/// tests. The lowercase serde spellings match the `ValueEnum` variant names, so
+/// `--units`, config, and any future env tier all share ONE spelling table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Units {
     /// °C and km/h (the default; no extra request params).
     Metric,
