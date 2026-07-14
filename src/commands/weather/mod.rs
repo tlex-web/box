@@ -476,11 +476,14 @@ fn build_forecast_url(lat: f64, lon: f64, units: Units, forecast: bool) -> Strin
          &current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m",
         forecast_origin(),
     );
-    // `--forecast` (D-10): request the fixed 7-day daily block ALONGSIDE the current
-    // block. The imperial `temperature_unit` param below applies to BOTH the current
-    // and daily temps, so no separate daily-unit param is needed.
+    // `--forecast` (D-10): request the 7-day daily block ALONGSIDE the current block.
+    // The span is PINNED server-side with `&forecast_days=7` (WR-01) so Open-Meteo's
+    // runtime default can never drift the day count away from the bounded 7 the render
+    // header and `build_day_forecasts` bound both assume. The imperial
+    // `temperature_unit` param below applies to BOTH the current and daily temps, so no
+    // separate daily-unit param is needed.
     if forecast {
-        url.push_str("&daily=temperature_2m_max,temperature_2m_min,weather_code");
+        url.push_str("&daily=temperature_2m_max,temperature_2m_min,weather_code&forecast_days=7");
     }
     if matches!(units, Units::Imperial) {
         url.push_str("&temperature_unit=fahrenheit&wind_speed_unit=mph");
@@ -490,18 +493,22 @@ fn build_forecast_url(lat: f64, lon: f64, units: Units, forecast: bool) -> Strin
 
 /// Project the parallel `daily` arrays into the bounded 7-day rows (D-10). Zips the
 /// `time`/`temperature_2m_max`/`temperature_2m_min`/`weather_code` vectors by index,
-/// mapping each `weather_code` through [`wmo_to_str`]. A short/mismatched daily block
-/// (unequal array lengths, or an empty span) is a plain `Err` → exit 1, NEVER a panic
-/// or an out-of-bounds index (T-10-05-HTTP: a malformed remote block is an error, not
-/// a crash). Pure over its input → unit-testable from the offline fixtures.
+/// mapping each `weather_code` through [`wmo_to_str`]. The 7-day bound is ENFORCED
+/// here defensively (`n <= 7`, WR-01) as the belt to `build_forecast_url`'s
+/// server-side `forecast_days=7` suspenders: a short, mismatched, empty, OR oversized
+/// (>7-day) daily block is a plain `Err` → exit 1, NEVER a panic, an out-of-bounds
+/// index, or an over-length render under the "7-day forecast:" header (T-10-05-HTTP:
+/// a malformed remote block is bounded in BOTH shape and size, not a crash). Pure over
+/// its input → unit-testable from the offline fixtures.
 fn build_day_forecasts(daily: &Daily) -> anyhow::Result<Vec<DayForecast>> {
     let n = daily.time.len();
     anyhow::ensure!(
         n > 0
+            && n <= 7
             && daily.temperature_2m_max.len() == n
             && daily.temperature_2m_min.len() == n
             && daily.weather_code.len() == n,
-        "malformed daily forecast: mismatched or empty daily arrays"
+        "malformed daily forecast: mismatched, empty, or oversized daily arrays"
     );
     Ok((0..n)
         .map(|i| DayForecast {
@@ -585,8 +592,11 @@ struct ForecastResp {
 
 /// The 7-day daily forecast arrays (D-10). Each field is a parallel `Vec` indexed by
 /// day; the typed shape bounds the deserialize to these four arrays (never an
-/// open-ended stream — T-10-05-HTTP). `build_day_forecasts` validates the lengths
-/// match before zipping them, so a short/mismatched block is an error not a panic.
+/// open-ended stream — T-10-05-HTTP). The 7-day span is doubly enforced: the request
+/// pins `forecast_days=7` (`build_forecast_url`) AND `build_day_forecasts` rejects any
+/// block whose length is not in `1..=7` or whose arrays are mismatched, so a
+/// short/mismatched/oversized block is a clean error, not a panic or an over-length
+/// render (WR-01).
 #[derive(Debug, Deserialize)]
 struct Daily {
     /// ISO-8601 dates, one per forecast day.
