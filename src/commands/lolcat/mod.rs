@@ -244,8 +244,9 @@ fn run_animate(text: &str, freq: f64, seed: f64, duration: u64) -> anyhow::Resul
     let mut out = std::io::stdout();
     execute!(out, EnterAlternateScreen, cursor::Hide)?;
 
-    // `--duration 0` = run until a quit key; otherwise an Instant deadline.
-    let deadline = (duration != 0).then(|| Instant::now() + Duration::from_secs(duration));
+    // `--duration 0` = run until a quit key; otherwise an Instant deadline
+    // (overflow-safe — see [`animate_deadline`]).
+    let deadline = animate_deadline(Instant::now(), duration);
     let mut phase = seed;
 
     loop {
@@ -348,6 +349,19 @@ fn rgb_at(phase: f64, freq: f64) -> (u8, u8, u8) {
     (r, g, b)
 }
 
+/// Resolve the `--animate` deadline from `--duration` seconds. Pure (takes `now`
+/// as a parameter) so the overflow guard is unit-testable without a terminal.
+/// `0` = no deadline (run until a quit key). A `duration` large enough to overflow
+/// the platform [`Instant`] ALSO degrades to no deadline rather than panicking —
+/// load-bearing because `Instant + Duration` panics on overflow, and under the
+/// release `panic = "abort"` profile a panic here skips [`RawGuard`]'s `Drop`,
+/// leaving the terminal stuck in raw mode + the alternate screen (BL-01).
+fn animate_deadline(now: Instant, duration: u64) -> Option<Instant> {
+    (duration != 0)
+        .then(|| now.checked_add(Duration::from_secs(duration)))
+        .flatten()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -431,6 +445,35 @@ mod tests {
             rgb_at(5.0, DEFAULT_FREQ),
             rgb_at(55.0, DEFAULT_FREQ),
             "a --seed phase shift must change the gradient triple"
+        );
+    }
+
+    /// BL-01 — the `--duration` deadline is overflow-safe. `0` means no deadline
+    /// (run until a quit key); a normal value yields a future deadline; and a
+    /// `duration` so large it would overflow the platform `Instant` degrades to
+    /// no deadline INSTEAD of panicking. The panic matters because it fires after
+    /// raw mode + the alternate screen are active, and under the release
+    /// `panic = "abort"` profile it would skip `RawGuard::drop` and strand the
+    /// terminal in raw mode. This test locks the guard so a future refactor can't
+    /// silently reintroduce the panicking `Instant + Duration`.
+    #[test]
+    fn animate_deadline_is_overflow_safe() {
+        let now = Instant::now();
+        // `--duration 0` = no deadline (run until a quit key).
+        assert!(
+            animate_deadline(now, 0).is_none(),
+            "--duration 0 must yield no deadline"
+        );
+        // A normal duration yields a deadline strictly in the future.
+        assert!(
+            animate_deadline(now, 3).is_some_and(|dl| dl > now),
+            "a normal --duration must yield a future deadline"
+        );
+        // A duration large enough to overflow the platform Instant must NOT panic
+        // — it degrades to no deadline (the run-until-keypress behavior).
+        assert!(
+            animate_deadline(now, u64::MAX).is_none(),
+            "an overflowing --duration must degrade to no deadline, not panic"
         );
     }
 
