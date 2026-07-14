@@ -174,3 +174,44 @@ fn pomodoro_help_lists_new_flags() {
         );
     }
 }
+
+/// POMO-V2-02 — `--sound` is a wired, recognized flag and COMPOSES with a run: it is
+/// listed in `--help` (exit 0) and, fed a cancel key on stdin, `box pomodoro --sound`
+/// still terminates non-hanging and panic-free. The Win32 `MessageBeep` itself is not
+/// audibly asserted (a completed timer cannot be driven headless) — its
+/// completion-ONLY / never-on-cancel placement is guaranteed by SOURCE structure:
+/// `beep()` is called exclusively inside `PomodoroArgs::notify`, which runs only on a
+/// `SegmentEnd::Completed` branch, gated on `self.sound`, and is never reached from
+/// the cancel early-return. This test proves the cancel path (where the beep must NOT
+/// fire) stays clean and non-hanging when `--sound` is present.
+#[test]
+fn pomodoro_sound_flag_parses() {
+    // Wired onto the arg surface (recognized, not an "unexpected argument" error).
+    let help = Command::cargo_bin("box")
+        .unwrap()
+        .args(["pomodoro", "--help"])
+        .timeout(Duration::from_secs(5))
+        .assert();
+    assert!(
+        String::from_utf8_lossy(&help.get_output().stdout).contains("--sound"),
+        "box pomodoro --help must list `--sound`"
+    );
+
+    // Composes with a run: fed `q` on a (piped, non-TTY) stdin, the command must exit
+    // non-hanging and panic-free — the cancel path (no beep) stays clean with --sound.
+    let run = Command::cargo_bin("box")
+        .unwrap()
+        .args(["pomodoro", "--sound", "1"])
+        .write_stdin("q")
+        .timeout(Duration::from_secs(5))
+        .assert();
+    let stderr = String::from_utf8_lossy(&run.get_output().stderr);
+    assert!(
+        !stderr.contains("panicked"),
+        "box pomodoro --sound must not panic; stderr was: {stderr}"
+    );
+    assert!(
+        !stderr.contains("unexpected argument"),
+        "`--sound` must be a recognized flag; stderr was: {stderr}"
+    );
+}

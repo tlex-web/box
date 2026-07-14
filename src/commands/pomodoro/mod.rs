@@ -41,8 +41,16 @@
 //! `tauri-winrt-notification` — the maintained drop-in fork of CLAUDE.md's
 //! `winrt-notification` (D-09 OVERRIDE). `Toast::POWERSHELL_APP_ID` means no AUMID
 //! registration is needed (the toast attributes to PowerShell — accepted, D-09).
-//! A toast that fails to `show()` AFTER a completed timer does NOT fail the run —
-//! it logs to stderr and still exits 0 (RESEARCH A3 / D-07 "completion → exit 0").
+//! The `--label` is carried into the toast title. A toast that fails to `show()`
+//! after a completed timer does NOT fail the run — it is silently best-effort so it
+//! never corrupts the continuous raw-mode countdown across cycles, and the run still
+//! exits 0 (RESEARCH A3 / D-07 "completion → exit 0").
+//!
+//! # Sound (POMO-V2-02, D-09)
+//! `--sound` plays a Win32 `MessageBeep(MB_OK)` on each session COMPLETION only
+//! (never on cancel — mirrors the toast rule), COMPOSING with the toast (both fire).
+//! No audio stack — just the already-committed `windows` crate ([`beep`]). The beep
+//! is best-effort: its `Result` is ignored so it can never fail a completed timer.
 //!
 //! # Teardown (D-07)
 //! Restoration is an RAII [`RawGuard`] armed the INSTANT raw mode is enabled —
@@ -138,6 +146,10 @@ pub struct PomodoroArgs {
     /// Label shown in the countdown line and carried into the completion toast.
     #[arg(long)]
     pub label: Option<String>,
+    /// Play a Win32 beep on each session COMPLETION (never on cancel), alongside the
+    /// toast.
+    #[arg(long)]
+    pub sound: bool,
 }
 
 /// RAII terminal-restore guard (D-07). Constructed the INSTANT raw mode is enabled
@@ -280,12 +292,17 @@ impl RunCommand for PomodoroArgs {
 }
 
 impl PomodoroArgs {
-    /// Fire the completion notification for one COMPLETED segment (POMO-V2-01): a
-    /// Windows toast carrying the `--label` (best-effort — a toast that fails to show
-    /// never fails the run, D-07). Called ONLY on a `Completed` branch, never on
-    /// cancel (T-05-POMO-CANCEL).
+    /// Fire the completion notification for one COMPLETED segment (POMO-V2-01/02): a
+    /// Windows toast carrying the `--label`, plus — when `--sound` is set — a Win32
+    /// `MessageBeep` (POMO-V2-02 / D-09). Both are best-effort (a toast that fails to
+    /// show or an ignored beep never fails the run, D-07) and COMPOSE (both may fire).
+    /// This is called ONLY on a `Completed` branch, never on cancel — so neither the
+    /// toast nor the beep is reachable from the cancel exit (T-05-POMO-CANCEL).
     fn notify(&self, body: &str) {
         fire_toast(body, self.label.as_deref());
+        if self.sound {
+            beep();
+        }
     }
 }
 
@@ -304,6 +321,30 @@ fn fire_toast(body: &str, label: Option<&str>) {
         .text1(body)
         .show();
 }
+
+/// Play the Windows default "OK" system sound via Win32 `MessageBeep(MB_OK)`
+/// (POMO-V2-02 / D-09). No audio stack — just the already-committed `windows` crate.
+/// Best-effort: the returned `Result` is deliberately ignored, so a failed beep can
+/// never fail a COMPLETED timer (mirrors the toast rule). `MessageBeep` lives in
+/// `Win32::System::Diagnostics::Debug` and `MB_OK` in `Win32::UI::WindowsAndMessaging`.
+#[cfg(windows)]
+fn beep() {
+    use windows::Win32::System::Diagnostics::Debug::MessageBeep;
+    use windows::Win32::UI::WindowsAndMessaging::MB_OK;
+    // SAFETY: `MessageBeep(MB_OK)` — the ONLY argument is a compile-time
+    // `MESSAGEBOX_STYLE` constant (no pointers, no untrusted input crosses the FFI).
+    // The call merely asks the OS to play a system sound and returns a `Result` we
+    // ignore; it cannot corrupt process memory (T-10-03-BEEP mitigation).
+    unsafe {
+        let _ = MessageBeep(MB_OK);
+    }
+}
+
+/// Non-Windows fallback (the toolbox targets Windows PowerShell 7, but this keeps the
+/// module portable for `cargo check`/tests on other hosts): `--sound` is a silent
+/// no-op off Windows, matching the du/dupes Win32 cfg-gating pattern.
+#[cfg(not(windows))]
+fn beep() {}
 
 /// Run ONE timed segment: the in-place `MM:SS` countdown + keypress tick loop
 /// (POMO-V2-01). This is the pre-cycle single-timer body factored out so the outer

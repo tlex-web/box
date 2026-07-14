@@ -121,12 +121,21 @@ indicatif = "0.18.4"
 ignore = "0.4"
 globset = "0.4"
 # Win32: GetCompressedFileSizeW (du --on-disk, 08-02) + GetFileInformationByHandle
-# (dupes hardlink identity, 08-03). Pin 0.61 to UNIFY with the transitive
-# windows ^0.61 from tauri-winrt-notification 0.7.2 (D-2) — `cargo tree -i windows`
-# must stay a single 0.61.x. Only the two feature modules these calls need; the
-# std handle fields (file_index/volume_serial) are nightly-only (issue #63010), so
-# the stable path is this Win32 binding (RESEARCH HIGH-IMPACT correction).
-windows = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_Foundation"] }
+# (dupes hardlink identity, 08-03) + MessageBeep (pomodoro --sound, 10-03 / D-09).
+# Pin 0.61 to UNIFY with the transitive windows ^0.61 from
+# tauri-winrt-notification 0.7.2 (D-2) — `cargo tree -i windows` must stay a single
+# 0.61.x. Only the feature modules these calls need; the std handle fields
+# (file_index/volume_serial) are nightly-only (issue #63010), so the stable path is
+# this Win32 binding (RESEARCH HIGH-IMPACT correction). NOTE (10-03): `MessageBeep`
+# lives in `Win32::System::Diagnostics::Debug` (win32metadata namespace quirk) while
+# its `MB_OK`/`MESSAGEBOX_STYLE` argument lives in `Win32::UI::WindowsAndMessaging`,
+# and neither feature pulls the other — so BOTH are required for the beep to resolve.
+windows = { version = "0.61", features = [
+    "Win32_Storage_FileSystem",
+    "Win32_Foundation",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_UI_WindowsAndMessaging",
+] }
 # NOTE: no `rand_core` yet — verify `use rand::TryRngCore` resolves through rand
 # 0.9 re-exports during the passgen plan (RESEARCH A1); not needed here.
 # NOTE: no `filetime` — use std::fs::FileTimes (Rust 1.75+).
