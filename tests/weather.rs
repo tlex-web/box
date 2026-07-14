@@ -177,3 +177,76 @@ fn json_purity() {
         "no UTF-8 BOM may prefix --json stdout"
     );
 }
+
+// --- WTHR-V2-01 (10-05) — `--forecast` 7-day daily outlook + JSON array (D-10) ---
+
+/// The metric 7-day fixture (current block + a 7-entry `daily`/`daily_units`
+/// block) served by the fixture server for the `--forecast` JSON test.
+const FORECAST_METRIC_7DAY: &str = include_str!("fixtures/weather/forecast_metric_7day.json");
+
+/// D-10 — `box weather 51.5,-0.13 --forecast --json` extends `WeatherOutput` with a
+/// 7-element `forecast` array of `{date, temp_min, temp_max, conditions}` objects,
+/// served offline from the 7-day fixture. A `lat,lon` location skips geocoding, so
+/// only the single forecast GET runs. Asserts:
+///   - stdout is exactly one JSON value carrying a `forecast` array of length 7;
+///   - each entry has `date` / `temp_min` / `temp_max` / `conditions` keys;
+///   - the current-only fields (`temperature`/`unit`/`conditions`) are still present.
+///
+/// `LOCALAPPDATA` is pointed at a fresh temp dir so the response cache (wired in
+/// Task 2) is a guaranteed miss → a real fetch, keeping this test deterministic
+/// across both tasks. Network-free.
+#[test]
+fn forecast_json_has_7_day_array() {
+    let base = spawn_fixture_server(FORECAST_METRIC_7DAY);
+    let cache = tempfile::TempDir::new().unwrap();
+
+    let mut cmd = Command::cargo_bin("box").unwrap();
+    let out = cmd
+        .args(["weather", "51.5,-0.13", "--forecast", "--json"])
+        .env("NO_COLOR", "1")
+        .env("LOCALAPPDATA", cache.path())
+        .env("BOX_WEATHER_BASE_URL", &base)
+        .output()
+        .expect("run box weather --forecast --json");
+    assert!(
+        out.status.success(),
+        "box weather --forecast --json should exit 0 (stderr: {})",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    let obj = v.as_object().expect("weather --json is an object");
+
+    // Current-only fields remain present alongside the new forecast array.
+    assert!(obj.contains_key("temperature"), "`.temperature` present");
+    assert!(obj.contains_key("unit"), "`.unit` present");
+    assert!(obj.contains_key("conditions"), "`.conditions` present");
+
+    // The new forecast array: exactly 7 entries, each a {date, temp_min, temp_max,
+    // conditions} object.
+    let forecast = obj
+        .get("forecast")
+        .and_then(|f| f.as_array())
+        .expect("`.forecast` must be an array under --forecast");
+    assert_eq!(forecast.len(), 7, "the daily forecast spans 7 days: {forecast:?}");
+    for (i, day) in forecast.iter().enumerate() {
+        let d = day.as_object().unwrap_or_else(|| panic!("forecast[{i}] is an object"));
+        assert!(d.contains_key("date"), "forecast[{i}].date present: {d:?}");
+        assert!(d.contains_key("temp_min"), "forecast[{i}].temp_min present: {d:?}");
+        assert!(d.contains_key("temp_max"), "forecast[{i}].temp_max present: {d:?}");
+        assert!(d.contains_key("conditions"), "forecast[{i}].conditions present: {d:?}");
+    }
+    // The first day's conditions is the WMO-mapped text for weather_code 0.
+    assert_eq!(
+        forecast[0].get("conditions").and_then(|c| c.as_str()),
+        Some("Clear sky"),
+        "forecast[0].conditions is the WMO-mapped text"
+    );
+
+    // PURITY — no ANSI escape in the --forecast JSON stdout either.
+    assert!(
+        !out.stdout.contains(&0x1Bu8),
+        "no ANSI escape may appear in --json stdout"
+    );
+}
