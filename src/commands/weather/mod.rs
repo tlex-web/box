@@ -105,6 +105,14 @@ impl RunCommand for WeatherArgs {
         )
         .ok_or(crate::core::errors::BoxError::MissingLocation)?;
 
+        // Normalize ONCE (WR-02): trim so incidental surrounding whitespace never
+        // leaks into a geocode URL OR a cache key. This single trimmed value is the
+        // source for BOTH the cache key (via `location_key`) AND `fetch_weather`
+        // (parse_lat_lon/geocode). Casing is preserved here — the geocode lookup and
+        // the resolved-location stderr echo keep the caller's casing; only the
+        // cache-key token lowercases city names.
+        let location = location.trim().to_string();
+
         // Resolve the unit system: CLI --units > [weather] units config > metric
         // builtin (the settled SPINE-05 precedence, D-12).
         let units = resolve_units(self.units, crate::core::config::config().weather.units);
@@ -176,11 +184,22 @@ fn units_key(units: Units) -> &'static str {
     }
 }
 
-/// The stable cache-key token for a location (WR-02). STUB — the un-normalized
-/// baseline (returns the value verbatim). Task 2 GREEN replaces this body with a
-/// trim + city-only lowercase so whitespace/case variants share ONE cache key.
+/// The stable cache-key token for a location (WR-02) — mirrors [`units_key`] as the
+/// location component of the logical cache key. Trims once, then lowercases CITY names
+/// only so incidental whitespace/case variants (`" London "`, `"London"`, `"london"`)
+/// collapse to ONE token and share the ~10-min cache window. A `lat,lon` pair is
+/// trimmed but NEVER lowercased (digits are case-free, and keeping it verbatim means
+/// `parse_lat_lon` on the fetch path still sees the exact numeric value — D-12). Pure →
+/// known-answer unit-testable. This normalizes only the LOGICAL key; the raw location
+/// still never becomes a path component (core::cache blake3-hashes it —
+/// T-10-05-CACHE-KEY).
 fn location_key(location: &str) -> String {
-    location.to_string()
+    let trimmed = location.trim();
+    if parse_lat_lon(trimmed).is_some() {
+        trimmed.to_string()
+    } else {
+        trimmed.to_lowercase()
+    }
 }
 
 /// Fetch + project a fresh weather response into the [`CachedWeather`] projection (the
