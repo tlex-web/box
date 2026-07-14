@@ -77,12 +77,19 @@ const FORECAST_IMPERIAL: &str = include_str!("fixtures/weather/forecast_imperial
 /// `http://127.0.0.1:<port>` base URL for `BOX_WEATHER_BASE_URL`. The accept loop
 /// runs on a detached thread; the test outlives it (one request → forecast GET).
 fn spawn_fixture_server(body: &'static str) -> String {
+    spawn_fixture_server_n(body, 4)
+}
+
+/// Like [`spawn_fixture_server`] but serves AT MOST `max` requests before the
+/// listener is dropped (the socket closes). A `max` of 1 is the cache-hit probe: the
+/// server answers the FIRST fetch, and any later fetch (a cache miss) gets a
+/// connection error → the command's offline exit-1 path — so a second identical call
+/// succeeding PROVES it was served from the cache with no network GET.
+fn spawn_fixture_server_n(body: &'static str, max: usize) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
     let base = format!("http://{}", listener.local_addr().unwrap());
     std::thread::spawn(move || {
-        // Serve a handful of requests so a client retry/extra GET cannot hang the
-        // test; each connection gets the same fixture body and is then closed.
-        for conn in listener.incoming().take(4) {
+        for conn in listener.incoming().take(max) {
             let Ok(mut stream) = conn else { break };
             // Drain the request headers (read until we have seen them) so the
             // client's write side does not block on a full socket buffer.
@@ -97,6 +104,18 @@ fn spawn_fixture_server(body: &'static str) -> String {
         }
     });
     base
+}
+
+/// Write `%APPDATA%\box\config.toml` (the `config_path` reads `APPDATA` first) inside
+/// a fresh temp dir and return the temp dir (kept alive by the caller — dropping it
+/// deletes the config). Used to drive the `[weather] location`/`units` config
+/// resolution tests offline and per-process-isolated.
+fn appdata_with_config(toml: &str) -> tempfile::TempDir {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("box");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("config.toml"), toml).unwrap();
+    tmp
 }
 
 /// SPINE-02 / D-17 — `box weather "51.5,-0.25" --units imperial --json` emits the
@@ -249,4 +268,112 @@ fn forecast_json_has_7_day_array() {
         !out.stdout.contains(&0x1Bu8),
         "no ANSI escape may appear in --json stdout"
     );
+}
+
+// --- WTHR-V2-01 (10-05) — optional location + config default + response cache (D-11/D-12) ---
+
+/// The metric current-only fixture served by the config/cache tests.
+const FORECAST_METRIC: &str = include_str!("fixtures/weather/forecast_metric.json");
+
+/// D-12 — a bare `box weather` (NO positional) with `[weather] location` set in
+/// config resolves the stored location and runs, served offline. `location` is a
+/// `lat,lon` so geocoding is skipped (one forecast GET). Proves CLI-optional +
+/// config-default location resolution.
+#[test]
+fn bare_weather_uses_config_location() {
+    let base = spawn_fixture_server(FORECAST_METRIC);
+    let appdata = appdata_with_config("[weather]\nlocation = \"51.5,-0.13\"\n");
+    let cache = tempfile::TempDir::new().unwrap();
+
+    let mut cmd = Command::cargo_bin("box").unwrap();
+    let out = cmd
+        .args(["weather", "--json"]) // NO positional location
+        .env("NO_COLOR", "1")
+        .env("APPDATA", appdata.path())
+        .env("LOCALAPPDATA", cache.path())
+        .env("BOX_WEATHER_BASE_URL", &base)
+        .output()
+        .expect("run bare box weather --json");
+    assert!(
+        out.status.success(),
+        "bare weather with a config location must resolve + run (stderr: {})",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout is one JSON value");
+    let loc = v.get("location").and_then(|l| l.as_str()).unwrap_or("");
+    assert!(
+        loc.contains("51.5"),
+        "the resolved location comes from [weather] location config: {loc:?}"
+    );
+}
+
+/// D-12 — a bare `box weather` with NO positional AND no `[weather] location` config
+/// is a usage error → exit 2 with a message pointing the user at a location or
+/// `weather.location`. APPDATA points at an empty temp dir (no config.toml → default
+/// config → no stored location), so the only reason to run is a missing location.
+#[test]
+fn bare_weather_no_location_exits_2() {
+    let appdata = tempfile::TempDir::new().unwrap(); // empty → no config.toml
+    let cache = tempfile::TempDir::new().unwrap();
+
+    let assert = Command::cargo_bin("box")
+        .unwrap()
+        .args(["weather"]) // no positional, no config location
+        .env("APPDATA", appdata.path())
+        .env("LOCALAPPDATA", cache.path())
+        .assert()
+        .failure()
+        .code(2);
+    assert.stderr(predicate::str::contains("weather.location").or(
+        predicate::str::contains("location"),
+    ));
+}
+
+/// D-11 — a response cache serves a second identical call with no network GET. The
+/// fixture server answers AT MOST ONE request; two sequential identical `box weather`
+/// calls (same location/units/forecast → same cache key) both succeed, which is only
+/// possible if the second was served from the cache. `LOCALAPPDATA` is a shared temp
+/// dir so the second call sees the first call's cached entry; `APPDATA` is empty so
+/// config never interferes.
+#[test]
+fn second_identical_call_is_a_cache_hit() {
+    let base = spawn_fixture_server_n(FORECAST_METRIC, 1); // ONE request only
+    let appdata = tempfile::TempDir::new().unwrap(); // no config
+    let cache = tempfile::TempDir::new().unwrap(); // shared across both calls
+
+    let run = || {
+        Command::cargo_bin("box")
+            .unwrap()
+            .args(["weather", "51.5,-0.13", "--units", "metric", "--json"])
+            .env("NO_COLOR", "1")
+            .env("APPDATA", appdata.path())
+            .env("LOCALAPPDATA", cache.path())
+            .env("BOX_WEATHER_BASE_URL", &base)
+            .output()
+            .expect("run box weather")
+    };
+
+    // First call: a cache miss → the single served fetch → caches the projection.
+    let first = run();
+    assert!(
+        first.status.success(),
+        "first call (cache miss → fetch) must succeed (stderr: {})",
+        String::from_utf8_lossy(&first.stderr)
+    );
+
+    // Second call: the server is exhausted (answered its one request). Success is
+    // ONLY possible via a cache hit (no network GET).
+    let second = run();
+    assert!(
+        second.status.success(),
+        "second identical call must be served from the cache with no network (stderr: {})",
+        String::from_utf8_lossy(&second.stderr)
+    );
+
+    // Both produced the same clean JSON document.
+    let a: serde_json::Value = serde_json::from_slice(&first.stdout).expect("first is JSON");
+    let b: serde_json::Value = serde_json::from_slice(&second.stdout).expect("second is JSON");
+    assert_eq!(a, b, "the cache hit renders the same document as the fetch");
 }
