@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
-status: ready_to_plan
-stopped_at: Phase 10 complete (6/6) — ready to discuss Phase 11
-last_updated: 2026-07-14T16:14:00.541Z
-last_activity: 2026-07-14 -- Phase 10 execution started
+status: planning
+stopped_at: Phase 11 context gathered
+last_updated: "2026-07-14T16:58:29.811Z"
+last_activity: 2026-07-14
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 20
   completed_plans: 20
-  percent: 67
+  percent: 83
 ---
 
 # Project State: box — Rust CLI Toolbox
@@ -162,9 +162,9 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then this file for position/context.
 
-**Last session:** 2026-07-14T13:20:52.216Z
-**Stopped at:** Phase 10 context gathered
-**Resume file:** .planning/phases/10-fun-system-depth/10-CONTEXT.md
+**Last session:** 2026-07-14T16:58:29.800Z
+**Stopped at:** Phase 11 context gathered
+**Resume file:** .planning/phases/11-meta-commands/11-CONTEXT.md
 
 **Next action:** **Phase 8 (Filesystem Depth) implementation is COMPLETE — all 6 plans done, all 10 requirements delivered.** Wave 1: 08-01 (HASH-V2-02 + FLAT-V2-01), 08-02 (TREE-V2-01 + DU-V2-01/02), 08-03 (DUPE-V2-01 + RENM-V2-01); Wave 2 (destructive, each with an approved adversarial code-review gate): 08-04 (FLAT-V2-02 flatten --move), 08-05 (DUPE-V2-02 dupes --delete), 08-06 (RENM-V2-02 bulk-rename --backup). **08-06 shipped** `bulk-rename --backup`: a JSON undo MANIFEST (a zero-drift serde projection of the pre-flight-cleared `Plan` — one `{old,new,applied}` per renamed file, ABSOLUTE paths) `File::sync_all()`'d to `%LOCALAPPDATA%\box\undo\box-undo-<unix_millis>.json` (OUTSIDE the renamed tree, LOCALAPPDATA not APPDATA, Pitfall 8) BEFORE the first `std::fs::rename`, then each entry flips `applied:true` (rewrite+fsync) as its rename returns → an `applied`-partitioned, reconcilable manifest on a mid-batch error (D-38); `--backup` is a dry-run no-op + `--force`-only, path echoed to stderr, the abort-all-before-any `bail!` writes NEITHER manifest NOR rename; `--undo` replay Deferred; new `tests/bulk_rename_backup.rs` (manifest-written/dry-run-noop/abort-writes-nothing/partition-recoverable via a real locked-target mid-batch). **The orchestrator now owns Phase 8 verification + `phase.complete` — the phase is NOT yet formally marked complete here.** One out-of-scope follow-up carried forward: a `style: cargo fmt` repo-root sweep to clear the pre-existing formatting drift logged in `deferred-items.md` (the 08-06 gates `cargo test` + `cargo clippy --all-targets -D warnings` are both clean; the two 08-06-authored files are fmt-clean). After phase close-out: **Phase 9 (Dev-Transform & Visual Depth)** — UUID/EPOC/COLR/JSON/PASS + visuals LOL/MTRX/QR/ASCI. Full `cargo test` green and clippy `--all-targets -D warnings` clean.
 
