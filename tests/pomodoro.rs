@@ -102,3 +102,75 @@ fn pomodoro_zero_minutes_exits_2() {
         "a zero minutes arg must be a clap usage error (exit 2), got: {code:?}"
     );
 }
+
+/// POMO-V2-01 — `--cycles` is bounded (`1..=1000`) by the same `RangedU64ValueParser`
+/// pattern as `[MINUTES]`: an out-of-range cycle count is a clap USAGE error (exit 2)
+/// BEFORE `run()`, so an absurd value can never spin the outer segment loop. Returns
+/// immediately (well inside the timeout) and must not panic.
+#[test]
+fn pomodoro_cycles_over_max_exits_2() {
+    let assert = Command::cargo_bin("box")
+        .unwrap()
+        .args(["pomodoro", "--cycles", "100000"])
+        .timeout(Duration::from_secs(5))
+        .assert();
+
+    let output = assert.get_output();
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "an out-of-range --cycles must be a clap usage error (exit 2), got: {:?}",
+        output.status.code()
+    );
+    assert!(
+        !String::from_utf8_lossy(&output.stderr).contains("panicked"),
+        "an out-of-range --cycles must NOT panic"
+    );
+}
+
+/// POMO-V2-01 — `--cycles` and `--loop` are mutually exclusive: supplying both is a
+/// clap conflict (exit 2), so the "bounded N cycles" and "unbounded loop" modes can
+/// never be requested together. Returns immediately; never hangs.
+#[test]
+fn pomodoro_cycles_and_loop_conflict_exits_2() {
+    let assert = Command::cargo_bin("box")
+        .unwrap()
+        .args(["pomodoro", "--cycles", "4", "--loop"])
+        .timeout(Duration::from_secs(5))
+        .assert();
+
+    let code = assert.get_output().status.code();
+    assert_eq!(
+        code,
+        Some(2),
+        "--cycles with --loop must be a clap conflict (exit 2), got: {code:?}"
+    );
+}
+
+/// POMO-V2-01 — the auto-cycle depth flags land on `box pomodoro --help` (exit 0).
+/// This is the fast, non-blocking proof that `--cycles`, `--loop`, and `--label` are
+/// wired onto the arg surface (the live countdown itself cannot be run headless —
+/// see the module note). `--help` returns immediately, well inside the timeout.
+/// (The `--sound` flag is asserted by `pomodoro_sound_flag_parses`, POMO-V2-02.)
+#[test]
+fn pomodoro_help_lists_new_flags() {
+    let assert = Command::cargo_bin("box")
+        .unwrap()
+        .args(["pomodoro", "--help"])
+        .timeout(Duration::from_secs(5))
+        .assert();
+
+    let output = assert.get_output();
+    assert!(
+        output.status.success(),
+        "box pomodoro --help must exit 0 (stderr: {})",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let help = String::from_utf8_lossy(&output.stdout);
+    for flag in ["--cycles", "--loop", "--label"] {
+        assert!(
+            help.contains(flag),
+            "box pomodoro --help must list `{flag}`; help was:\n{help}"
+        );
+    }
+}
