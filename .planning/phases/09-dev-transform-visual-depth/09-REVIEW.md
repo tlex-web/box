@@ -16,7 +16,8 @@ files_reviewed_list:
   - src/core/output.rs
   - Cargo.toml
 findings:
-  critical: 1
+  critical: 0
+  critical_resolved: 1
   warning: 3
   info: 2
   total: 6
@@ -61,6 +62,8 @@ duplication notes round out the report.
 ## Critical Issues
 
 ### CR-01: `lolcat --animate --duration <large>` panics and corrupts the terminal (bypasses the RAII restore guard)
+
+**✅ RESOLVED** (commit `8db6691`) — the deadline now routes through a pure `animate_deadline(now, duration)` helper using `checked_add`; an overflowing `--duration` degrades to the no-deadline (run-until-keypress) behavior instead of panicking. Locked by the terminal-free unit test `animate_deadline_is_overflow_safe` (zero / normal / `u64::MAX`).
 
 **File:** `src/commands/lolcat/mod.rs:248`
 
