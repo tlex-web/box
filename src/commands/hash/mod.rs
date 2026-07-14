@@ -9,7 +9,7 @@
 //!
 //! **BLAKE3-default (HASH-V2-01, breaking — COMPUTE only):** `box hash <file>` with
 //! no `--algo` now emits BLAKE3 where v1 emitted SHA-256. The precedence is
-//! CLI > env (`BOX_HASH_DEFAULT_ALGO`) > config (`default_hash_algo`) > builtin
+//! CLI > env (`BOX_HASH_DEFAULT_ALGO`) > config (`[hash] default_algo`) > builtin
 //! BLAKE3 (SPINE-05), so `--algo sha256` or a config key restore SHA-256. The
 //! `--verify` length table is UNCHANGED (a bare 64-hex still maps to sha256), so no
 //! stored SHA-256 baseline silently breaks; a 64-hex mismatch with no `--algo`
@@ -78,7 +78,7 @@ const PROGRESS_FILE_THRESHOLD: usize = 8;
 #[derive(Debug, Args)]
 pub struct HashArgs {
     /// Hash algorithm. Unset means BLAKE3 when computing (the v2 default — D-04;
-    /// pass `--algo sha256` or set `default_hash_algo` in the config to restore
+    /// pass `--algo sha256` or set `[hash] default_algo` in the config to restore
     /// SHA-256), or (under `--verify`) auto-detect by the digest's hex length. An
     /// EXPLICIT `--algo` ALWAYS wins — it is never overridden by length
     /// auto-detection (WR-01).
@@ -105,7 +105,7 @@ pub struct HashArgs {
 ///
 /// Round-trips BOTH directions of the spine (06-02):
 /// - `serde::Deserialize` (+ `#[serde(rename_all = "lowercase")]`, added in 06-01)
-///   lets the config value `default_hash_algo = "sha256"` parse into `Algo::Sha256`;
+///   lets the config value `[hash] default_algo = "sha256"` parse into `Algo::Sha256`;
 /// - `serde::Serialize` (added here, 06-02) lets the `--json` output serialize
 ///   `Algo::Blake3` to the lowercase `"blake3"` literal in the `HashRow.algo` field.
 ///
