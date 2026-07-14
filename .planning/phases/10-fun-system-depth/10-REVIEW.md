@@ -38,11 +38,12 @@ files_reviewed_list:
 findings:
   critical: 0
   critical_resolved: 1
-  warning: 2
+  warning: 0
+  warning_resolved: 2
   info: 0
   total: 3
-status: issues_found
-resolution_note: "CR-01 fixed in commit after review (hash help/doc strings now cite [hash] default_algo). WR-01/WR-02 deferred by developer."
+status: resolved
+resolution_note: "CR-01 fixed post-review (hash help/doc strings cite [hash] default_algo). WR-01 + WR-02 closed by plan 10-06 gap-closure (2026-07-14): forecast_days=7 server-side pin + n<=7 defensive bound (WR-01); location trim + city-only cache-key normalization (WR-02). All findings resolved."
 ---
 
 # Phase 10: Code Review Report
@@ -136,6 +137,8 @@ regression test asserting `box hash --help` does not contain the bare string
 
 ### WR-01: `--forecast` daily array is not actually bounded to 7 days despite the code/docs repeatedly claiming it is
 
+> **✅ RESOLVED (2026-07-14, plan 10-06):** `build_forecast_url` now pins `&forecast_days=7` server-side (`src/commands/weather/mod.rs:513`, current-only omits it) and `build_day_forecasts`'s `ensure!` gained `&& n <= 7` (mod.rs:534) — an over-7-day (or anomalously large) well-formed daily block is now a clean exit-1 error, never rendered under the `"  7-day forecast:"` header nor serialized into the `--json` `forecast` array. Three stale "bounded/fixed 7-day" doc comments de-overclaimed. Covered by `forecast_json_has_7_day_array` + the `forecast_days=7` URL-pin assertions; full `cargo test` + `cargo clippy --all-targets -D warnings` green.
+
 **File:** `src/commands/weather/mod.rs:473-489, 497-514`
 **Issue:**
 The module doc, the `render` doc comment, and multiple test names assert the daily
@@ -180,6 +183,8 @@ anyhow::ensure!(
 ```
 
 ### WR-02: Weather cache key and geocode lookup use the raw, un-normalized location string
+
+> **✅ RESOLVED (2026-07-14, plan 10-06):** `run()` trims the location once (`src/commands/weather/mod.rs:114`) as the single source for both the cache key and `fetch_weather`; a new pure `location_key` helper (mod.rs:196) trims + lowercases CITY names while leaving `lat,lon` pairs verbatim (so `parse_lat_lon` still sees the numeric value), making `"London"` / `" London "` / `"london"` share one cache key and the ~10-min window. Covered by `whitespace_variants_share_cache_key`, `second_identical_call_is_a_cache_hit`, and `location_key_tokens`.
 
 **File:** `src/commands/weather/mod.rs:102-120, 389-403`
 **Issue:** `resolve_location` returns the CLI/config location string unchanged (no
