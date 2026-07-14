@@ -79,13 +79,15 @@ impl RunCommand for ConfigArgs {
     }
 }
 
-/// The EFFECTIVE resolved config doc (D-06) — built-in defaults filled in, so it
-/// serializes to exactly what `box hash`/`box weather` will consume. snake_case
-/// per house style; `location` keeps its key and serializes to `null` when unset
-/// (a stable doc shape), while `default_algo`/`units` are always resolved to a
-/// concrete builtin. `Algo`/`Units` serialize to their lowercase spellings, so the
-/// `--json` doc and the human rows (which read the SAME serde spelling via
-/// [`serde_str`]) can never drift.
+/// The EFFECTIVE resolved config doc (D-06) — resolved to exactly what `box hash`/
+/// `box weather` will consume. snake_case per house style; `location` keeps its key
+/// and serializes to `null` when unset (a stable doc shape), while `default_algo`/
+/// `units` are always resolved to a concrete value. `default_algo` resolves through
+/// the FULL env > config > builtin chain via
+/// [`crate::commands::hash::effective_default_algo`] (WR-01), so it never drifts from
+/// `run_compute`; `weather.units` has no env tier (config > builtin). `Algo`/`Units`
+/// serialize to their lowercase spellings, so the `--json` doc and the human rows
+/// (which read the SAME serde spelling via [`serde_str`]) can never drift.
 #[derive(serde::Serialize)]
 struct EffectiveConfig {
     hash: EffectiveHash,
@@ -103,14 +105,19 @@ struct EffectiveWeather {
     units: Units,
 }
 
-/// Resolve the effective config from the startup snapshot: each leaf is
-/// `config().<table>.<field>.unwrap_or(builtin)` — the SAME builtins the commands
-/// use (`Algo::Blake3` / `Units::Metric`; `weather.location` has no builtin).
+/// Resolve the effective config to exactly what each command consumes. The
+/// `hash.default_algo` leaf routes through
+/// [`crate::commands::hash::effective_default_algo`] — the SAME env > config >
+/// builtin (`Algo::Blake3`) chain `run_compute` uses (the one place the hash env
+/// tier is looked up) — so `config show`/`get` can never lie about what `box hash`
+/// actually consumes (WR-01).
+/// Weather has no env tier: `location`/`units` stay `config().weather.<field>`
+/// (config > builtin `Units::Metric`; `weather.location` has no builtin).
 fn effective() -> EffectiveConfig {
     let cfg = config();
     EffectiveConfig {
         hash: EffectiveHash {
-            default_algo: cfg.hash.default_algo.unwrap_or(Algo::Blake3),
+            default_algo: crate::commands::hash::effective_default_algo(),
         },
         weather: EffectiveWeather {
             location: cfg.weather.location.clone(),
@@ -157,7 +164,9 @@ fn show() -> anyhow::Result<()> {
 fn get(key: &str) -> anyhow::Result<()> {
     match key {
         "hash.default_algo" => {
-            let v = config().hash.default_algo.unwrap_or(Algo::Blake3);
+            // WR-01: resolve through the SAME shared env > config > builtin resolver
+            // `box hash` consumes, so `get` reports the env-tier value too.
+            let v = crate::commands::hash::effective_default_algo();
             emit_value(&serde_str(&v))
         }
         "weather.units" => {

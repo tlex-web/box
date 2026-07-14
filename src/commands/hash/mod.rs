@@ -133,6 +133,22 @@ fn parse_algo(s: &str) -> Option<Algo> {
     Algo::from_str(s, true).ok()
 }
 
+/// The ONE shared no-CLI effective-algo resolver (env > config > builtin), the
+/// single place `BOX_HASH_DEFAULT_ALGO` is looked up (WR-01): the env var (parsed
+/// via [`parse_algo`]) if set-and-valid, else the config `[hash] default_algo`, else
+/// the v2 builtin `Algo::Blake3`. `run_compute` layers the CLI tier over it and
+/// `commands::config`'s effective view calls it directly, so the value `config
+/// show`/`get hash.default_algo` reports can never drift from what `box hash`
+/// actually consumes. An unrecognized env value returns `None` from `parse_algo` and
+/// simply falls through to the next tier (never errors a normal `box hash`).
+pub(crate) fn effective_default_algo() -> Algo {
+    std::env::var("BOX_HASH_DEFAULT_ALGO")
+        .ok()
+        .and_then(|s| parse_algo(&s))
+        .or(crate::core::config::config().hash.default_algo)
+        .unwrap_or(Algo::Blake3)
+}
+
 /// One row of `box hash --json` output (D-03 field names: `path`, `algo`,
 /// `digest`). `algo` serializes lowercase (`"blake3"`) via the enum's
 /// `rename_all`. The `digest` and `algo` come from the SAME compute the human row
@@ -293,19 +309,15 @@ impl RunCommand for HashArgs {
 /// [`PROGRESS_FILE_THRESHOLD`] and never under `--json` (Pitfall 2) — it never
 /// touches stdout.
 fn run_compute(cli_algo: Option<Algo>, paths: Vec<String>) -> anyhow::Result<()> {
-    // Resolve the algorithm ONCE via the EXISTING CLI > env > config > builtin
-    // chain (do not duplicate the resolver): an explicit `--algo`, else
-    // `BOX_HASH_DEFAULT_ALGO` (reusing `parse_algo`), else the config
-    // `[hash] default_algo` (nested since D-13), else the v2 builtin BLAKE3
-    // (D-04). Every file in the batch shares this one algorithm.
-    let algo = cli_algo
-        .or_else(|| {
-            std::env::var("BOX_HASH_DEFAULT_ALGO")
-                .ok()
-                .and_then(|s| parse_algo(&s))
-        })
-        .or(crate::core::config::config().hash.default_algo)
-        .unwrap_or(Algo::Blake3);
+    // Resolve the algorithm ONCE by layering the CLI tier over the SHARED
+    // env > config > builtin resolver (WR-01): an explicit `--algo` wins, else
+    // `effective_default_algo()` (the single place `BOX_HASH_DEFAULT_ALGO` is
+    // looked up — env > config `[hash] default_algo` > builtin BLAKE3). This is
+    // algebraically identical to the former `cli.or(env).or(cfg).unwrap_or(builtin)`
+    // chain, so no hash behavior changes; it just single-sources the resolver so
+    // `config show`/`get` can route through the SAME function. Every file in the
+    // batch shares this one algorithm.
+    let algo = cli_algo.unwrap_or_else(effective_default_algo);
 
     // Empty Vec → a single stdin target (label `-`); else one target per path.
     let targets: Vec<Option<String>> = if paths.is_empty() {
