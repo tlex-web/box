@@ -44,7 +44,7 @@ Full phase details, decisions, and outcomes archived in [`milestones/v1.0-ROADMA
 - [x] **Phase 9: Dev-Transform & Visual Depth** - Add depth to the dev-transform (`uuid`, `epoch`, `color`, `json`, `passgen`) and visual (`lolcat`, `matrix`, `qr`, `ascii`) commands.
  (completed 2026-07-14)
 - [x] **Phase 10: Fun & System Depth** - Add depth to the fun (`cowsay`, `fortune`, `8ball`, `roast`) and system (`pomodoro`, `weather`) commands. (completed 2026-07-14)
-- [ ] **Phase 11: Meta-Commands** - Ship `box config` and `box completions powershell`, generated against the final, complete arg surface. (both plans executed 2026-07-14; verification found 2 gaps WR-01/WR-02 — awaiting 11-03 gap closure)
+- [x] **Phase 11: Meta-Commands** - Ship `box config` and `box completions powershell`, generated against the final, complete arg surface. (both plans executed 2026-07-14; verification found 2 gaps WR-01/WR-02 — awaiting 11-03 gap closure) (completed 2026-07-14)
 
 ## Phase Details
 
@@ -212,7 +212,7 @@ Plans:
 
 **Wave 3** *(gap closure — closes 11-VERIFICATION WR-01/WR-02; over already-shipped 11-01/11-02 modules)*
 
-- [ ] 11-03-PLAN.md — close verification gaps: WR-01 env-tier parity for `config get/show hash.default_algo` via one shared `effective_default_algo` resolver, + WR-02 decouple `config path/set` + `completions` from the malformed-config gate (CFG-01, CMP-01). [wave 1, depends_on none]
+- [x] 11-03-PLAN.md — close verification gaps: WR-01 env-tier parity for `config get/show hash.default_algo` via one shared `effective_default_algo` resolver, + WR-02 decouple `config path/set` + `completions` from the malformed-config gate (CFG-01, CMP-01). [wave 1, depends_on none]
 
 ## Progress
 
@@ -231,7 +231,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 8. Filesystem Depth | v2.0 | 6/6 | In Progress|  |
 | 9. Dev-Transform & Visual Depth | v2.0 | 3/3 | Complete   | 2026-07-14 |
 | 10. Fun & System Depth | v2.0 | 6/6 | Complete    | 2026-07-14 |
-| 11. Meta-Commands | v2.0 | 2/2 | Gaps Found | -          |
+| 11. Meta-Commands | v2.0 | 3/3 | Complete   | 2026-07-14 |
 
 ---
 *Roadmap created: 2026-06-22*

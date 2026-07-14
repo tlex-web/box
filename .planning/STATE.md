@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
 status: executing
-stopped_at: Completed 11-02-PLAN.md (CMP-01 — box completions)
-last_updated: "2026-07-14T19:18:50.205Z"
-last_activity: 2026-07-14 -- Phase 11 planning complete
+stopped_at: Completed 11-03-PLAN.md (WR-01/WR-02 gap closure)
+last_updated: "2026-07-14T19:37:48.619Z"
+last_activity: 2026-07-14
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 23
-  completed_plans: 22
-  percent: 83
+  completed_plans: 23
+  percent: 100
 ---
 
 # Project State: box — Rust CLI Toolbox
@@ -35,10 +35,10 @@ See: .planning/PROJECT.md · .planning/ROADMAP.md · .planning/REQUIREMENTS.md (
 
 ## Current Position
 
-Phase: 11 (meta-commands) — VERIFYING (gaps found)
-Plan: 2 of 2 executed
-Status: Ready to execute
-Last activity: 2026-07-14 -- Phase 11 planning complete
+Phase: 11 (meta-commands) — all 3 plans executed (11-03 gap closure complete)
+Plan: 3 of 3
+Status: Phase 11 implementation complete — WR-01/WR-02 closed; awaiting re-verification + milestone close-out
+Last activity: 2026-07-14 -- 11-03 executed (WR-01 env-tier parity + WR-02 config-gate decoupling)
 
 Progress: [██████████] 100%
 
@@ -79,6 +79,7 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 ---
 | Phase 11 P01 | 14 min | 3 tasks | 10 files |
 | Phase 11 P02 | 9min | 4 tasks | 9 files |
+| Phase 11 P03 | 10min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -132,6 +133,10 @@ v1.0 (Phases 1–5) complete & archived — see `.planning/milestones/v1.0-ROADM
 
 | **D-11-02 (11-02) CMP-01: `box completions <shell>` is the first CODE-GENERATOR command — `clap_complete::generate(shell, &mut Cli::command(), "box", &mut stdout)` driven by `clap::CommandFactory` on the LIVE final `Cli`**, so the emitted script auto-reflects every subcommand (incl. the 11-01 `config` + `completions` itself) AND the global `--json`/`--clip`/`--no-color` + Phase-8/9/10 depth flags — no hand-maintained list (SC3). Required positional `clap_complete::Shell` (bash\|zsh\|fish\|powershell\|elvish, the D-09 rustup pattern; a bad value → clap exit 2, `--help` lists the shells for free) | Output purity mirrors `--json` (D-10): stdout carries EXACTLY an inert `#`-comment registration header + the script — empty stderr (fires even under redirection), no ANSI, no BOM. The registration one-liner `box completions powershell \| Out-String \| Invoke-Expression` lives in TWO inert places (D-10): a `pub const PS_REGISTER_ONELINER`-sourced `#`-header on the generated script AND the `Completions` variant's `--help` long_about — self-documenting from a redirected file OR `--help`. A pure `write_header` (unit-tested: PS two-line recipe + generic non-PS provenance line; `#[non_exhaustive]` `Shell` → explicit `PowerShell` arm + catch-all). `install.ps1` gains `param([switch]$RegisterCompletions)`: default PRINTS a hint (never touches `$PROFILE`), opt-in idempotently appends a `# box completions` sentinel block (guarded by `Select-String`), registering the LIVE-command form so completions regenerate each shell start (D-11). `clap_complete 4.6.7` is the ONLY new crate (D-12) — pinned `4.6`, single clap version. Full `cargo test` (31 binaries, 0 failures) + clippy `--all-targets -D warnings` green. |
 
+| **D-11-03 (11-03) WR-01 env-tier parity: `config`'s effective view AND `hash::run_compute` route the hash default through ONE `pub(crate) hash::effective_default_algo()` (env `BOX_HASH_DEFAULT_ALGO` > config `[hash] default_algo` > builtin `Blake3`)** — `BOX_HASH_DEFAULT_ALGO` is now looked up in EXACTLY one source file (`hash/mod.rs`; source-asserted `grep -rl` → only that file), so `config show`/`get hash.default_algo` can never drift from what `box hash` consumes | `run_compute` layers the CLI tier over it (`cli_algo.unwrap_or_else(effective_default_algo)` — algebraically identical to the old `cli.or(env).or(cfg).unwrap_or(builtin)`, zero hash behavior change); `config effective()` hash arm + `get` hash arm call the SAME function; `parse_algo` stays PRIVATE (config calls the resolver, not the parser). Weather has NO env tier — its arm is untouched (`config().weather.units.unwrap_or(Metric)`). `env_tier_parity_hash_default_algo` pins the three-way agreement (`config get`==`config show --json`==`box hash`==`md5` under `BOX_HASH_DEFAULT_ALGO=md5` + empty config); `box_cmd` helper `.env_remove`s the var so the existing empty-config tests stay deterministic. Closes VERIFICATION gap[0]/truth #5. |
+
+| **D-11-03 (11-03) WR-02 malformed-config decoupling: `main.rs` computes `config_independent` from `&cli.command` BEFORE consuming `cli`; on a malformed config it falls back to `core::config::init_config_default()` (`Config::default()`, idempotent) and dispatches ONLY for `Completions` + `Config` `path`/`set` (`ConfigArgs::tolerates_malformed_config()` = `Path \| Set`), else propagates `BoxError::Config` → exit 2** — the frictionless-PS7 repair/locate/shell-start path is restored (a registered `$PROFILE` `completions` line no longer errors every new shell; `config set` repairs the file via the unchanged D-03 validate-before-write) | NO tolerance hole: `config show`/`get` return `false` from `tolerates_malformed_config` (they report the effective value → still need a parseable file → still exit 2), and every NORMAL command still aborts before dispatch → exit 2 (pinned by `malformed_config_still_bricks_normal_command`: `box hash` AND `config show` exit 2 under the same malformed file). The `init_color`/`init_output`/run/`flush_clip` LOAD-BEARING spine is factored into a shared `dispatch(cli)` fn so the Ok path and the malformed-independent fallback run the identical order (no duplication). New tests: `malformed_config_path_and_completions_exit0`, `malformed_config_set_repairs_file`. Closes VERIFICATION gap[1]/truth #6. Full `cargo test` (507 passed / 0 failed) + clippy `--bin box --all-targets -D warnings` green; new test code fmt-clean, pre-existing repo-wide rustfmt drift still deferred. |
+
 Full v1.0 decision log preserved in PROJECT.md Key Decisions + `.planning/milestones/v1.0-ROADMAP.md`.
 
 ### Critical Pitfalls to Remember (carried from v1 + new for v2)
@@ -168,11 +173,11 @@ None.
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then this file for position/context.
 
-**Last session:** 2026-07-14T18:34:50.844Z
-**Stopped at:** Completed 11-02-PLAN.md (CMP-01 — box completions)
+**Last session:** 2026-07-14T19:37:48.595Z
+**Stopped at:** Completed 11-03-PLAN.md (WR-01/WR-02 gap closure)
 **Resume file:** None
 
-**Next action:** **Phase 8 (Filesystem Depth) implementation is COMPLETE — all 6 plans done, all 10 requirements delivered.** Wave 1: 08-01 (HASH-V2-02 + FLAT-V2-01), 08-02 (TREE-V2-01 + DU-V2-01/02), 08-03 (DUPE-V2-01 + RENM-V2-01); Wave 2 (destructive, each with an approved adversarial code-review gate): 08-04 (FLAT-V2-02 flatten --move), 08-05 (DUPE-V2-02 dupes --delete), 08-06 (RENM-V2-02 bulk-rename --backup). **08-06 shipped** `bulk-rename --backup`: a JSON undo MANIFEST (a zero-drift serde projection of the pre-flight-cleared `Plan` — one `{old,new,applied}` per renamed file, ABSOLUTE paths) `File::sync_all()`'d to `%LOCALAPPDATA%\box\undo\box-undo-<unix_millis>.json` (OUTSIDE the renamed tree, LOCALAPPDATA not APPDATA, Pitfall 8) BEFORE the first `std::fs::rename`, then each entry flips `applied:true` (rewrite+fsync) as its rename returns → an `applied`-partitioned, reconcilable manifest on a mid-batch error (D-38); `--backup` is a dry-run no-op + `--force`-only, path echoed to stderr, the abort-all-before-any `bail!` writes NEITHER manifest NOR rename; `--undo` replay Deferred; new `tests/bulk_rename_backup.rs` (manifest-written/dry-run-noop/abort-writes-nothing/partition-recoverable via a real locked-target mid-batch). **The orchestrator now owns Phase 8 verification + `phase.complete` — the phase is NOT yet formally marked complete here.** One out-of-scope follow-up carried forward: a `style: cargo fmt` repo-root sweep to clear the pre-existing formatting drift logged in `deferred-items.md` (the 08-06 gates `cargo test` + `cargo clippy --all-targets -D warnings` are both clean; the two 08-06-authored files are fmt-clean). After phase close-out: **Phase 9 (Dev-Transform & Visual Depth)** — UUID/EPOC/COLR/JSON/PASS + visuals LOL/MTRX/QR/ASCI. Full `cargo test` green and clippy `--all-targets -D warnings` clean.
+**Next action:** **Phase 11 (Meta-Commands) implementation is COMPLETE — all 3 plans done (11-01 config, 11-02 completions, 11-03 gap closure); CFG-01 + CMP-01 delivered.** 11-03 closed the two code-review warnings the phase verification reproduced live: **WR-01 (env-tier parity)** — `config`'s effective view and `hash::run_compute` now route the hash default through ONE `pub(crate) hash::effective_default_algo()` (env `BOX_HASH_DEFAULT_ALGO` > config > builtin, looked up in exactly one source file), so `config show`/`get hash.default_algo` report exactly what `box hash` consumes; **WR-02 (malformed-config decoupling)** — `main.rs` falls back to `Config::default()` ONLY for `completions` + `config path`/`set` (via `ConfigArgs::tolerates_malformed_config()` + `core::config::init_config_default()`), restoring the repair/locate/shell-start path, while every normal command AND `config show`/`get` still exit 2 under a malformed config (no tolerance hole). New regression tests in `tests/config_cmd.rs` (14/14): `env_tier_parity_hash_default_algo`, `malformed_config_path_and_completions_exit0`, `malformed_config_set_repairs_file`, `malformed_config_still_bricks_normal_command`. Full `cargo test` (507 passed / 0 failed) + `cargo clippy --bin box --all-targets -- -D warnings` clean. **The orchestrator now owns Phase 11 re-verification + `phase.complete` — VERIFICATION truths #5/#6 should flip to VERIFIED.** With Phase 11 done, the **v2.0 milestone is ready for close-out** (`/gsd:complete-milestone`). One out-of-scope follow-up still carried forward: a `style: cargo fmt` repo-root sweep for the pre-existing rustfmt drift (deferred-items.md) — the 11-03 gates are clean and the newly-authored test code is fmt-clean.
 
 ---
 *State reset to v2.0 phase map: 2026-06-25 by roadmapper (v1.0 plan-by-plan execution log archived with the milestone; v2.0 accumulated context — locked decisions D-1..D-7, v2 pitfalls, the v1→v2 architecture graft — preserved above).*
