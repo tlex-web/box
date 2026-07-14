@@ -13,9 +13,20 @@
 #   4. Refreshes the live $env:Path from BOTH User and Machine scopes so `box`
 #      works in THIS same PowerShell 7 session (and System32 etc. are not lost).
 #   5. Smoke-tests `box --help` and reports readiness.
+#   6. Prints a PS7 completion-registration HINT by default; with
+#      -RegisterCompletions it idempotently appends the `box completions` recipe
+#      to the user's $PROFILE (D-11 — never an unprompted profile edit).
 #
-# Re-running is safe: the copy is a plain overwrite and the PATH add is
-# dedup-guarded, so the entry is never duplicated.
+# Re-running is safe: the copy is a plain overwrite, the PATH add is dedup-guarded,
+# and the -RegisterCompletions $PROFILE append is sentinel-guarded — so no entry is
+# ever duplicated.
+
+# D-11: opt-in completion registration. WITHOUT this switch install.ps1 only PRINTS
+# a hint and never touches $PROFILE (unprompted profile edits are a far-reaching
+# change). The param block must be the first executable statement in the script.
+param(
+    [switch]$RegisterCompletions
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -67,4 +78,31 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "box is ready. Try: box --help"
 } else {
     Write-Warning "Installed, but 'box' did not run in this session. Open a new terminal and try 'box --help'."
+}
+
+# 6. PS7 completion registration (CMP-01 / D-11). By DEFAULT just print a hint —
+#    NEVER silently mutate $PROFILE. `-RegisterCompletions` opts in to an idempotent
+#    append of the LIVE-command form (so completions regenerate each shell start and
+#    auto-track future `box` upgrades). The `# box completions` sentinel guard
+#    mirrors the step-3 PATH dedup idiom.
+$oneliner = 'box completions powershell | Out-String | Invoke-Expression'
+if (-not $RegisterCompletions) {
+    Write-Host "To enable tab-completion, add $oneliner to your `$PROFILE — or re-run with -RegisterCompletions."
+} else {
+    # Ensure $PROFILE and its parent dir exist (same New-Item -Force idiom as step 2).
+    $profileDir = Split-Path -Parent $PROFILE
+    New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
+    if (-not (Test-Path -LiteralPath $PROFILE)) {
+        New-Item -ItemType File -Force -Path $PROFILE | Out-Null
+    }
+    # Idempotency guard: skip the append if the `# box completions` sentinel is
+    # already present (re-running -RegisterCompletions never duplicates the block).
+    if (-not (Select-String -Quiet -Pattern '# box completions' -Path $PROFILE)) {
+        Add-Content -LiteralPath $PROFILE -Value ''
+        Add-Content -LiteralPath $PROFILE -Value '# box completions'
+        Add-Content -LiteralPath $PROFILE -Value $oneliner
+        Write-Host "Registered box completions in $PROFILE"
+    } else {
+        Write-Host "box completions already registered — skipped"
+    }
 }
