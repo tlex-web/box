@@ -725,11 +725,27 @@ mod tests {
             "--forecast must request the daily block: {forecast}"
         );
 
+        // WR-01: the span is PINNED server-side — the --forecast URL carries
+        // `forecast_days=7` so Open-Meteo's runtime default can never drift.
+        assert!(
+            forecast.contains("forecast_days=7"),
+            "--forecast must pin the span with forecast_days=7: {forecast}"
+        );
+        // The current-only path must NOT pin a daily span.
+        assert!(
+            !current.contains("forecast_days=7"),
+            "current-only must NOT request forecast_days=7: {current}"
+        );
+
         // --forecast + imperial → both the daily block AND the imperial unit param.
         let imperial = build_forecast_url(51.5, -0.13, Units::Imperial, true);
         assert!(
             imperial.contains(daily_param) && imperial.contains("temperature_unit=fahrenheit"),
             "--forecast imperial must request daily + fahrenheit: {imperial}"
+        );
+        assert!(
+            imperial.contains("forecast_days=7"),
+            "--forecast imperial must still pin forecast_days=7: {imperial}"
         );
     }
 
@@ -787,6 +803,28 @@ mod tests {
         assert!(
             build_day_forecasts(&bad).is_err(),
             "a mismatched daily block must be an error, not a panic"
+        );
+    }
+
+    /// WR-01 — an OVERSIZED daily block (all four arrays a matched length 8) is an
+    /// `Err`, not projected: the "bounded 7-day" invariant is now defensively
+    /// enforced (`n <= 7`), so an over-7-day (or anomalously large) well-formed
+    /// response is a clean exit-1 error, never rendered under the "7-day forecast:"
+    /// header or serialized into the `--json` `forecast` array (T-10-05-HTTP: bound
+    /// the SIZE, not just the shape).
+    #[test]
+    fn build_day_forecasts_rejects_oversized_arrays() {
+        let dates: Vec<String> = (24..32).map(|d| format!("2026-06-{d}")).collect();
+        let oversized = Daily {
+            time: dates,                              // 8 days
+            temperature_2m_max: vec![22.0; 8],        // matched length 8
+            temperature_2m_min: vec![12.0; 8],        // matched length 8
+            weather_code: vec![0; 8],                 // matched length 8
+        };
+        assert_eq!(oversized.time.len(), 8, "the fixture is an 8-day block");
+        assert!(
+            build_day_forecasts(&oversized).is_err(),
+            "an 8-day (oversized) daily block must be an error, not a 7-day-bound violation"
         );
     }
 
