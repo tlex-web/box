@@ -204,7 +204,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 11-01-PLAN.md — `box config` show/get/set/path with `--json`: effective-config view (D-06), D-03 validate-before-write + atomic write, closed settable-key registry (D-04) (CFG-01). [wave 1]
+- [x] 11-01-PLAN.md — `box config` show/get/set/path with `--json`: effective-config view (D-06), D-03 validate-before-write + atomic write, closed settable-key registry (D-04) (CFG-01). [wave 1]
 
 **Wave 2** *(blocked on Wave 1 — shared cli.rs/main.rs/help.trycmd; adds clap_complete)*
 
@@ -227,7 +227,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 8. Filesystem Depth | v2.0 | 6/6 | In Progress|  |
 | 9. Dev-Transform & Visual Depth | v2.0 | 3/3 | Complete   | 2026-07-14 |
 | 10. Fun & System Depth | v2.0 | 6/6 | Complete    | 2026-07-14 |
-| 11. Meta-Commands | v2.0 | 0/2 | Not started | - |
+| 11. Meta-Commands | v2.0 | 1/2 | In Progress|  |
 
 ---
 *Roadmap created: 2026-06-22*
