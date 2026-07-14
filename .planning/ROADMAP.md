@@ -176,10 +176,10 @@ Plans:
 
 **Wave 1** *(four parallel, disjoint files)*
 
-- [ ] 10-01-PLAN.md — fun visuals: `cowsay` figure roster + `--figure`/`--list-figures`/`--think` (COW-V2-01); `8ball` ASCII art + `is_color_on()`-gated sentiment color + `sentiment` JSON (8BAL-V2-01). [wave 1]
-- [ ] 10-02-PLAN.md — fun corpora: `fortune` wisdom/tech/humor categories + `--category`/`--list-categories` (FORT-V2-01); `roast --language` programming-ecosystem buckets (ROST-V2-01) — shared `.gitattributes` per-bucket eol=lf reorg. [wave 1]
-- [ ] 10-03-PLAN.md — `pomodoro` opt-in `--cycles`/`--loop` auto-cycle + long-break cadence + session counter + `--label` (POMO-V2-01); `--sound` Win32 `MessageBeep` (POMO-V2-02) — one `windows 0.61` feature add, display-only (no `--json`). [wave 1]
-- [ ] 10-04-PLAN.md — system foundation: D-13 nested-table config migration (`[hash] default_algo`, `[weather] location`/`units`) + hash consumer + config-ready weather `Units`; new best-effort `core::cache` (hashed key, TTL, miss-tolerant) (WTHR-V2-01 enabling). [wave 1]
+- [x] 10-01-PLAN.md — fun visuals: `cowsay` figure roster + `--figure`/`--list-figures`/`--think` (COW-V2-01); `8ball` ASCII art + `is_color_on()`-gated sentiment color + `sentiment` JSON (8BAL-V2-01). [wave 1]
+- [x] 10-02-PLAN.md — fun corpora: `fortune` wisdom/tech/humor categories + `--category`/`--list-categories` (FORT-V2-01); `roast --language` programming-ecosystem buckets (ROST-V2-01) — shared `.gitattributes` per-bucket eol=lf reorg. [wave 1]
+- [x] 10-03-PLAN.md — `pomodoro` opt-in `--cycles`/`--loop` auto-cycle + long-break cadence + session counter + `--label` (POMO-V2-01); `--sound` Win32 `MessageBeep` (POMO-V2-02) — one `windows 0.61` feature add, display-only (no `--json`). [wave 1]
+- [x] 10-04-PLAN.md — system foundation: D-13 nested-table config migration (`[hash] default_algo`, `[weather] location`/`units`) + hash consumer + config-ready weather `Units`; new best-effort `core::cache` (hashed key, TTL, miss-tolerant) (WTHR-V2-01 enabling). [wave 1]
 
 **Wave 2** *(depends on 10-04's nested config + cache module)*
 
@@ -220,7 +220,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Spine Rollout | v2.0 | 3/3 | Complete   | 2026-06-25 |
 | 8. Filesystem Depth | v2.0 | 6/6 | In Progress|  |
 | 9. Dev-Transform & Visual Depth | v2.0 | 3/3 | Complete   | 2026-07-14 |
-| 10. Fun & System Depth | v2.0 | 0/5 | Not started | - |
+| 10. Fun & System Depth | v2.0 | 4/5 | In Progress|  |
 | 11. Meta-Commands | v2.0 | 0/2 | Not started | - |
 
 ---
