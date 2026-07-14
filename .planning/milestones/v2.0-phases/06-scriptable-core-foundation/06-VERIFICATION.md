@@ -1,9 +1,10 @@
 ---
 phase: 06-scriptable-core-foundation
 verified: 2026-06-25T00:00:00Z
-status: human_needed
+status: verified
 score: 4/4 must-haves verified
 overrides_applied: 0
+human_verification_completed: 2026-07-14T20:47:27Z  # all 3 items verified live via /gsd-verify-work — see 06-HUMAN-UAT.md
 human_verification:
   - test: "Run `box uuid --clip` in a PowerShell 7 TTY and confirm the UUID is printed to stdout, the clipboard contains the same UUID, and 'Copied to clipboard' appears on stderr."
     expected: "UUID printed; clipboard value equals printed UUID; 'Copied to clipboard' on stderr."
@@ -19,9 +20,9 @@ human_verification:
 # Phase 6: Scriptable-Core Foundation Verification Report
 
 **Phase Goal:** Build the whole shared scriptable spine (`--json`, `--clip`, config-file defaults) and prove it end-to-end on `uuid` and `hash`, co-shipping the BLAKE3-default breaking change with its config escape hatch — so an architecture flaw costs 2 commands of rework, not 23.
-**Verified:** 2026-06-25
-**Status:** human_needed
-**Re-verification:** No — initial verification
+**Verified:** 2026-06-25 (automated) · 2026-07-14 (human items closed)
+**Status:** verified — all 3 human-verification items confirmed live 2026-07-14 (see [Human Verification Required](#human-verification-required))
+**Re-verification:** No — initial verification; human portion closed 2026-07-14 via /gsd-verify-work
 
 ---
 
@@ -32,7 +33,7 @@ human_verification:
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
 | 1 | `box uuid --json \| ConvertFrom-Json` yields one well-formed JSON document with snake_case fields, no BOM, no ANSI, no progress chrome | VERIFIED | `tests/uuid.rs::json_purity` passes: parses with `serde_json::from_slice` on full stdout buffer (one-value guarantee), asserts `.results[0].version == "v4"`, `.count == 1`, 36-char UUID, no `0x1B`, no `EF BB BF` prefix. Code: `emit_json` in `src/core/output.rs` uses `serde_json::to_writer_pretty` (no BOM), `init_output` forces `owo_colors::set_override(false)` before dispatch. |
-| 2 | `box uuid --clip` copies AND prints; `--json --clip` puts JSON on clipboard; confirmation on stderr suppressed when not TTY | VERIFIED (code) / HUMAN NEEDED (live) | Code: `out_line` tees `CLIP_BUF` under `CLIP_ON` (unit test `out_line_tees` passes); `emit_json` tees the serialized doc under `CLIP_ON`; `flush_clip` calls `arboard::Clipboard::new().set_text(...)` then `eprintln!("Copied to clipboard")` gated on `std::io::stderr().is_terminal()`. `#[ignore]`d `clip_roundtrip` test exists. Live clipboard round-trip requires human verification. |
+| 2 | `box uuid --clip` copies AND prints; `--json --clip` puts JSON on clipboard; confirmation on stderr suppressed when not TTY | VERIFIED (code + live) | Code: `out_line` tees `CLIP_BUF` under `CLIP_ON` (unit test `out_line_tees` passes); `emit_json` tees the serialized doc under `CLIP_ON`; `flush_clip` calls `arboard::Clipboard::new().set_text(...)` then `eprintln!("Copied to clipboard")` gated on `std::io::stderr().is_terminal()`. **Live-confirmed 2026-07-14:** `box uuid --clip` stdout == `Get-Clipboard` byte-for-byte; `--json --clip` put the full `{results,count}` JSON doc (not the bare UUID) on the clipboard; `box uuid --clip 2>log.txt` produced a 0-byte log.txt (confirmation suppressed off-TTY). See 06-HUMAN-UAT.md. |
 | 3 | `box hash file` (no `--algo`) emits 64-hex BLAKE3 digest; `--algo sha256` still emits SHA-256 | VERIFIED | `tests/hash.rs::default_is_blake3` passes. Source: `hash/mod.rs` line 253–260: `cli_algo.or_else(|| env).or(config().default_hash_algo).unwrap_or(Algo::Blake3)`. `tests/hash.rs::hash_verify_autodetect` passes UNCHANGED confirming `algo_from_len` at 64→sha256 is byte-for-byte untouched. |
 | 4 | Config `default_hash_algo = "sha256"` makes `box hash` emit SHA-256; CLI `--algo blake3` still wins; missing/malformed config never errors normal `box uuid` | VERIFIED | `tests/config.rs::hash_default_override` passes (config restores SHA-256, CLI blake3 beats config). `tests/config.rs::missing_is_silent` passes (no error, uuid exits 0, stderr empty). `tests/config.rs::malformed_exit2` passes (bogus key → exit 2, `error:` on stderr, stdout empty). |
 
@@ -107,7 +108,7 @@ No conventional `scripts/*/tests/probe-*.sh` probes exist for this phase. The PL
 | Requirement | Source Plan | Description | Status | Evidence |
 |-------------|------------|-------------|--------|----------|
 | SPINE-01 | 06-01 + 06-02 | `--json` emits one well-formed JSON document, snake_case, no BOM/ANSI | SATISFIED | `json_purity` (uuid) + `json_shape` (hash) both pass; `emit_json` implements the contract; REQUIREMENTS.md marks Complete |
-| SPINE-03 | 06-01 + 06-02 | `--clip` copies primary result, prints it, confirmation on stderr TTY-gated | SATISFIED (code) / HUMAN NEEDED (live) | `out_line` tees, `flush_clip` writes arboard + stderr confirmation; `clip_roundtrip` exists as #[ignore]d test; REQUIREMENTS.md marks Complete |
+| SPINE-03 | 06-01 + 06-02 | `--clip` copies primary result, prints it, confirmation on stderr TTY-gated | SATISFIED (code + live) | `out_line` tees, `flush_clip` writes arboard + stderr confirmation; `clip_roundtrip` exists as #[ignore]d test; REQUIREMENTS.md marks Complete. Live-confirmed 2026-07-14 (see 06-HUMAN-UAT.md). |
 | SPINE-05 | 06-01 | CLI > env > config > builtin precedence; missing config silent; malformed exits 2 | SATISFIED | `precedence_matrix` unit test passes; `missing_is_silent` + `malformed_exit2` integration tests pass; REQUIREMENTS.md marks Complete |
 | HASH-V2-01 | 06-02 | BLAKE3 compute default; `--verify` length table UNCHANGED; D-05 probe | SATISFIED | `default_is_blake3` passes; `hash_verify_autodetect` passes UNCHANGED; `verify_blake3_probe_hint` passes; `hash_default_override` proves config escape hatch; REQUIREMENTS.md marks Complete |
 
@@ -126,6 +127,8 @@ A targeted scan was run on all files modified by this phase.
 ---
 
 ### Human Verification Required
+
+> **✅ RESOLVED 2026-07-14** — all 3 items below were driven live via `/gsd-verify-work` against the built `box` binary and passed. Phase status advanced `human_needed → verified`. Details recorded in `06-HUMAN-UAT.md` (`verified:` notes). The items are retained below for provenance.
 
 #### 1. Live clipboard write: `box uuid --clip`
 
@@ -149,9 +152,9 @@ A targeted scan was run on all files modified by this phase.
 
 ### Gaps Summary
 
-No gaps were found. All 4 observable truths are VERIFIED in the codebase. The 3 human verification items are for live-clipboard behavior that the codebase correctly implements but that cannot be exercised in a headless test environment by design (the `#[ignore]` pattern is the documented convention for this project, mirroring `tests/clip.rs`).
+No gaps were found. All 4 observable truths are VERIFIED in the codebase. The 3 human verification items (live-clipboard behavior, `#[ignore]`d by design for headless CI) were **confirmed live 2026-07-14** via `/gsd-verify-work` — phase status advanced `human_needed → verified`. No outstanding items.
 
 ---
 
-*Verified: 2026-06-25*
-*Verifier: Claude (gsd-verifier)*
+*Verified: 2026-06-25 (automated) · human items closed 2026-07-14*
+*Verifier: Claude (gsd-verifier); human-item closure: Claude (/gsd-verify-work)*

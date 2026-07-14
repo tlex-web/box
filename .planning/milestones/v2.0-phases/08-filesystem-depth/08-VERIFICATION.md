@@ -1,9 +1,10 @@
 ---
 phase: 08-filesystem-depth
 verified: 2026-06-28T12:00:00Z
-status: human_needed
+status: verified
 score: 5/5 must-haves verified
 overrides_applied: 0
+human_verification_completed: 2026-07-14T21:45:56Z  # both items closed via /gsd-verify-work — du --on-disk driven live (compressed file), progress bar human-confirmed on a 12-DLL hash. See 08-HUMAN-UAT.md
 human_verification:
   - test: "Run `box hash` with a list of 10+ files and confirm the stderr progress bar appears, then run the same command with `--json` and confirm the bar is absent and stdout contains only valid JSON"
     expected: "Progress bar on stderr for large batches; clean JSON document (no 0x1B) under --json"
@@ -16,9 +17,9 @@ human_verification:
 # Phase 8: Filesystem Depth Verification Report
 
 **Phase Goal:** Land the deferred filesystem depth flags now that every command already has its `--json` output struct — including the three destructive flags, each isolated to its own plan with mandatory adversarial code review.
-**Verified:** 2026-06-28
-**Status:** human_needed
-**Re-verification:** No — initial verification
+**Verified:** 2026-06-28 (automated) · 2026-07-14 (human items closed)
+**Status:** verified — both human items confirmed 2026-07-14 (du --on-disk driven live on a `compact /c` file: 1,052,672 vs 8,404,992; large-batch stderr progress bar human-confirmed rendering on a 12-DLL hash). See 08-HUMAN-UAT.md.
+**Re-verification:** No — initial verification; human portion closed 2026-07-14 via /gsd-verify-work
 
 ---
 
