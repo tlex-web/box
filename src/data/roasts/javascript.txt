@@ -1,0 +1,15 @@
+Your node_modules folder has its own gravitational field.
+You compared with double equals and JavaScript said sure, why not.
+Your app broke because undefined is not a function, again.
+You learned a framework this morning and it was legacy by lunch.
+You have no idea what this refers to, and neither does the runtime.
+Your callback pyramid is visible from space.
+You added a package to pad a string and the whole internet noticed.
+NaN is not equal to NaN, and somehow that is your problem now.
+Your bundle is nine megabytes to render a single button.
+You fixed the type error by adding any and calling it a day.
+Your promise never resolved, and neither did your feelings about it.
+You deleted node_modules and reinstalled hope.
+Hoisting moved your bug somewhere you will never find it.
+Your semicolons are optional, and so, apparently, is your sleep.
+You wrote isNaN, isFinite, and still trust neither of them.

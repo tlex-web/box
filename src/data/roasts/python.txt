@@ -1,0 +1,15 @@
+You have four virtual environments and none of them work.
+Your indentation error took down production for twenty minutes.
+You import the whole library just to use one function.
+Your requirements.txt is a museum of versions that no longer exist.
+You fought the GIL, and the GIL won.
+You spelled it self in every method and still forgot it once.
+Your type hints are decorative; mypy gave up on you months ago.
+You pip installed globally and now nothing on the machine agrees.
+Your list comprehension is nested so deep it needs a sherpa.
+You mixed tabs and spaces and summoned an ancient error.
+Your script works in the notebook and nowhere else on Earth.
+You added an __init__.py and prayed the imports would resolve.
+You wrote a one-line lambda that no human will ever read again.
+Your dependency tree pulled in half of PyPI to print hello world.
+You called it duck typing right up until it quacked a TypeError.

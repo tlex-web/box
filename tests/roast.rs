@@ -16,17 +16,22 @@ use std::collections::HashSet;
 
 use assert_cmd::Command;
 
-/// The bundled roast asset, parsed the same way the command does. Membership is
-/// asserted against THIS so the test and the binary share one source of truth.
-const ROASTS_RAW: &str = include_str!("../src/data/roasts.txt");
+/// The bundled roast asset. Bare `box roast` draws from the `general` default bucket
+/// (D-01) — the byte-for-byte v1 corpus — so membership is asserted against that
+/// bucket, keeping the test and the binary on one source of truth.
+const GENERAL_RAW: &str = include_str!("../src/data/roasts/general.txt");
 
 /// Parse the embedded list into trimmed, non-empty entries (mirrors the loader).
-fn entries() -> Vec<&'static str> {
-    ROASTS_RAW
-        .lines()
+fn parse(raw: &'static str) -> Vec<&'static str> {
+    raw.lines()
         .map(str::trim)
         .filter(|l| !l.is_empty())
         .collect()
+}
+
+/// The bare-`roast` draw pool = the general default bucket.
+fn entries() -> Vec<&'static str> {
+    parse(GENERAL_RAW)
 }
 
 /// Run `box roast` with NO_COLOR, assert exit 0 + empty stderr, return stdout.
@@ -137,5 +142,101 @@ fn json_purity() {
         &out.stdout[..3.min(out.stdout.len())],
         b"\xEF\xBB\xBF",
         "no UTF-8 BOM"
+    );
+}
+
+// --- Programming-language buckets (ROST-V2-01) -----------------------------------
+//
+// `box roast` gains a `--language <general|python|javascript|rust>` filter selecting
+// a DEV ecosystem (roasts stay English — D-01), and a `language` scalar in the
+// `--json` document. Bare `box roast` resolves to the `general` default bucket
+// (today's behavior). An unknown `--language` is a clap usage error (exit 2) whose
+// message lists the valid languages. Behavioral (binary-boundary) assertions.
+
+/// The canonical language taxonomy (D-01), asserted against the CLI surface.
+const LANGUAGES: [&str; 4] = ["general", "python", "javascript", "rust"];
+
+/// Capture raw `Output` of `box roast` with the given extra args + NO_COLOR.
+fn roast_with(args: &[&str]) -> std::process::Output {
+    let mut cmd = Command::cargo_bin("box").unwrap();
+    cmd.arg("roast");
+    for a in args {
+        cmd.arg(a);
+    }
+    cmd.env("NO_COLOR", "1").output().expect("run box roast")
+}
+
+/// `box roast --language python --json` reports `.language == "python"` and exits 0.
+#[test]
+fn language_filter_reports_that_language_in_json() {
+    let out = roast_with(&["--language", "python", "--json"]);
+    assert!(
+        out.status.success(),
+        "--language python --json should exit 0; stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be one JSON value");
+    assert_eq!(
+        v.get("language").and_then(|l| l.as_str()),
+        Some("python"),
+        "`.language` must be \"python\" when filtered to python"
+    );
+}
+
+/// Bare `box roast --json` resolves to the `general` default bucket (D-01) — the
+/// `language` field is present and concrete, never null / absent.
+#[test]
+fn bare_json_reports_general_language() {
+    let out = roast_with(&["--json"]);
+    assert!(out.status.success(), "roast --json should exit 0");
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be one JSON value");
+    assert_eq!(
+        v.get("language").and_then(|l| l.as_str()),
+        Some("general"),
+        "bare `.language` must resolve to \"general\""
+    );
+}
+
+/// An unknown `--language` value is a clap usage error: exit 2, and stderr lists the
+/// available languages.
+#[test]
+fn unknown_language_exits_2_and_lists_valid_values() {
+    let out = roast_with(&["--language", "klingon"]);
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "unknown --language must exit 2; stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    for l in LANGUAGES {
+        assert!(
+            stderr.contains(l),
+            "unknown --language stderr must list {l:?}; got: {stderr}"
+        );
+    }
+}
+
+/// A `--language`-filtered draw is a member of THAT bucket's file (the split is
+/// real: each bucket embeds its own asset), and the reported `.language` matches.
+#[test]
+fn language_filter_draws_from_that_bucket() {
+    const PYTHON_RAW: &str = include_str!("../src/data/roasts/python.txt");
+    let python: HashSet<&str> = parse(PYTHON_RAW).into_iter().collect();
+    let out = roast_with(&["--language", "python", "--json"]);
+    assert!(out.status.success(), "--language python --json exit 0");
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("one JSON value");
+    let text = v.get("text").and_then(|t| t.as_str()).expect("text string");
+    assert_eq!(
+        v.get("language").and_then(|l| l.as_str()),
+        Some("python"),
+        "`.language` must be python"
+    );
+    assert!(
+        python.contains(text),
+        "python draw {text:?} must be a member of python.txt"
     );
 }

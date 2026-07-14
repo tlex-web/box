@@ -1,0 +1,26 @@
+Code is read far more often than it is written, so write for the reader.
+Premature optimization spends today's clarity on tomorrow's maybe.
+The best error message is the one that never has to appear.
+A comment that merely repeats the code will lie to you someday.
+Every dependency you add is a promise you agree to maintain.
+Delete code with the same joy you felt writing it.
+Names are the cheapest documentation you will ever write.
+If it is hard to test, the design is trying to tell you something.
+Make it work, make it right, and only then ask if it must be fast.
+A bug you can reproduce is a bug half fixed.
+The computer does exactly what you said, not what you meant.
+Simple is not the same as easy, and it usually costs more up front.
+Cache what is expensive, not merely what is convenient.
+Logs that nobody reads are just slower comments.
+A green test suite is a promise, not a proof.
+The fastest code is the code that never has to run.
+Version control is a time machine you will thank yourself for.
+Every abstraction leaks; choose the leaks you can live with.
+The two hardest problems are naming, caching, and off-by-one errors.
+Automate any task you have done by hand three times.
+Readable code is a gift to the stranger who is future you.
+When in doubt, print it out and read what the machine believes.
+A rewrite always looks cheaper from the outside than from within.
+Ship small, ship often, and keep the rollback close at hand.
+Yesterday's clever hack is tomorrow's mysterious outage.
+A test that never fails is a test that never checked anything.

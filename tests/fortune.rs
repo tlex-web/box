@@ -16,18 +16,27 @@ use std::collections::HashSet;
 
 use assert_cmd::Command;
 
-/// The bundled fortune asset, parsed the same way the command does (non-empty
-/// trimmed lines). Membership is asserted against THIS so the test and the
-/// binary share one source of truth.
-const FORTUNES_RAW: &str = include_str!("../src/data/fortunes.txt");
+/// The bundled fortune assets, now split into per-category buckets (FORT-V2-01).
+/// Membership is asserted against the UNION of these so the test and the binary
+/// share one source of truth (bare `box fortune` draws from the same union).
+const WISDOM_RAW: &str = include_str!("../src/data/fortunes/wisdom.txt");
+const TECH_RAW: &str = include_str!("../src/data/fortunes/tech.txt");
+const HUMOR_RAW: &str = include_str!("../src/data/fortunes/humor.txt");
 
-/// Parse the embedded list into trimmed, non-empty entries (mirrors the loader).
-fn entries() -> Vec<&'static str> {
-    FORTUNES_RAW
-        .lines()
+/// Parse one bucket into trimmed, non-empty entries (mirrors the loader).
+fn parse(raw: &'static str) -> Vec<&'static str> {
+    raw.lines()
         .map(str::trim)
         .filter(|l| !l.is_empty())
         .collect()
+}
+
+/// The union of every bucket — the bare-`fortune` draw pool.
+fn entries() -> Vec<&'static str> {
+    let mut v = parse(WISDOM_RAW);
+    v.extend(parse(TECH_RAW));
+    v.extend(parse(HUMOR_RAW));
+    v
 }
 
 /// Run `box fortune` with NO_COLOR, assert exit 0 + empty stderr, return the
@@ -148,5 +157,135 @@ fn json_purity() {
         &out.stdout[..3.min(out.stdout.len())],
         b"\xEF\xBB\xBF",
         "no UTF-8 BOM"
+    );
+}
+
+// --- Category taxonomy (FORT-V2-01) ----------------------------------------------
+//
+// `box fortune` gains a `--category <wisdom|tech|humor>` filter, a
+// `--list-categories` fast-exit enumerator, and a `category` scalar in the `--json`
+// document. Bare `box fortune` still unions all buckets (today's behavior). An
+// unknown `--category` is a clap usage error (exit 2) whose message lists the valid
+// categories. These are behavioral (binary-boundary) assertions.
+
+/// The canonical category taxonomy (D-04), asserted against the CLI surface.
+const CATEGORIES: [&str; 3] = ["wisdom", "tech", "humor"];
+
+/// Capture raw `Output` of `box fortune` with the given extra args + NO_COLOR.
+fn fortune_with(args: &[&str]) -> std::process::Output {
+    let mut cmd = Command::cargo_bin("box").unwrap();
+    cmd.arg("fortune");
+    for a in args {
+        cmd.arg(a);
+    }
+    cmd.env("NO_COLOR", "1").output().expect("run box fortune")
+}
+
+/// `box fortune --list-categories` prints exactly the three category names (one per
+/// line), exits 0, and draws no aphorism.
+#[test]
+fn list_categories_prints_the_three_names() {
+    let out = fortune_with(&["--list-categories"]);
+    assert!(
+        out.status.success(),
+        "--list-categories should exit 0, got {:?}; stderr: {}",
+        out.status.code(),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    let lines: Vec<String> = stdout
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(str::to_string)
+        .collect();
+    assert_eq!(
+        lines.len(),
+        3,
+        "--list-categories must print exactly 3 lines, got {lines:?}"
+    );
+    let got: HashSet<&str> = lines.iter().map(String::as_str).collect();
+    for c in CATEGORIES {
+        assert!(
+            got.contains(c),
+            "--list-categories must include {c:?}: {lines:?}"
+        );
+    }
+}
+
+/// `box fortune --category tech --json` reports `.category == "tech"` and exits 0.
+#[test]
+fn category_filter_reports_that_category_in_json() {
+    let out = fortune_with(&["--category", "tech", "--json"]);
+    assert!(
+        out.status.success(),
+        "--category tech --json should exit 0; stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be one JSON value");
+    assert_eq!(
+        v.get("category").and_then(|c| c.as_str()),
+        Some("tech"),
+        "`.category` must be \"tech\" when filtered to tech"
+    );
+}
+
+/// Bare `box fortune --json` still carries a CONCRETE `category` naming the drawn
+/// entry's bucket (never null / absent), even on the all-categories union path.
+#[test]
+fn bare_json_reports_a_concrete_category() {
+    let out = fortune_with(&["--json"]);
+    assert!(out.status.success(), "fortune --json should exit 0");
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be one JSON value");
+    let cat = v
+        .get("category")
+        .and_then(|c| c.as_str())
+        .expect("`.category` must be a concrete string on the bare path");
+    assert!(
+        CATEGORIES.contains(&cat),
+        "`.category` {cat:?} must be one of {CATEGORIES:?}"
+    );
+}
+
+/// An unknown `--category` value is a clap usage error: exit 2, and stderr lists
+/// the valid categories.
+#[test]
+fn unknown_category_exits_2_and_lists_valid_values() {
+    let out = fortune_with(&["--category", "bogus"]);
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "unknown --category must exit 2; stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    for c in CATEGORIES {
+        assert!(
+            stderr.contains(c),
+            "unknown --category stderr must list {c:?}; got: {stderr}"
+        );
+    }
+}
+
+/// A `--category`-filtered draw is a member of THAT bucket's file (the split is
+/// real: each bucket embeds its own asset), and the reported `.category` matches.
+#[test]
+fn category_filter_draws_from_that_bucket() {
+    let tech: HashSet<&str> = parse(TECH_RAW).into_iter().collect();
+    let out = fortune_with(&["--category", "tech", "--json"]);
+    assert!(out.status.success(), "--category tech --json exit 0");
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("one JSON value");
+    let text = v.get("text").and_then(|t| t.as_str()).expect("text string");
+    assert_eq!(
+        v.get("category").and_then(|c| c.as_str()),
+        Some("tech"),
+        "`.category` must be tech"
+    );
+    assert!(
+        tech.contains(text),
+        "tech draw {text:?} must be a member of tech.txt"
     );
 }
