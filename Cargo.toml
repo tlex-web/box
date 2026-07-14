@@ -70,12 +70,14 @@ strip-ansi-escapes = "0.2"
 # decoder set to exactly the two formats ASCI-01 needs (RESEARCH A2) — verified to
 # resolve the full open→resize_exact→to_luma8 pipeline (fixture generator + build).
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
-# qr (QR-01 / D-01/D-02). `default-features = false` drops qrcode's default
-# ["image","svg","pic"] pull-in (this phase renders to the terminal, never an
-# image file — `--save` is VIS-V2-01, out of scope). The
-# `render::unicode::Dense1x2` half-block path is ALWAYS available with no feature
-# (RESEARCH A2). qr2term REJECTED (D-01 — always emits ANSI, polarity in bg color).
-qrcode = { version = "0.14.1", default-features = false }
+# qr (QR-01 + QR-V2-01 / D-01/D-02). `default-features = false` drops qrcode's
+# default `pic` pull-in; `["image", "svg"]` are RE-ENABLED for `qr --save` PNG/SVG
+# (QR-V2-01): the `image` feature unifies with the already-present `image 0.25.10`
+# (one build, no new transitive tree), and `svg` is a zero-dependency String
+# builder — do NOT hand-roll a rasterizer (RESEARCH-locked). The
+# `render::unicode::Dense1x2` half-block path stays available for the terminal
+# render. qr2term REJECTED (D-01 — always emits ANSI, polarity in bg color).
+qrcode = { version = "0.14.1", default-features = false, features = ["image", "svg"] }
 # clip (CLIP-01 / D-06). `default-features = false` drops arboard's default
 # `image-data` feature so it does NOT pull image/png/bmp + the extra
 # windows-sys image deps — binary/image clipboard is Out of Scope (text only

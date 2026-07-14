@@ -58,7 +58,7 @@
 use std::io::Write;
 use std::time::Duration;
 
-use clap::Args;
+use clap::{Args, ValueEnum};
 use crossterm::cursor;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::style::Print;
@@ -71,6 +71,7 @@ use rand::seq::IndexedRandom;
 use rand::Rng;
 
 use crate::commands::RunCommand;
+use crate::core::output::is_color_on;
 
 /// First halfwidth-katakana code point used by the rain (U+FF66, `ｦ`).
 const KATAKANA_START: u32 = 0xFF66;
@@ -86,11 +87,15 @@ const SPEED_MIN: i32 = 1;
 /// Maximum per-column fall speed (rows advanced per frame). Discretion (D-08).
 const SPEED_MAX: i32 = 2;
 
-/// The bright head-cell green (D-08): near-white green so the leading glyph pops.
-const HEAD_RGB: (u8, u8, u8) = (180, 255, 180);
-/// The brightest trail green (just behind the head). Fades toward [`FADE_DARK`].
+/// The value of an ACTIVE head channel (D-08 / MTRX-V2-01): full brightness so the
+/// leading glyph pops. Inactive channels get [`HEAD_OFF`], giving the near-white
+/// tint (the green preset's head is `(180, 255, 180)`, preserving the v1 look).
+const HEAD_ON: u8 = 255;
+/// The value of an INACTIVE head channel — the near-white tint on the head cell.
+const HEAD_OFF: u8 = 180;
+/// The brightest trail level (just behind the head). Fades toward [`FADE_DARK`].
 const FADE_BRIGHT: u8 = 255;
-/// The darkest trail green (at the tail). The cell past the tail is erased.
+/// The darkest trail level (at the tail). The cell past the tail is erased.
 const FADE_DARK: u8 = 40;
 
 /// `box matrix` — a full-terminal green digital-rain screensaver (MTRX-01).
@@ -99,13 +104,65 @@ const FADE_DARK: u8 = 40;
 /// at ~20 FPS. Press Ctrl+C, q, or Esc to exit — the cursor and terminal are
 /// restored cleanly with no leftover artifacts.
 ///
-/// FONT NOTE: the rain uses halfwidth katakana (U+FF66–U+FF9D), which require a
-/// CJK-capable font. On the bare default PowerShell 7 font (Cascadia Mono) the
-/// glyphs show as tofu boxes (□) — this is a known cosmetic font limitation, not
-/// a bug. For authentic glyphs, switch to a CJK-capable font (e.g. Cascadia Next
-/// JP). There are no charset/speed/color flags in this version.
+/// FONT NOTE: the rain uses halfwidth katakana (U+FF66–U+FF9D) by default, which
+/// require a CJK-capable font. On the bare default PowerShell 7 font (Cascadia
+/// Mono) the glyphs show as tofu boxes (□) — this is a known cosmetic font
+/// limitation, not a bug. For authentic glyphs, switch to a CJK-capable font (e.g.
+/// Cascadia Next JP), or pass `--charset ascii`/`binary`/`digits` for a font-safe
+/// glyph set. `--color` and `--speed` select display presets (MTRX-V2-01).
 #[derive(Debug, Args)]
-pub struct MatrixArgs {}
+pub struct MatrixArgs {
+    /// Rain color preset (MTRX-V2-01). Maps to a head/trail RGB; color is only
+    /// emitted when color is enabled (a piped/`NO_COLOR` run stays plain).
+    #[arg(long, value_enum, default_value_t = MatrixColor::Green)]
+    pub color: MatrixColor,
+
+    /// Fall-speed preset (MTRX-V2-01): the frame/poll interval and the per-column
+    /// speed range. `normal` reproduces the v1 cadence.
+    #[arg(long, value_enum, default_value_t = Speed::Normal)]
+    pub speed: Speed,
+
+    /// Glyph set (MTRX-V2-01): a preset name (`katakana` [default] / `ascii` /
+    /// `binary` / `digits`) OR any literal string, whose characters become the
+    /// rain glyphs.
+    #[arg(long, default_value = "katakana")]
+    pub charset: String,
+}
+
+/// The `--color` rain presets (MTRX-V2-01). Each maps — via [`head_rgb`] /
+/// [`trail_rgb`] — to a head/trail RGB along one color axis; NOT arbitrary hex
+/// (arbitrary-hex matrix color is VIS-V3, deferred). `Green` reproduces the v1
+/// look. Modeled on the `hash::Algo` `pub ValueEnum` style.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum MatrixColor {
+    /// Classic green rain (the v1 default).
+    Green,
+    /// Red rain.
+    Red,
+    /// Blue rain.
+    Blue,
+    /// Cyan rain.
+    Cyan,
+    /// Magenta rain.
+    Magenta,
+    /// Yellow rain.
+    Yellow,
+    /// White rain.
+    White,
+}
+
+/// The `--speed` presets (MTRX-V2-01) → the `event::poll` frame interval (ms) plus
+/// the per-column `speed` range, resolved by [`speed_params`]. `Normal` reproduces
+/// the v1 cadence (50 ms poll, `SPEED_MIN..=SPEED_MAX`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum Speed {
+    /// Slower cadence: a longer frame interval and a single-step fall.
+    Slow,
+    /// The v1 cadence (default).
+    Normal,
+    /// Faster cadence: a shorter frame interval and a quicker fall.
+    Fast,
+}
 
 /// RAII terminal-restore guard (D-10). Constructed the INSTANT raw mode is
 /// enabled — BEFORE the alternate-screen/cursor `execute!` — so it also covers a
@@ -126,6 +183,15 @@ impl Drop for RawGuard {
 
 impl RunCommand for MatrixArgs {
     fn run(self) -> anyhow::Result<()> {
+        // Resolve the display presets ONCE up front (pure, terminal-free). `color`
+        // is Copy; `charset` is consumed into the glyph table below.
+        let MatrixArgs {
+            color,
+            speed,
+            charset,
+        } = self;
+        let (poll_ms, speed_min, speed_max) = speed_params(speed);
+
         enable_raw_mode()?;
         // Arm the guard THE INSTANT raw mode is on, BEFORE any further `?` that
         // could early-return (D-10 / CR-01). If `execute!(EnterAlternateScreen,
@@ -147,18 +213,19 @@ impl RunCommand for MatrixArgs {
 
         let mut rng = rand::rng();
         // One drop per column, each with a randomized negative-staggered start so
-        // the columns don't all begin raining from the top at once.
+        // the columns don't all begin raining from the top at once. The per-column
+        // fall speed is drawn from the `--speed` preset's range.
         let mut drops: Vec<Drop_> = (0..cols)
-            .map(|_| Drop_::new_random(rows, &mut rng))
+            .map(|_| Drop_::new_random(rows, speed_min, speed_max, &mut rng))
             .collect();
-        // The glyph currently shown at each column's head; refreshed each frame so
-        // the leading character flickers/changes as it falls.
-        let glyphs = katakana_glyphs();
+        // The glyph set for the rain: the `--charset` preset table or the literal
+        // custom string's characters (pure resolution, no terminal needed).
+        let glyphs = resolve_charset(&charset);
 
         loop {
             // 1. Advance every column's head; reset any that cleared bottom+trail.
             for d in drops.iter_mut() {
-                d.step(rows, &mut rng);
+                d.step(rows, speed_min, speed_max, &mut rng);
             }
 
             // 2. Queue the WHOLE frame into the buffered stdout (D-08). For each
@@ -169,24 +236,34 @@ impl RunCommand for MatrixArgs {
                 let x = x as u16;
 
                 // Trail: distance 0 = head (drawn separately, bright); distance
-                // `trail_len` = tail. Green fades FADE_BRIGHT→FADE_DARK by distance.
+                // `trail_len` = tail. The trail level fades FADE_BRIGHT→FADE_DARK by
+                // distance; `--color` maps that level onto the preset's color axis.
                 for dist in 1..=d.trail_len {
                     let y = d.head - dist;
                     if y >= 0 && y < rows {
-                        let g = fade(dist, d.trail_len);
+                        let level = fade(dist, d.trail_len);
                         let glyph = glyphs.choose(&mut rng).copied().unwrap_or('ﾝ');
-                        queue!(out, MoveTo(x, y as u16), Print(glyph.truecolor(0, g, 0)))?;
+                        // is_color_on() is the SOLE color gate (SC4): a piped /
+                        // NO_COLOR / redirected run emits the plain glyph, so its
+                        // bytes carry no ANSI escape.
+                        if is_color_on() {
+                            let (r, g, b) = trail_rgb(color, level);
+                            queue!(out, MoveTo(x, y as u16), Print(glyph.truecolor(r, g, b)))?;
+                        } else {
+                            queue!(out, MoveTo(x, y as u16), Print(glyph))?;
+                        }
                     }
                 }
 
-                // Head: the brightest cell, a fresh random katakana glyph.
+                // Head: the brightest cell, a fresh random glyph.
                 if d.head >= 0 && d.head < rows {
                     let glyph = glyphs.choose(&mut rng).copied().unwrap_or('ﾝ');
-                    queue!(
-                        out,
-                        MoveTo(x, d.head as u16),
-                        Print(glyph.truecolor(HEAD_RGB.0, HEAD_RGB.1, HEAD_RGB.2))
-                    )?;
+                    if is_color_on() {
+                        let (r, g, b) = head_rgb(color);
+                        queue!(out, MoveTo(x, d.head as u16), Print(glyph.truecolor(r, g, b)))?;
+                    } else {
+                        queue!(out, MoveTo(x, d.head as u16), Print(glyph))?;
+                    }
                 }
 
                 // Erase the WHOLE band the tail swept this frame so the trail has
@@ -205,8 +282,9 @@ impl RunCommand for MatrixArgs {
             // 3. Flush EXACTLY ONCE per frame (D-08 — never per character).
             out.flush()?;
 
-            // 4. The 50ms poll IS the ~20-FPS frame timer AND the input gate (D-09).
-            if event::poll(Duration::from_millis(50))? {
+            // 4. The poll IS the frame timer AND the input gate (D-09); the
+            //    interval is the `--speed` preset's cadence (Normal = 50ms/~20 FPS).
+            if event::poll(Duration::from_millis(poll_ms))? {
                 if let Event::Key(key) = event::read()? {
                     // Press-only: Windows fires Press AND Release; filtering here
                     // stops the exit key double-counting (Pitfall 3 / D-10).
@@ -240,10 +318,12 @@ struct Drop_ {
 impl Drop_ {
     /// A fresh drop with a randomized negative-staggered start, trail length, and
     /// speed. The negative start (`-rows..0`) means columns begin at different
-    /// times instead of all at the top edge.
-    fn new_random<R: Rng + ?Sized>(rows: i32, rng: &mut R) -> Self {
+    /// times instead of all at the top edge. `speed_min`/`speed_max` come from the
+    /// `--speed` preset (MTRX-V2-01) so a slower/faster preset draws a
+    /// slower/faster per-column fall.
+    fn new_random<R: Rng + ?Sized>(rows: i32, speed_min: i32, speed_max: i32, rng: &mut R) -> Self {
         let trail_len = rng.random_range(TRAIL_MIN..=TRAIL_MAX);
-        let speed = rng.random_range(SPEED_MIN..=SPEED_MAX);
+        let speed = rng.random_range(speed_min..=speed_max);
         // Start somewhere above the top edge so the heads enter staggered.
         let head = -rng.random_range(0..=rows.max(1));
         Self {
@@ -254,11 +334,12 @@ impl Drop_ {
     }
 
     /// Advance the head by `speed`; once the head has cleared the bottom plus its
-    /// whole trail, reset to a fresh randomized negative start (a new column run).
-    fn step<R: Rng + ?Sized>(&mut self, rows: i32, rng: &mut R) {
+    /// whole trail, reset to a fresh randomized negative start (a new column run)
+    /// drawn from the same `--speed` range.
+    fn step<R: Rng + ?Sized>(&mut self, rows: i32, speed_min: i32, speed_max: i32, rng: &mut R) {
         self.head += self.speed;
         if self.head - self.trail_len > rows {
-            *self = Self::new_random(rows, rng);
+            *self = Self::new_random(rows, speed_min, speed_max, rng);
         }
     }
 }
@@ -309,6 +390,72 @@ fn katakana_glyphs() -> Vec<char> {
         .collect()
 }
 
+/// Which of the (R, G, B) channels are ACTIVE for a `--color` preset (MTRX-V2-01).
+/// The active channels carry the trail level / head brightness; inactive ones are
+/// `0` (trail) or [`HEAD_OFF`] (head). Pure so the whole preset→RGB mapping is
+/// unit-testable without a terminal.
+fn color_axes(color: MatrixColor) -> (bool, bool, bool) {
+    match color {
+        MatrixColor::Green => (false, true, false),
+        MatrixColor::Red => (true, false, false),
+        MatrixColor::Blue => (false, false, true),
+        MatrixColor::Cyan => (false, true, true),
+        MatrixColor::Magenta => (true, false, true),
+        MatrixColor::Yellow => (true, true, false),
+        MatrixColor::White => (true, true, true),
+    }
+}
+
+/// The bright head-cell RGB for a `--color` preset: active channels at [`HEAD_ON`],
+/// inactive channels at [`HEAD_OFF`] (the near-white tint). `Green` yields the v1
+/// `(180, 255, 180)`. Pure.
+fn head_rgb(color: MatrixColor) -> (u8, u8, u8) {
+    let (r, g, b) = color_axes(color);
+    let pick = |on: bool| if on { HEAD_ON } else { HEAD_OFF };
+    (pick(r), pick(g), pick(b))
+}
+
+/// The trail-cell RGB for a `--color` preset at a given fade `level` ([`fade`]):
+/// the active channels carry `level`, inactive channels are `0`. `Green` yields
+/// the v1 `(0, level, 0)`. Pure.
+fn trail_rgb(color: MatrixColor, level: u8) -> (u8, u8, u8) {
+    let (r, g, b) = color_axes(color);
+    let pick = |on: bool| if on { level } else { 0 };
+    (pick(r), pick(g), pick(b))
+}
+
+/// Resolve a `--speed` preset (MTRX-V2-01) to `(poll_ms, speed_min, speed_max)`:
+/// the `event::poll` frame interval and the per-column fall-speed range.
+/// `Normal` reproduces the v1 cadence (50 ms, `SPEED_MIN..=SPEED_MAX`). Pure.
+fn speed_params(speed: Speed) -> (u64, i32, i32) {
+    match speed {
+        Speed::Slow => (80, 1, 1),
+        Speed::Normal => (50, SPEED_MIN, SPEED_MAX),
+        Speed::Fast => (28, 2, 3),
+    }
+}
+
+/// Resolve the `--charset` argument (MTRX-V2-01) to the rain's glyph table: a known
+/// preset name maps to its table, otherwise the literal string's characters become
+/// the glyph set. An empty custom string falls back to the katakana default so the
+/// rain is never glyph-less. Pure so it unit-tests without a terminal.
+fn resolve_charset(spec: &str) -> Vec<char> {
+    match spec {
+        "katakana" => katakana_glyphs(),
+        "ascii" => ('!'..='~').collect(),
+        "binary" => vec!['0', '1'],
+        "digits" => ('0'..='9').collect(),
+        other => {
+            let chars: Vec<char> = other.chars().collect();
+            if chars.is_empty() {
+                katakana_glyphs()
+            } else {
+                chars
+            }
+        }
+    }
+}
+
 /// Quit predicate (D-10), pure so the Press-only + key-set logic is unit-tested
 /// without a terminal: returns true iff the event is a key **Press** AND the
 /// code is `q` or Esc, OR is `c` held with CONTROL (Ctrl+C, which raw mode
@@ -338,7 +485,7 @@ mod tests {
         let mut prev = d.head;
         // Step a handful of times well short of the reset boundary (rows=100).
         for _ in 0..5 {
-            d.step(100, &mut rng);
+            d.step(100, SPEED_MIN, SPEED_MAX, &mut rng);
             assert!(d.head > prev, "head must advance: {} !> {}", d.head, prev);
             prev = d.head;
         }
@@ -355,7 +502,7 @@ mod tests {
             trail_len: 8,
             speed: 5,
         };
-        d.step(rows, &mut rng);
+        d.step(rows, SPEED_MIN, SPEED_MAX, &mut rng);
         assert!(
             d.head <= 0,
             "after clearing bottom+trail the head resets to a negative start, got {}",
@@ -467,6 +614,60 @@ mod tests {
                 "glyph U+{cp:04X} must be single-cell (East-Asian-Width Narrow)"
             );
         }
+    }
+
+    /// MTRX-V2-01 — each `--color` preset resolves to the expected head/trail RGB
+    /// (pure, no terminal). `Green` reproduces the v1 look exactly.
+    #[test]
+    fn color_presets_map_to_expected_rgb() {
+        // Green (the v1 default): head (180,255,180), trail (0, level, 0).
+        assert_eq!(head_rgb(MatrixColor::Green), (180, 255, 180));
+        assert_eq!(trail_rgb(MatrixColor::Green, FADE_BRIGHT), (0, 255, 0));
+        assert_eq!(trail_rgb(MatrixColor::Green, FADE_DARK), (0, 40, 0));
+        // Single-axis presets put the level on exactly their channel.
+        assert_eq!(head_rgb(MatrixColor::Red), (255, 180, 180));
+        assert_eq!(trail_rgb(MatrixColor::Red, 200), (200, 0, 0));
+        assert_eq!(head_rgb(MatrixColor::Blue), (180, 180, 255));
+        assert_eq!(trail_rgb(MatrixColor::Blue, 100), (0, 0, 100));
+        // Two-axis presets light two channels; White lights all three.
+        assert_eq!(trail_rgb(MatrixColor::Cyan, 90), (0, 90, 90));
+        assert_eq!(trail_rgb(MatrixColor::Magenta, 90), (90, 0, 90));
+        assert_eq!(trail_rgb(MatrixColor::Yellow, 90), (90, 90, 0));
+        assert_eq!(head_rgb(MatrixColor::White), (255, 255, 255));
+        assert_eq!(trail_rgb(MatrixColor::White, 77), (77, 77, 77));
+    }
+
+    /// MTRX-V2-01 — each `--speed` level resolves to a deterministic poll interval
+    /// and fall range; faster levels poll sooner. `Normal` is the v1 cadence.
+    #[test]
+    fn speed_presets_map_to_expected_params() {
+        assert_eq!(speed_params(Speed::Normal), (50, SPEED_MIN, SPEED_MAX));
+        let (slow_ms, _, _) = speed_params(Speed::Slow);
+        let (normal_ms, _, _) = speed_params(Speed::Normal);
+        let (fast_ms, fast_min, fast_max) = speed_params(Speed::Fast);
+        assert!(
+            slow_ms > normal_ms && normal_ms > fast_ms,
+            "poll interval must shrink from slow→normal→fast: {slow_ms} {normal_ms} {fast_ms}"
+        );
+        assert!(
+            fast_min <= fast_max && fast_min >= 1,
+            "fast range must be a valid, non-empty range: {fast_min}..={fast_max}"
+        );
+    }
+
+    /// MTRX-V2-01 — `--charset` resolves a preset name to its table and any other
+    /// string to that string's characters (pure). Empty → the katakana fallback.
+    #[test]
+    fn charset_resolves_presets_and_custom_strings() {
+        assert_eq!(resolve_charset("katakana"), katakana_glyphs());
+        assert_eq!(resolve_charset("binary"), vec!['0', '1']);
+        assert_eq!(resolve_charset("digits"), ('0'..='9').collect::<Vec<_>>());
+        let ascii = resolve_charset("ascii");
+        assert!(!ascii.is_empty() && ascii.iter().all(|c| c.is_ascii_graphic()));
+        // A literal custom string becomes its own glyph set (order preserved).
+        assert_eq!(resolve_charset("AB01"), vec!['A', 'B', '0', '1']);
+        // An empty custom string is never glyph-less — it falls back to katakana.
+        assert_eq!(resolve_charset(""), katakana_glyphs());
     }
 
     /// Build a `KeyEvent` for the quit-key tests.

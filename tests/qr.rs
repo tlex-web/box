@@ -11,6 +11,7 @@
 //!     WITHOUT-`NO_COLOR` pipe-path proof from `tests/json.rs::json_piped_no_ansi`.
 
 use assert_cmd::Command;
+use assert_fs::prelude::*;
 
 /// True if `s` contains at least one Unicode half-block glyph (`▀`/`▄`/`█`) —
 /// the proof that the Dense1x2 renderer produced real QR output, not an empty or
@@ -173,6 +174,206 @@ fn json_purity() {
         &out.stdout[..3.min(out.stdout.len())],
         b"\xEF\xBB\xBF",
         "no UTF-8 BOM may prefix --json stdout"
+    );
+}
+
+// --- QR-V2-01 — --save PNG/SVG + --error-correction (Wave-2 depth) -----------
+//
+// The file write is the one new filesystem surface this phase. `assert_fs` gives a
+// scratch TempDir so no test touches a real path. Coverage:
+//   - `save_png_writes_magic`   — --save f.png writes a non-empty PNG (magic bytes),
+//                                 stdout suppresses the glyph block.
+//   - `save_svg_writes_marker`  — --save f.svg writes a non-empty SVG (<svg marker).
+//   - `save_bad_ext_exits_1`    — an unknown extension exits 1 with a .png/.svg hint,
+//                                 no file written, no panic.
+//   - `save_json_orthogonal`    — --save f.png --json writes the file AND emits one
+//                                 metadata doc carrying saved_path (Open-Q1).
+//   - `ec_level_reflected_in_json` — --error-correction H --json → error_correction "H".
+
+/// QR-V2-01 — `box qr <text> --save out.png` writes a non-empty PNG (first bytes
+/// are the PNG magic) and SUPPRESSES the terminal glyph block on stdout (Pitfall 3).
+#[test]
+fn save_png_writes_magic_and_suppresses_glyphs() {
+    let tmp = assert_fs::TempDir::new().expect("tempdir");
+    let png = tmp.child("out.png");
+
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .arg("qr")
+        .arg("https://example.com")
+        .arg("--save")
+        .arg(png.path())
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box qr --save");
+    assert!(out.status.success(), "box qr --save out.png should exit 0");
+
+    // The file exists, is non-empty, and starts with the PNG magic bytes.
+    png.assert(predicates::path::exists());
+    let bytes = std::fs::read(png.path()).expect("read saved png");
+    assert!(!bytes.is_empty(), "saved PNG must be non-empty");
+    assert_eq!(
+        &bytes[..4],
+        &[0x89, b'P', b'N', b'G'],
+        "saved file must be a PNG (magic bytes)"
+    );
+
+    // The glyph block is suppressed under --save (stdout carries no half-block).
+    let stdout = String::from_utf8(out.stdout).expect("stdout is UTF-8");
+    assert!(
+        !has_half_block(&stdout),
+        "--save must suppress the terminal glyph block, got: {stdout:?}"
+    );
+    // The stderr confirmation names the written path.
+    let stderr = String::from_utf8(out.stderr).expect("stderr is UTF-8");
+    assert!(
+        stderr.contains("Saved QR to"),
+        "--save must confirm the write on stderr, got: {stderr:?}"
+    );
+
+    tmp.close().unwrap();
+}
+
+/// QR-V2-01 — `box qr <text> --save out.svg` writes a non-empty SVG document.
+#[test]
+fn save_svg_writes_marker() {
+    let tmp = assert_fs::TempDir::new().expect("tempdir");
+    let svg = tmp.child("out.svg");
+
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .arg("qr")
+        .arg("https://example.com")
+        .arg("--save")
+        .arg(svg.path())
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box qr --save svg");
+    assert!(out.status.success(), "box qr --save out.svg should exit 0");
+
+    svg.assert(predicates::path::exists());
+    let text = std::fs::read_to_string(svg.path()).expect("read saved svg");
+    assert!(!text.is_empty(), "saved SVG must be non-empty");
+    let head = text.trim_start();
+    assert!(
+        head.starts_with("<svg") || head.starts_with("<?xml"),
+        "saved file must be an SVG document: {:?}",
+        &head[..head.len().min(32)]
+    );
+
+    tmp.close().unwrap();
+}
+
+/// T-09-02-SAVE — an unsupported `--save` extension exits 1 with a `.png`/`.svg`
+/// hint, writes no file, and never panics.
+#[test]
+fn save_bad_extension_exits_1() {
+    let tmp = assert_fs::TempDir::new().expect("tempdir");
+    let gif = tmp.child("out.gif");
+
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .arg("qr")
+        .arg("https://example.com")
+        .arg("--save")
+        .arg(gif.path())
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box qr --save gif");
+
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "an unsupported --save extension must exit 1"
+    );
+    let stderr = String::from_utf8(out.stderr).expect("stderr is UTF-8");
+    assert!(
+        stderr.contains(".png") && stderr.contains(".svg"),
+        "the error must hint .png/.svg, got: {stderr:?}"
+    );
+    assert!(
+        !stderr.contains("panicked"),
+        "a bad --save extension must not panic: {stderr:?}"
+    );
+    gif.assert(predicates::path::missing());
+
+    tmp.close().unwrap();
+}
+
+/// QR-V2-01 / Open-Q1 — `--save` and `--json` are ORTHOGONAL: `box qr <text>
+/// --save out.png --json` WRITES the file AND emits exactly one metadata document
+/// carrying `saved_path` (plus the chosen `error_correction`).
+#[test]
+fn save_and_json_are_orthogonal() {
+    let tmp = assert_fs::TempDir::new().expect("tempdir");
+    let png = tmp.child("both.png");
+
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .arg("qr")
+        .arg("https://example.com")
+        .arg("--save")
+        .arg(png.path())
+        .arg("--json")
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box qr --save --json");
+    assert!(out.status.success(), "box qr --save --json should exit 0");
+
+    // The file was written (the action happened despite --json being the mode).
+    png.assert(predicates::path::exists());
+    let bytes = std::fs::read(png.path()).expect("read saved png");
+    assert_eq!(&bytes[..4], &[0x89, b'P', b'N', b'G'], "the PNG must still be written");
+
+    // stdout is exactly one JSON document carrying saved_path.
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    let saved = v
+        .get("saved_path")
+        .and_then(|s| s.as_str())
+        .expect("`.saved_path` must be a string under --save --json");
+    assert!(
+        saved.contains("both.png"),
+        "`.saved_path` must name the written file, got {saved:?}"
+    );
+    // No half-block glyphs leak into the metadata document.
+    let stdout = String::from_utf8(out.stdout).expect("stdout is UTF-8");
+    assert!(
+        !has_half_block(&stdout),
+        "the --json document must not contain glyphs: {stdout:?}"
+    );
+
+    tmp.close().unwrap();
+}
+
+/// QR-V2-01 — `--error-correction` is reflected in the JSON metadata for BOTH the
+/// document (and, by construction, the render): `--error-correction H --json` →
+/// `error_correction == "H"` (the v1 default of `"M"` is verified in json_purity).
+#[test]
+fn ec_level_reflected_in_json() {
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .arg("qr")
+        .arg("https://example.com")
+        .arg("--error-correction")
+        .arg("H")
+        .arg("--json")
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box qr --error-correction H --json");
+    assert!(out.status.success(), "box qr --error-correction H --json should exit 0");
+
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    assert_eq!(
+        v.get("error_correction"),
+        Some(&serde_json::json!("H")),
+        "`.error_correction` must reflect the chosen level"
+    );
+    // saved_path is ABSENT without --save (skip_serializing_if).
+    assert!(
+        v.get("saved_path").is_none(),
+        "`.saved_path` must be absent without --save"
     );
 }
 

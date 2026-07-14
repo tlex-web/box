@@ -47,3 +47,45 @@ fn matrix_starts_and_exits_non_hanging() {
         "box matrix must not panic; stderr was: {stderr}"
     );
 }
+
+/// SC4 / MTRX-V2-01 — the NEW `--color` preset path must be `is_color_on()`-gated:
+/// a redirected (non-TTY) run emits NO truecolor SGR escape, so the rain glyphs are
+/// byte-identical minus color. We run `--color red` (a preset that WOULD emit
+/// `ESC[38;2;255;0;0m` on a real TTY) with piped stdout and assert the 24-bit color
+/// introducer (`ESC[38;2;`) never appears.
+///
+/// NOTE: matrix is a full-screen animation and — being a display-only command that
+/// mutates terminal state — legitimately writes cursor-control ANSI (alternate
+/// screen, `MoveTo`) whenever crossterm believes the output supports ANSI (as a
+/// captured pipe does here). That cursor control is PRE-EXISTING and orthogonal to
+/// color; under a real file redirect crossterm's Windows backend no-ops it. SC4 for
+/// the new colored path is specifically that the *color* stays gated, which this
+/// asserts by scanning for the truecolor sequence rather than any `0x1B`.
+#[test]
+fn matrix_redirected_color_preset_emits_no_color_escape() {
+    let mut cmd = assert_cmd::Command::cargo_bin("box").unwrap();
+    let output = cmd
+        .args(["matrix", "--color", "red"])
+        .write_stdin("q")
+        .timeout(Duration::from_secs(5))
+        .assert()
+        .get_output()
+        .clone();
+
+    // `ESC [ 3 8 ; 2 ;` is the 24-bit-foreground SGR introducer owo-colors emits
+    // for `.truecolor(r, g, b)`. Its absence proves the `--color` preset was gated.
+    const TRUECOLOR_INTRO: &[u8] = b"\x1b[38;2;";
+    assert!(
+        !output
+            .stdout
+            .windows(TRUECOLOR_INTRO.len())
+            .any(|w| w == TRUECOLOR_INTRO),
+        "redirected matrix --color red must emit no truecolor SGR escape (color must be is_color_on()-gated); got {:?}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains("panicked"),
+        "box matrix --color red must not panic; stderr was: {stderr}"
+    );
+}
