@@ -16,18 +16,27 @@ use std::collections::HashSet;
 
 use assert_cmd::Command;
 
-/// The bundled fortune asset, parsed the same way the command does (non-empty
-/// trimmed lines). Membership is asserted against THIS so the test and the
-/// binary share one source of truth.
-const FORTUNES_RAW: &str = include_str!("../src/data/fortunes.txt");
+/// The bundled fortune assets, now split into per-category buckets (FORT-V2-01).
+/// Membership is asserted against the UNION of these so the test and the binary
+/// share one source of truth (bare `box fortune` draws from the same union).
+const WISDOM_RAW: &str = include_str!("../src/data/fortunes/wisdom.txt");
+const TECH_RAW: &str = include_str!("../src/data/fortunes/tech.txt");
+const HUMOR_RAW: &str = include_str!("../src/data/fortunes/humor.txt");
 
-/// Parse the embedded list into trimmed, non-empty entries (mirrors the loader).
-fn entries() -> Vec<&'static str> {
-    FORTUNES_RAW
-        .lines()
+/// Parse one bucket into trimmed, non-empty entries (mirrors the loader).
+fn parse(raw: &'static str) -> Vec<&'static str> {
+    raw.lines()
         .map(str::trim)
         .filter(|l| !l.is_empty())
         .collect()
+}
+
+/// The union of every bucket — the bare-`fortune` draw pool.
+fn entries() -> Vec<&'static str> {
+    let mut v = parse(WISDOM_RAW);
+    v.extend(parse(TECH_RAW));
+    v.extend(parse(HUMOR_RAW));
+    v
 }
 
 /// Run `box fortune` with NO_COLOR, assert exit 0 + empty stderr, return the
@@ -258,4 +267,25 @@ fn unknown_category_exits_2_and_lists_valid_values() {
             "unknown --category stderr must list {c:?}; got: {stderr}"
         );
     }
+}
+
+/// A `--category`-filtered draw is a member of THAT bucket's file (the split is
+/// real: each bucket embeds its own asset), and the reported `.category` matches.
+#[test]
+fn category_filter_draws_from_that_bucket() {
+    let tech: HashSet<&str> = parse(TECH_RAW).into_iter().collect();
+    let out = fortune_with(&["--category", "tech", "--json"]);
+    assert!(out.status.success(), "--category tech --json exit 0");
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("one JSON value");
+    let text = v.get("text").and_then(|t| t.as_str()).expect("text string");
+    assert_eq!(
+        v.get("category").and_then(|c| c.as_str()),
+        Some("tech"),
+        "`.category` must be tech"
+    );
+    assert!(
+        tech.contains(text),
+        "tech draw {text:?} must be a member of tech.txt"
+    );
 }

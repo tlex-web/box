@@ -4,6 +4,8 @@ src/data/eff_large_wordlist.txt text eol=lf
 
 # fortune/roast lists are embedded via include_str! too — same LF lock so no \r
 # leaks into the parsed lines on a CRLF checkout (autocrlf=true). The loaders also
-# trim defensively, but the eol=lf attribute is the root-cause fix.
-src/data/fortunes.txt text eol=lf
-src/data/roasts.txt text eol=lf
+# trim defensively, but the eol=lf attribute is the root-cause fix. The corpora are
+# now split into per-category / per-language buckets under their own dirs, so the
+# glob locks every current and future bucket file (FORT-V2-01 / ROST-V2-01).
+src/data/fortunes/*.txt text eol=lf
+src/data/roasts/*.txt text eol=lf
