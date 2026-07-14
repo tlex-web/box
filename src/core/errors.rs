@@ -29,6 +29,19 @@ pub enum BoxError {
     #[error("unsupported --verify hash length: {len} (expected 32/64/128 hex)")]
     UnsupportedHashLength { len: usize },
 
+    /// A `box cowsay --figure <name>` whose name matches no built-in figure.
+    /// `main()` downcasts this variant and maps it to exit code 2 (a usage error) —
+    /// the invocation named a figure that does not exist, joining
+    /// [`BoxError::MissingInput`] / [`BoxError::UnsupportedHashLength`] in the
+    /// `main()` downcast. The message lists the available figures so the user can
+    /// correct the call. There is NO external `.cow` file lookup (D-02), so an
+    /// unknown name is ALWAYS a usage mistake, never a missing-file runtime error.
+    ///
+    /// Constructed in `commands::cowsay` and downcast-mapped to exit 2 in `main()`.
+    /// Live as of Plan 10-01 (COW-V2-01).
+    #[error("unknown figure '{name}'; available figures: {available}")]
+    UnknownFigure { name: String, available: String },
+
     /// A corrupt/unparseable `%APPDATA%\box\config.toml` (or an unknown key under
     /// `deny_unknown_fields`). Aborts BEFORE the operation runs → exit 2 (D-10),
     /// joining [`BoxError::MissingInput`] / [`BoxError::UnsupportedHashLength`] in
