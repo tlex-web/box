@@ -41,7 +41,7 @@ Each maps to exactly one roadmap phase. REQ-IDs continue the per-command mnemoni
 ### Meta-commands
 
 - [x] **CFG-01**: `box config show | get <key> | set <key> <value> | path` reads, edits, and locates the config-file defaults (`hash.default_algo`, `weather.units`, `weather.location`, `color`, …), with `--json` support.
-- [ ] **CMP-01**: `box completions powershell` emits a static PS7 completion script (tab-complete subcommands, flags, and value hints), generated from the live `Cli`.
+- [x] **CMP-01**: `box completions powershell` emits a static PS7 completion script (tab-complete subcommands, flags, and value hints), generated from the live `Cli`.
 
 ### Hashing depth
 
@@ -154,7 +154,7 @@ Each requirement maps to exactly one roadmap phase (finalized 2026-06-25 by road
 | POMO-V2-02 | 10 | Complete |
 | WTHR-V2-01 | 10 | Complete |
 | CFG-01 | 11 | Complete |
-| CMP-01 | 11 | Pending |
+| CMP-01 | 11 | Complete |
 
 **Coverage:**
 - v2.0 requirements: **34** total

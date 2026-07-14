@@ -44,7 +44,7 @@ Full phase details, decisions, and outcomes archived in [`milestones/v1.0-ROADMA
 - [x] **Phase 9: Dev-Transform & Visual Depth** - Add depth to the dev-transform (`uuid`, `epoch`, `color`, `json`, `passgen`) and visual (`lolcat`, `matrix`, `qr`, `ascii`) commands.
  (completed 2026-07-14)
 - [x] **Phase 10: Fun & System Depth** - Add depth to the fun (`cowsay`, `fortune`, `8ball`, `roast`) and system (`pomodoro`, `weather`) commands. (completed 2026-07-14)
-- [ ] **Phase 11: Meta-Commands** - Ship `box config` and `box completions powershell`, generated against the final, complete arg surface.
+- [x] **Phase 11: Meta-Commands** - Ship `box config` and `box completions powershell`, generated against the final, complete arg surface. (completed 2026-07-14)
 
 ## Phase Details
 
@@ -208,7 +208,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 — shared cli.rs/main.rs/help.trycmd; adds clap_complete)*
 
-- [ ] 11-02-PLAN.md — `box completions <shell>` via `clap_complete` against the final `Cli` (D-09/D-10) + `install.ps1` opt-in `-RegisterCompletions` (D-11) (CMP-01). [wave 2, depends_on 11-01]
+- [x] 11-02-PLAN.md — `box completions <shell>` via `clap_complete` against the final `Cli` (D-09/D-10) + `install.ps1` opt-in `-RegisterCompletions` (D-11) (CMP-01). [wave 2, depends_on 11-01]
 
 ## Progress
 
@@ -227,7 +227,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 8. Filesystem Depth | v2.0 | 6/6 | In Progress|  |
 | 9. Dev-Transform & Visual Depth | v2.0 | 3/3 | Complete   | 2026-07-14 |
 | 10. Fun & System Depth | v2.0 | 6/6 | Complete    | 2026-07-14 |
-| 11. Meta-Commands | v2.0 | 1/2 | In Progress|  |
+| 11. Meta-Commands | v2.0 | 2/2 | Complete   | 2026-07-14 |
 
 ---
 *Roadmap created: 2026-06-22*
