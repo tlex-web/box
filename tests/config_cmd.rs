@@ -18,14 +18,25 @@ use predicates::prelude::*;
 /// SC2 `set hash.default_algo` → `box hash` resolver round-trip.
 const BOX_SHA256: &str = "26f8567f2569182294c3fa5b9f9cb2270b554eef628b4c149cf82a42888ff4ae";
 
+/// Known-answer MD5 digest of `b"box"` (mirrors `hash/mod.rs`'s `BOX_MD5`), used by
+/// the WR-01 env-tier parity round-trip (`BOX_HASH_DEFAULT_ALGO=md5`).
+const BOX_MD5: &str = "34be958a921e43d813a2075297d8e862";
+
 /// Build a `box <args...>` command with an isolated, empty config dir (`APPDATA` →
 /// `appdata`, which has no `box/` subdir unless a test writes one) and plain output.
 /// Takes the FULL arg list so both `config …` and `hash …` (the round-trip) share it.
+///
+/// `BOX_HASH_DEFAULT_ALGO` is explicitly REMOVED from the child env (WR-01): after
+/// the parity fix `config get`/`show` resolve the hash default through the env tier,
+/// so an inherited `BOX_HASH_DEFAULT_ALGO` on the developer's/CI machine would make
+/// the empty-config tests non-deterministic. The `env_tier_parity_*` test re-adds the
+/// var explicitly on its own command (a later `.env(...)` wins over this `.env_remove`).
 fn box_cmd(appdata: &assert_fs::TempDir, args: &[&str]) -> Command {
     let mut cmd = Command::cargo_bin("box").unwrap();
     cmd.args(args);
     cmd.env("NO_COLOR", "1");
     cmd.env("APPDATA", appdata.path());
+    cmd.env_remove("BOX_HASH_DEFAULT_ALGO");
     cmd
 }
 
@@ -253,6 +264,53 @@ fn set_then_hash_roundtrips_sha256() {
         .success()
         .code(0)
         .stdout(predicate::str::contains(row_sha256));
+}
+
+/// WR-01 (D-06 env-tier parity) — with `BOX_HASH_DEFAULT_ALGO=md5` set and an EMPTY
+/// config, `config get hash.default_algo`, `config show --json`.hash.default_algo, and
+/// `box hash <file>` must ALL agree on `md5`: the three are routed through the ONE
+/// shared `hash::effective_default_algo()` (env > config > builtin), so `config`'s
+/// view can never drift from what `box hash` actually consumes. The env var is set
+/// EXPLICITLY on each command (a later `.env(...)` wins over the helper's
+/// `.env_remove(...)`), leaving every other test deterministic.
+#[test]
+fn env_tier_parity_hash_default_algo() {
+    let appdata = assert_fs::TempDir::new().unwrap();
+
+    // `config get` reports the env-tier value (md5), not the config>builtin blake3.
+    box_cmd(&appdata, &["config", "get", "hash.default_algo"])
+        .env("BOX_HASH_DEFAULT_ALGO", "md5")
+        .assert()
+        .success()
+        .code(0)
+        .stdout("md5\n");
+
+    // `config show --json` reports the SAME env-tier value.
+    let out = box_cmd(&appdata, &["config", "show", "--json"])
+        .env("BOX_HASH_DEFAULT_ALGO", "md5")
+        .output()
+        .expect("run box config show --json");
+    assert_eq!(out.status.code(), Some(0), "show --json must exit 0");
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be exactly one JSON value");
+    assert_eq!(
+        v.pointer("/hash/default_algo").and_then(|x| x.as_str()),
+        Some("md5"),
+        "config show --json must report the env-tier hash.default_algo == md5"
+    );
+
+    // `box hash <file>` emits the MD5 digest — the value the config view now reports.
+    let work = assert_fs::TempDir::new().unwrap();
+    let f = work.child("box.bin");
+    f.write_binary(b"box").unwrap();
+    let path = f.path().to_str().unwrap();
+    let row_md5 = format!("{BOX_MD5}  {path}");
+    box_cmd(&appdata, &["hash", path])
+        .env("BOX_HASH_DEFAULT_ALGO", "md5")
+        .assert()
+        .success()
+        .code(0)
+        .stdout(predicate::str::contains(row_md5));
 }
 
 /// D-08 — `box config path` prints the resolved `%APPDATA%\box\config.toml` to
