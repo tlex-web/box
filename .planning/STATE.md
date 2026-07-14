@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
 status: verifying
-stopped_at: Completed 11-02-PLAN.md (CMP-01 — box completions)
+stopped_at: Phase 11 verification found 2 gaps (WR-01/WR-02) — awaiting 11-03 gap-closure planning
 last_updated: "2026-07-14T18:34:50.865Z"
 last_activity: 2026-07-14
 progress:
   total_phases: 6
-  completed_phases: 6
+  completed_phases: 5
   total_plans: 22
   completed_plans: 22
   percent: 100
@@ -35,9 +35,9 @@ See: .planning/PROJECT.md · .planning/ROADMAP.md · .planning/REQUIREMENTS.md (
 
 ## Current Position
 
-Phase: 11 (meta-commands) — EXECUTING
-Plan: 2 of 2
-Status: Phase complete — ready for verification
+Phase: 11 (meta-commands) — VERIFYING (gaps found)
+Plan: 2 of 2 executed
+Status: Both plans done; verification found 2 gaps (WR-01 config env-tier parity, WR-02 malformed-config lockout) → next: /gsd:plan-phase 11 --gaps
 Last activity: 2026-07-14
 
 Progress: [██████████] 100%
