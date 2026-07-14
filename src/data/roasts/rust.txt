@@ -1,0 +1,15 @@
+You fought the borrow checker and lost twice before coffee.
+Your fix for every lifetime error is to add another clone.
+You unwrap in production and call it optimism.
+Your compile times gave you enough breaks to pick up a new hobby.
+You sprinkled ampersands until the compiler finally stopped yelling.
+Your function signature has more lifetimes than a cat.
+You cloned the whole struct to avoid thinking about ownership.
+You added a question mark and hoped the error would handle itself.
+Your trait bounds require a diagram and a support group.
+You rewrote it in Rust; now it is memory-safe and unfinished.
+Your match arms are exhaustive; your patience is not.
+You spent an afternoon satisfying the borrow checker for hello world.
+Cargo downloaded half of crates.io to build your calculator.
+You turned a null pointer into a forty-line enum and felt proud.
+You said zero-cost abstractions and then waited ten minutes to compile.

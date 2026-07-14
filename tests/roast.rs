@@ -16,17 +16,22 @@ use std::collections::HashSet;
 
 use assert_cmd::Command;
 
-/// The bundled roast asset, parsed the same way the command does. Membership is
-/// asserted against THIS so the test and the binary share one source of truth.
-const ROASTS_RAW: &str = include_str!("../src/data/roasts.txt");
+/// The bundled roast asset. Bare `box roast` draws from the `general` default bucket
+/// (D-01) — the byte-for-byte v1 corpus — so membership is asserted against that
+/// bucket, keeping the test and the binary on one source of truth.
+const GENERAL_RAW: &str = include_str!("../src/data/roasts/general.txt");
 
 /// Parse the embedded list into trimmed, non-empty entries (mirrors the loader).
-fn entries() -> Vec<&'static str> {
-    ROASTS_RAW
-        .lines()
+fn parse(raw: &'static str) -> Vec<&'static str> {
+    raw.lines()
         .map(str::trim)
         .filter(|l| !l.is_empty())
         .collect()
+}
+
+/// The bare-`roast` draw pool = the general default bucket.
+fn entries() -> Vec<&'static str> {
+    parse(GENERAL_RAW)
 }
 
 /// Run `box roast` with NO_COLOR, assert exit 0 + empty stderr, return stdout.
@@ -212,4 +217,26 @@ fn unknown_language_exits_2_and_lists_valid_values() {
             "unknown --language stderr must list {l:?}; got: {stderr}"
         );
     }
+}
+
+/// A `--language`-filtered draw is a member of THAT bucket's file (the split is
+/// real: each bucket embeds its own asset), and the reported `.language` matches.
+#[test]
+fn language_filter_draws_from_that_bucket() {
+    const PYTHON_RAW: &str = include_str!("../src/data/roasts/python.txt");
+    let python: HashSet<&str> = parse(PYTHON_RAW).into_iter().collect();
+    let out = roast_with(&["--language", "python", "--json"]);
+    assert!(out.status.success(), "--language python --json exit 0");
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("one JSON value");
+    let text = v.get("text").and_then(|t| t.as_str()).expect("text string");
+    assert_eq!(
+        v.get("language").and_then(|l| l.as_str()),
+        Some("python"),
+        "`.language` must be python"
+    );
+    assert!(
+        python.contains(text),
+        "python draw {text:?} must be a member of python.txt"
+    );
 }
