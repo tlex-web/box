@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Toolbox to Toolkit
 status: milestone_complete
-stopped_at: Milestone complete (Phase 11 was final phase)
-last_updated: 2026-07-14T20:00:07.312Z
+stopped_at: v2.0 milestone archived (ROADMAP + REQUIREMENTS archived, tagged v2.0)
+last_updated: 2026-07-14T20:15:00.000Z
 last_activity: 2026-07-14
 progress:
   total_phases: 6
@@ -25,11 +25,11 @@ progress:
 
 **Core Value:** The toolbox must be globally available and instantly usable from PowerShell 7 — type `box <command>` from anywhere and the tool just works.
 
-**Current Focus:** Milestone complete
+**Current Focus:** Planning next milestone (v2.0 shipped & archived)
 
-**Milestone:** v2.0 Toolbox → Toolkit — EXECUTING. Phase 6 (scriptable-core foundation) complete. v1.0 Full Toolbox shipped & archived 2026-06-24 (all 23 commands; see `.planning/MILESTONES.md`).
+**Milestone:** v2.0 Toolbox → Toolkit — ✅ SHIPPED & ARCHIVED 2026-07-14 (Phases 6–11, 23 plans, all 34 requirements; scriptable `--json`/`--clip`/config spine + per-command depth + BLAKE3-default hash + `config`/`completions` meta-commands; see `.planning/MILESTONES.md` and `.planning/milestones/v2.0-ROADMAP.md`). v1.0 Full Toolbox shipped & archived 2026-06-24.
 
-See: .planning/PROJECT.md · .planning/ROADMAP.md · .planning/REQUIREMENTS.md (all current as of 2026-06-25)
+See: .planning/PROJECT.md · .planning/ROADMAP.md (REQUIREMENTS.md removed at close — fresh set created by `/gsd:new-milestone`)
 
 ---
 
@@ -169,15 +169,39 @@ None.
 
 ---
 
+## Deferred Items
+
+Items acknowledged and deferred at v2.0 milestone close on 2026-07-14. None are code defects — all 34 requirements are code-complete and test-verified (507 tests, clippy `-D warnings` clean). These are manual confirmations requiring a live PowerShell 7 terminal.
+
+| Category | Item | Status |
+|----------|------|--------|
+| uat | 06-HUMAN-UAT: uuid --clip / --json --clip clipboard round-trips + stderr TTY gate | partial (3 pending) |
+| uat | 08-HUMAN-UAT: large-batch stderr progress bar in real PS7; du --on-disk vs Explorer on NTFS-compressed file | partial (2 pending) |
+| uat | 10-HUMAN-UAT: pomodoro auto-cycle live UX; weather live network + cache latency; ASCII-art/color visual quality | partial (3 pending) |
+| uat | 11-HUMAN-UAT: live PS7 tab-completion via PSReadLine | partial (1 pending) |
+| verification | 06/08/10/11-VERIFICATION: human_needed portions (automated verification passed) | human_needed |
+| deferred | bulk-rename --undo manifest replay (manifest written + reconcilable; manual reverse documented) | deferred |
+| tech-debt | repo-wide rustfmt drift — style: cargo fmt root sweep (new code fmt-clean) | deferred |
+| tech-debt | orphaned core::config::resolve_algo dead code (advisory) | deferred |
+
+---
+
 ## Session Continuity
 
 **To resume:** Read `.planning/ROADMAP.md` for phase goals, then this file for position/context.
 
-**Last session:** 2026-07-14T19:37:48.595Z
-**Stopped at:** Completed 11-03-PLAN.md (WR-01/WR-02 gap closure)
+**Last session:** 2026-07-14T20:15:00.000Z
+**Stopped at:** v2.0 milestone closed & archived (ROADMAP + REQUIREMENTS archived to `milestones/`, MILESTONES.md + PROJECT.md + RETROSPECTIVE.md updated, tagged `v2.0`, REQUIREMENTS.md removed for a fresh next-milestone set)
 **Resume file:** None
 
-**Next action:** **Phase 11 (Meta-Commands) implementation is COMPLETE — all 3 plans done (11-01 config, 11-02 completions, 11-03 gap closure); CFG-01 + CMP-01 delivered.** 11-03 closed the two code-review warnings the phase verification reproduced live: **WR-01 (env-tier parity)** — `config`'s effective view and `hash::run_compute` now route the hash default through ONE `pub(crate) hash::effective_default_algo()` (env `BOX_HASH_DEFAULT_ALGO` > config > builtin, looked up in exactly one source file), so `config show`/`get hash.default_algo` report exactly what `box hash` consumes; **WR-02 (malformed-config decoupling)** — `main.rs` falls back to `Config::default()` ONLY for `completions` + `config path`/`set` (via `ConfigArgs::tolerates_malformed_config()` + `core::config::init_config_default()`), restoring the repair/locate/shell-start path, while every normal command AND `config show`/`get` still exit 2 under a malformed config (no tolerance hole). New regression tests in `tests/config_cmd.rs` (14/14): `env_tier_parity_hash_default_algo`, `malformed_config_path_and_completions_exit0`, `malformed_config_set_repairs_file`, `malformed_config_still_bricks_normal_command`. Full `cargo test` (507 passed / 0 failed) + `cargo clippy --bin box --all-targets -- -D warnings` clean. **The orchestrator now owns Phase 11 re-verification + `phase.complete` — VERIFICATION truths #5/#6 should flip to VERIFIED.** With Phase 11 done, the **v2.0 milestone is ready for close-out** (`/gsd:complete-milestone`). One out-of-scope follow-up still carried forward: a `style: cargo fmt` repo-root sweep for the pre-existing rustfmt drift (deferred-items.md) — the 11-03 gates are clean and the newly-authored test code is fmt-clean.
+**Next action:** Start the next milestone with `/gsd:new-milestone` (questioning → research → requirements → roadmap). The 9 human-verify PS7 UAT items are recorded under `## Deferred Items` above — run them anytime in a live PowerShell 7 terminal.
+
+<details>
+<summary>Prior next-action (v2.0 Phase 11 completion — superseded by milestone close)</summary>
+
+ **Phase 11 (Meta-Commands) implementation is COMPLETE — all 3 plans done (11-01 config, 11-02 completions, 11-03 gap closure); CFG-01 + CMP-01 delivered.** 11-03 closed the two code-review warnings the phase verification reproduced live: **WR-01 (env-tier parity)** — `config`'s effective view and `hash::run_compute` now route the hash default through ONE `pub(crate) hash::effective_default_algo()` (env `BOX_HASH_DEFAULT_ALGO` > config > builtin, looked up in exactly one source file), so `config show`/`get hash.default_algo` report exactly what `box hash` consumes; **WR-02 (malformed-config decoupling)** — `main.rs` falls back to `Config::default()` ONLY for `completions` + `config path`/`set` (via `ConfigArgs::tolerates_malformed_config()` + `core::config::init_config_default()`), restoring the repair/locate/shell-start path, while every normal command AND `config show`/`get` still exit 2 under a malformed config (no tolerance hole). New regression tests in `tests/config_cmd.rs` (14/14): `env_tier_parity_hash_default_algo`, `malformed_config_path_and_completions_exit0`, `malformed_config_set_repairs_file`, `malformed_config_still_bricks_normal_command`. Full `cargo test` (507 passed / 0 failed) + `cargo clippy --bin box --all-targets -- -D warnings` clean. **The orchestrator now owns Phase 11 re-verification + `phase.complete` — VERIFICATION truths #5/#6 should flip to VERIFIED.** With Phase 11 done, the **v2.0 milestone is ready for close-out** (`/gsd:complete-milestone`). One out-of-scope follow-up still carried forward: a `style: cargo fmt` repo-root sweep for the pre-existing rustfmt drift (deferred-items.md) — the 11-03 gates are clean and the newly-authored test code is fmt-clean.
+
+</details>
 
 ---
 *State reset to v2.0 phase map: 2026-06-25 by roadmapper (v1.0 plan-by-plan execution log archived with the milestone; v2.0 accumulated context — locked decisions D-1..D-7, v2 pitfalls, the v1→v2 architecture graft — preserved above).*
