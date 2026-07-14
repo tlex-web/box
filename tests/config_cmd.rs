@@ -374,7 +374,9 @@ fn malformed_config_path_and_completions_exit0() {
         String::from_utf8_lossy(&out.stderr)
     );
     assert!(
-        String::from_utf8_lossy(&out.stdout).trim_end().ends_with("config.toml"),
+        String::from_utf8_lossy(&out.stdout)
+            .trim_end()
+            .ends_with("config.toml"),
         "config path stdout must end with config.toml, got: {}",
         String::from_utf8_lossy(&out.stdout)
     );
