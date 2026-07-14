@@ -41,7 +41,8 @@ Full phase details, decisions, and outcomes archived in [`milestones/v1.0-ROADMA
 - [x] **Phase 6: Scriptable-Core Foundation** - Build the entire shared `--json`/`--clip`/config spine once, proven on the two simplest pilot commands (`uuid` + `hash`), and flip `hash` to BLAKE3-default with a config escape hatch. ✅ 2026-06-25
 - [x] **Phase 7: Spine Rollout** - Apply the frozen Phase-6 template to roll `--json` and `--clip` across every remaining applicable value-producing command. (completed 2026-06-25)
 - [ ] **Phase 8: Filesystem Depth** - Add the deferred depth flags to the six filesystem commands (`hash`, `flatten`, `dupes`, `bulk-rename`, `tree`, `du`), including the three destructive flags under adversarial review.
-- [x] **Phase 9: Dev-Transform & Visual Depth** - Add depth to the dev-transform (`uuid`, `epoch`, `color`, `json`, `passgen`) and visual (`lolcat`, `matrix`, `qr`, `ascii`) commands. (completed 2026-07-14)
+- [x] **Phase 9: Dev-Transform & Visual Depth** - Add depth to the dev-transform (`uuid`, `epoch`, `color`, `json`, `passgen`) and visual (`lolcat`, `matrix`, `qr`, `ascii`) commands.
+ (completed 2026-07-14)
 - [ ] **Phase 10: Fun & System Depth** - Add depth to the fun (`cowsay`, `fortune`, `8ball`, `roast`) and system (`pomodoro`, `weather`) commands.
 - [ ] **Phase 11: Meta-Commands** - Ship `box config` and `box completions powershell`, generated against the final, complete arg surface.
 
@@ -169,12 +170,20 @@ Plans:
   3. `box weather --forecast` returns a multi-day forecast, repeated calls are served from a response cache, and with `weather.location` set in config, bare `box weather` uses the stored default location (reading the config resolver from Phase 6).
   4. The new colored/sentiment output (`8ball` sentiment color) stays gated on `is_color_on()`, and every applicable command here still emits a clean `--json` document with the new fields.
 
-**Plans**: TBD
+**Plans**: 5 plans
 
 Plans:
 
-- [ ] 10-01: TBD — fun: `cowsay` figures/think (COW-V2-01); `fortune` categories (FORT-V2-01); `8ball` art/sentiment (8BAL-V2-01); `roast --language` (ROST-V2-01).
-- [ ] 10-02: TBD — system: `pomodoro` counter/auto-break/`--label` + `--sound` Win32 MessageBeep (POMO-V2-01, POMO-V2-02); `weather` `--forecast`/cache/stored-location (WTHR-V2-01).
+**Wave 1** *(four parallel, disjoint files)*
+
+- [ ] 10-01-PLAN.md — fun visuals: `cowsay` figure roster + `--figure`/`--list-figures`/`--think` (COW-V2-01); `8ball` ASCII art + `is_color_on()`-gated sentiment color + `sentiment` JSON (8BAL-V2-01). [wave 1]
+- [ ] 10-02-PLAN.md — fun corpora: `fortune` wisdom/tech/humor categories + `--category`/`--list-categories` (FORT-V2-01); `roast --language` programming-ecosystem buckets (ROST-V2-01) — shared `.gitattributes` per-bucket eol=lf reorg. [wave 1]
+- [ ] 10-03-PLAN.md — `pomodoro` opt-in `--cycles`/`--loop` auto-cycle + long-break cadence + session counter + `--label` (POMO-V2-01); `--sound` Win32 `MessageBeep` (POMO-V2-02) — one `windows 0.61` feature add, display-only (no `--json`). [wave 1]
+- [ ] 10-04-PLAN.md — system foundation: D-13 nested-table config migration (`[hash] default_algo`, `[weather] location`/`units`) + hash consumer + config-ready weather `Units`; new best-effort `core::cache` (hashed key, TTL, miss-tolerant) (WTHR-V2-01 enabling). [wave 1]
+
+**Wave 2** *(depends on 10-04's nested config + cache module)*
+
+- [ ] 10-05-PLAN.md — `weather` depth: `--forecast` 7-day daily outlook + `forecast` JSON array (D-10); optional location + `[weather]` config default + units resolver + `BoxError::MissingLocation` (D-12); transparent response cache wiring (D-11) (WTHR-V2-01). [wave 2, depends_on 10-04]
 
 ### Phase 11: Meta-Commands
 
@@ -211,7 +220,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Spine Rollout | v2.0 | 3/3 | Complete   | 2026-06-25 |
 | 8. Filesystem Depth | v2.0 | 6/6 | In Progress|  |
 | 9. Dev-Transform & Visual Depth | v2.0 | 3/3 | Complete   | 2026-07-14 |
-| 10. Fun & System Depth | v2.0 | 0/2 | Not started | - |
+| 10. Fun & System Depth | v2.0 | 0/5 | Not started | - |
 | 11. Meta-Commands | v2.0 | 0/2 | Not started | - |
 
 ---
