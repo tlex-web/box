@@ -186,10 +186,10 @@ pub fn config_path() -> Option<std::path::PathBuf> {
 /// round-trip against (D-05: `color` is deliberately absent — no schema field
 /// exists for it).
 ///
-/// Forward-compat `#[allow(dead_code)]`: exercised by unit tests now; the `config`
-/// command (Task 2) consumes it as the live `get`/`set` registry, at which point the
-/// allow is removed (allow-then-remove, mirroring [`resolve_algo`]).
-#[allow(dead_code)]
+/// Live as of Plan 11-01: the `config` command's `get`/`set` handlers consume it as
+/// the live registry + "did you mean" surface, so the forward-compat
+/// `#[allow(dead_code)]` has been removed (allow-then-remove, mirroring
+/// [`resolve_algo`]).
 pub const SETTABLE_KEYS: [&str; 3] = ["hash.default_algo", "weather.location", "weather.units"];
 
 /// Validate-before-write a single config key (D-03/D-04): the CFG-01 `config set`
@@ -210,9 +210,7 @@ pub const SETTABLE_KEYS: [&str; 3] = ["hash.default_algo", "weather.location", "
 ///    to [`config_path`] (temp-write + rename; parent dir created). A `None` path
 ///    is an `anyhow` error (exit 1).
 ///
-/// Forward-compat `#[allow(dead_code)]`: the `config set` command (Task 2) is the
-/// live consumer; the allow is removed there (allow-then-remove).
-#[allow(dead_code)]
+/// Live as of Plan 11-01: `commands::config`'s `set` handler is the live consumer.
 pub fn set_value(key: &str, value: &str) -> anyhow::Result<()> {
     // Validate (unknown key OR bad value) and reconstruct the full document from the
     // startup-loaded snapshot BEFORE any disk touch — the returned text is already
@@ -231,10 +229,6 @@ pub fn set_value(key: &str, value: &str) -> anyhow::Result<()> {
 /// a bad value / bad TOML, so `set_value` can `atomic_write` the returned text
 /// knowing it is already startup-safe. Pure + `config()`-free so the whole
 /// validation contract is unit-testable without `init_config` or a real file.
-///
-/// Forward-compat `#[allow(dead_code)]`: reachable via [`set_value`] once the
-/// `config` command wires it (Task 2); exercised by unit tests now.
-#[allow(dead_code)]
 fn build_config_toml(base: &Config, key: &str, value: &str) -> anyhow::Result<String> {
     // 1. Closed-registry gate (D-04): reject an unknown key BEFORE any work, naming
     //    it and listing the settable keys — exit 2 via ConfigUsage, nothing built.

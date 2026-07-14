@@ -127,10 +127,8 @@ pub fn safe_copy(src: &Path, dst: &Path) -> anyhow::Result<u64> {
 /// The parent directory (`%APPDATA%\box\`) is created if absent. Every fallible I/O
 /// call carries `.context(...)`, mirroring [`safe_copy`]'s per-call discipline.
 ///
-/// Forward-compat `#[allow(dead_code)]`: `config set` (Task 2, via
-/// [`crate::core::config::set_value`]) is the live consumer; exercised by unit tests
-/// now. The allow is removed when the command wires it (allow-then-remove).
-#[allow(dead_code)]
+/// Live as of Plan 11-01: `config set` (via [`crate::core::config::set_value`]) is
+/// the live consumer.
 pub fn atomic_write(path: &Path, contents: &str) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)

@@ -106,6 +106,7 @@ fn main() -> ExitCode {
                 Commands::Clip(args) => args.run(),
                 Commands::Pomodoro(args) => args.run(),
                 Commands::Weather(args) => args.run(),
+                Commands::Config(args) => args.run(),
             }
         })
         .and_then(|()| crate::core::output::flush_clip());
@@ -138,7 +139,12 @@ fn main() -> ExitCode {
                     | crate::core::errors::BoxError::Config { .. }
                     // `MissingLocation`: bare `box weather` with no positional AND no
                     // `[weather] location` config (D-12) — a usage mistake, exit 2.
-                    | crate::core::errors::BoxError::MissingLocation,
+                    | crate::core::errors::BoxError::MissingLocation
+                    // `ConfigUsage`: `box config get/set <unknown-key>` or a bad
+                    // `set` value (CFG-01 / D-04) — a usage mistake, exit 2. The
+                    // `get` unset-no-default → exit 1 signal is NOT a BoxError (it
+                    // `std::process::exit(1)`s directly), so it never reaches here.
+                    | crate::core::errors::BoxError::ConfigUsage { .. },
                 ) => ExitCode::from(2),
                 _ => ExitCode::from(1),
             }

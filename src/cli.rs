@@ -120,4 +120,16 @@ pub enum Commands {
     /// Responses are cached ~10 min. No API key is required; when the service is
     /// unreachable a graceful error prints to stderr (exit 1).
     Weather(crate::commands::weather::WeatherArgs),
+    /// Read, edit, and locate the box config file
+    ///
+    /// `box config <show|get|set|path>` manages `%APPDATA%\box\config.toml`, the
+    /// per-command defaults every tool reads through the CLI > env > config >
+    /// builtin resolver. `show` prints the effective resolved config (`--json` for
+    /// a machine-readable doc); `get <key>` prints one resolved value (exit 1 with
+    /// empty stdout when a key like `weather.location` is unset with no default);
+    /// `set <key> <value>` validates then atomically writes (an invalid value or
+    /// unknown key exits 2 and writes nothing); `path` prints the config file
+    /// location whether or not it exists. Settable keys: `hash.default_algo`,
+    /// `weather.location`, `weather.units`.
+    Config(crate::commands::config::ConfigArgs),
 }
