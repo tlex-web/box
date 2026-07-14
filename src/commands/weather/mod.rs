@@ -114,7 +114,8 @@ impl RunCommand for WeatherArgs {
         // string NEVER becomes a path component (T-10-05-CACHE-KEY, mitigated in
         // 10-04). Distinct forecast/current + metric/imperial keys never collide.
         let cache_key = format!(
-            "{location}|{}|{}",
+            "{}|{}|{}",
+            location_key(&location),
             units_key(units),
             if self.forecast { "forecast" } else { "current" }
         );
@@ -173,6 +174,13 @@ fn units_key(units: Units) -> &'static str {
         Units::Metric => "metric",
         Units::Imperial => "imperial",
     }
+}
+
+/// The stable cache-key token for a location (WR-02). STUB — the un-normalized
+/// baseline (returns the value verbatim). Task 2 GREEN replaces this body with a
+/// trim + city-only lowercase so whitespace/case variants share ONE cache key.
+fn location_key(location: &str) -> String {
+    location.to_string()
 }
 
 /// Fetch + project a fresh weather response into the [`CachedWeather`] projection (the
@@ -893,6 +901,21 @@ mod tests {
     fn units_key_tokens() {
         assert_eq!(units_key(Units::Metric), "metric");
         assert_eq!(units_key(Units::Imperial), "imperial");
+    }
+
+    /// WR-02 — `location_key` is the cache-key location token: it trims, then
+    /// lowercases CITY names so `" London "`, `"London"`, and `"london"` collapse to
+    /// ONE token (sharing the ~10-min cache window), while a `lat,lon` pair is trimmed
+    /// but NEVER lowercased (parse_lat_lon must still see the numeric value verbatim).
+    #[test]
+    fn location_key_tokens() {
+        // City names: trimmed + lowercased → one shared token.
+        assert_eq!(location_key(" London "), "london");
+        assert_eq!(location_key("London"), "london");
+        assert_eq!(location_key("london"), "london");
+        assert_eq!(location_key("New York"), "new york");
+        // A lat,lon pair: trimmed but NOT lowercased.
+        assert_eq!(location_key(" 51.5,-0.13 "), "51.5,-0.13");
     }
 
     /// `url_encode` percent-encodes reserved chars (space/`&`/`=`) so a hostile

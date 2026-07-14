@@ -377,3 +377,54 @@ fn second_identical_call_is_a_cache_hit() {
     let b: serde_json::Value = serde_json::from_slice(&second.stdout).expect("second is JSON");
     assert_eq!(a, b, "the cache hit renders the same document as the fetch");
 }
+
+/// WR-02 — two calls that differ ONLY by surrounding whitespace share ONE cache key.
+/// The location is trimmed once before it forms the cache key, so a `" 51.5,-0.13 "`
+/// (spaces) FIRST call and a `"51.5,-0.13"` (no spaces) SECOND call hit the SAME cache
+/// entry. The fixture server answers AT MOST ONE request, so the second call
+/// succeeding PROVES the trim yielded a shared key → a cache hit with no network GET.
+/// Without the trim the two raw strings hash to different keys and the second call
+/// would hit the exhausted server → exit 1. `LOCALAPPDATA` is a shared temp dir so the
+/// second call sees the first's cached entry; `APPDATA` is empty so config never
+/// interferes.
+#[test]
+fn whitespace_variants_share_cache_key() {
+    let base = spawn_fixture_server_n(FORECAST_METRIC, 1); // ONE request only
+    let appdata = tempfile::TempDir::new().unwrap(); // no config
+    let cache = tempfile::TempDir::new().unwrap(); // shared across both calls
+
+    let run = |loc: &str| {
+        Command::cargo_bin("box")
+            .unwrap()
+            .args(["weather", loc, "--units", "metric", "--json"])
+            .env("NO_COLOR", "1")
+            .env("APPDATA", appdata.path())
+            .env("LOCALAPPDATA", cache.path())
+            .env("BOX_WEATHER_BASE_URL", &base)
+            .output()
+            .expect("run box weather")
+    };
+
+    // First call: surrounding whitespace. A cache miss → the single served fetch →
+    // caches the projection under the TRIMMED key.
+    let first = run(" 51.5,-0.13 ");
+    assert!(
+        first.status.success(),
+        "first (whitespace) call must fetch + cache (stderr: {})",
+        String::from_utf8_lossy(&first.stderr)
+    );
+
+    // Second call: the SAME location without the spaces. The server is exhausted, so
+    // success is ONLY possible if the trimmed key matched the first call's entry.
+    let second = run("51.5,-0.13");
+    assert!(
+        second.status.success(),
+        "whitespace-variant second call must be a cache hit (shared trimmed key) (stderr: {})",
+        String::from_utf8_lossy(&second.stderr)
+    );
+
+    // Both produced the same clean JSON document (a hit renders like the fetch).
+    let a: serde_json::Value = serde_json::from_slice(&first.stdout).expect("first is JSON");
+    let b: serde_json::Value = serde_json::from_slice(&second.stdout).expect("second is JSON");
+    assert_eq!(a, b, "the whitespace-variant cache hit renders the same document");
+}
