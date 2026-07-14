@@ -91,3 +91,119 @@ fn missing_file_exits_1_no_panic() {
         .stderr(predicate::str::is_empty().not())
         .stderr(predicate::str::contains("panicked").not());
 }
+
+// --- ASCI-V2-01 — truecolor + --braille + --invert (Wave-2 depth) ------------
+//
+// The rendered art is not byte-snapshotable (it depends on the piped→80 width), so
+// these pin the CLI contract for the three additions:
+//   - `braille_renders_dot_glyphs`  — --braille emits U+28xx braille glyphs.
+//   - `invert_renders_non_empty`    — --invert renders cleanly (exit 0, non-empty).
+//   - `piped_render_carries_no_ansi`— SC4: a redirected/NO_COLOR run degrades to the
+//                                     mono ramp with no 0x1B (byte-identical-minus-color).
+//   - `forced_color_emits_truecolor`— CLICOLOR_FORCE on a pipe DOES emit truecolor
+//                                     SGR — proving color is gated ON the single gate.
+
+/// ASCI-V2-01 — `box ascii <img> --braille` renders the 2×4 braille engine: the
+/// output contains Unicode braille glyphs (`U+2800..=U+28FF`). NO_COLOR keeps it
+/// mono so the glyphs are unwrapped.
+#[test]
+fn braille_renders_dot_glyphs() {
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .args(["ascii", PNG_FIXTURE, "--braille"])
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box ascii --braille");
+    assert!(out.status.success(), "box ascii --braille should exit 0");
+    let text = String::from_utf8(out.stdout).expect("stdout is UTF-8");
+    assert!(
+        text.chars().any(|c| ('\u{2800}'..='\u{28FF}').contains(&c)),
+        "braille output must contain a U+28xx glyph, got: {text:?}"
+    );
+    assert!(
+        !text.contains('\u{1b}'),
+        "mono braille must carry no ANSI escape: {text:?}"
+    );
+}
+
+/// ASCI-V2-01 — `box ascii <img> --invert` renders cleanly (exit 0, non-empty).
+/// The pixel-level correctness of `255 - luma` is unit-locked in-module; this only
+/// proves the flag is wired end-to-end. Composes with `--braille`.
+#[test]
+fn invert_renders_non_empty() {
+    Command::cargo_bin("box")
+        .unwrap()
+        .args(["ascii", PNG_FIXTURE, "--invert"])
+        .env("NO_COLOR", "1")
+        .assert()
+        .success()
+        .code(0)
+        .stdout(predicate::str::is_empty().not());
+
+    // --invert + --braille compose (exit 0, braille glyphs present).
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .args(["ascii", PNG_FIXTURE, "--braille", "--invert"])
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run box ascii --braille --invert");
+    assert!(out.status.success(), "--braille --invert should exit 0");
+    let text = String::from_utf8(out.stdout).expect("stdout is UTF-8");
+    assert!(
+        text.chars().any(|c| ('\u{2800}'..='\u{28FF}').contains(&c)),
+        "inverted braille must still contain U+28xx glyphs"
+    );
+}
+
+/// SC4 / ASCI-V2-01 — the NEW truecolor path is `is_color_on()`-gated: a piped
+/// (`assert_cmd` captures stdout) run WITHOUT `NO_COLOR` still degrades to the mono
+/// ramp and carries NO ANSI escape (`0x1B`). Byte-identical-minus-color when
+/// redirected. Mirrors `tests/qr.rs::qr_piped_no_ansi`.
+#[test]
+fn piped_render_carries_no_ansi() {
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .args(["ascii", PNG_FIXTURE])
+        .output()
+        .expect("run box ascii (piped)");
+    assert!(out.status.success(), "box ascii should exit 0");
+    assert!(
+        !out.stdout.contains(&0x1Bu8),
+        "a piped ascii render must carry no ANSI escape (color must be is_color_on()-gated)"
+    );
+    // The same holds for the braille engine's gated color path.
+    let braille = Command::cargo_bin("box")
+        .unwrap()
+        .args(["ascii", PNG_FIXTURE, "--braille"])
+        .output()
+        .expect("run box ascii --braille (piped)");
+    assert!(braille.status.success(), "box ascii --braille should exit 0");
+    assert!(
+        !braille.stdout.contains(&0x1Bu8),
+        "a piped braille render must carry no ANSI escape"
+    );
+}
+
+/// SC4 / ASCI-V2-01 — the color gate has a live ON side: with `CLICOLOR_FORCE=1`
+/// forcing color true even on a pipe, the render DOES emit a truecolor SGR escape
+/// (`ESC[38;2;`). This is the companion to `piped_render_carries_no_ansi`: together
+/// they prove truecolor is emitted iff `is_color_on()` — the single gate, no second
+/// color stack.
+#[test]
+fn forced_color_emits_truecolor() {
+    let out = Command::cargo_bin("box")
+        .unwrap()
+        .args(["ascii", PNG_FIXTURE])
+        .env("CLICOLOR_FORCE", "1")
+        .env_remove("NO_COLOR")
+        .output()
+        .expect("run box ascii (forced color)");
+    assert!(out.status.success(), "box ascii (forced color) should exit 0");
+    const TRUECOLOR_INTRO: &[u8] = b"\x1b[38;2;";
+    assert!(
+        out.stdout
+            .windows(TRUECOLOR_INTRO.len())
+            .any(|w| w == TRUECOLOR_INTRO),
+        "forced-color ascii must emit a truecolor SGR escape (ESC[38;2;)"
+    );
+}
