@@ -3,12 +3,12 @@ status: partial
 phase: 11-meta-commands
 source: [11-VERIFICATION.md]
 started: 2026-07-14T19:54:53.732Z
-updated: 2026-07-14T19:54:53.732Z
+updated: 2026-07-14T20:47:27Z
 ---
 
 ## Current Test
 
-[awaiting human testing]
+[awaiting human testing — interactive PSReadLine session required]
 
 ## Tests
 
@@ -19,6 +19,7 @@ Run `box completions powershell | Out-String | Invoke-Expression` in a real Powe
 
 expected: subcommands and flags tab-complete correctly from the script generated against the live final `Cli`. (Untestable by static analysis / integration tests — requires an interactive PSReadLine session.)
 result: [pending]
+note: Interactive TAB in a live PSReadLine session — cannot be automated. PREREQUISITE MET: the installed `box` (C:\Users\aster\AppData\Local\Programs\box\box.exe, on the persisted user PATH) is current and includes `config` + `completions` — confirmed 2026-07-14 by re-running install.ps1 (release rebuild was a no-op; source already current, all 25 commands). Just open a FRESH PowerShell 7 terminal (so PATH is picked up), then run the completions one-liner and press TAB. (The loose target\release\box.exe at 17:05 is a stale dev artifact and is NOT what's installed — ignore it.)
 
 ## Summary
 

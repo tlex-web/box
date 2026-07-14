@@ -171,18 +171,22 @@ None.
 
 ## Deferred Items
 
-Items acknowledged and deferred at v2.0 milestone close on 2026-07-14. None are code defects — all 34 requirements are code-complete and test-verified (507 tests, clippy `-D warnings` clean). These are manual confirmations requiring a live PowerShell 7 terminal.
+Items acknowledged and deferred at v2.0 milestone close on 2026-07-14. None are code defects — all 34 requirements are code-complete and test-verified (507 tests, clippy `-D warnings` clean). **2026-07-14 verify-work pass: 6 of the 9 deferred human-UAT items were driven live and verified (see `-HUMAN-UAT.md` `verified:` notes); 3 remain — each genuinely needs an interactive/audible/visual live run that a captured tool session cannot observe.**
 
 | Category | Item | Status |
 |----------|------|--------|
-| uat | 06-HUMAN-UAT: uuid --clip / --json --clip clipboard round-trips + stderr TTY gate | partial (3 pending) |
-| uat | 08-HUMAN-UAT: large-batch stderr progress bar in real PS7; du --on-disk vs Explorer on NTFS-compressed file | partial (2 pending) |
-| uat | 10-HUMAN-UAT: pomodoro auto-cycle live UX; weather live network + cache latency; ASCII-art/color visual quality | partial (3 pending) |
-| uat | 11-HUMAN-UAT: live PS7 tab-completion via PSReadLine | partial (1 pending) |
+| uat | 06-HUMAN-UAT: uuid --clip / --json --clip clipboard round-trips + stderr TTY gate | ✅ complete (3/3 verified live 2026-07-14) |
+| uat | 08-HUMAN-UAT: du --on-disk on NTFS-compressed file | ✅ verified live 2026-07-14 (1,052,672 vs 8,404,992 apparent, matches `compact`) |
+| uat | 08-HUMAN-UAT: large-batch stderr progress bar renders on a real TTY | partial (1 pending — visual, human) |
+| uat | 10-HUMAN-UAT: weather live network + cache latency + config default | ✅ verified live 2026-07-14 (315→37 ms cache; stored London default honored) |
+| uat | 10-HUMAN-UAT: ASCII-art/color visual quality | ✅ structure + color-logic verified 2026-07-14 (all 6 figures + o-tether legible; 8ball map source/test-verified; color aesthetic = TTY eyeball) |
+| uat | 10-HUMAN-UAT: pomodoro auto-cycle live UX (countdown/beep/toast) | partial (1 pending — interactive + audible, human) |
+| uat | 11-HUMAN-UAT: live PS7 tab-completion via PSReadLine | partial (1 pending — interactive; installed `box` is current & on PATH, just open a fresh terminal) |
 | verification | 06/08/10/11-VERIFICATION: human_needed portions (automated verification passed) | human_needed |
 | deferred | bulk-rename --undo manifest replay (manifest written + reconcilable; manual reverse documented) | deferred |
 | tech-debt | repo-wide rustfmt drift — style: cargo fmt root sweep (new code fmt-clean) | deferred |
 | tech-debt | orphaned core::config::resolve_algo dead code (advisory) | deferred |
+| build | Installed `box` (`%LOCALAPPDATA%\Programs\box\box.exe`) is CURRENT — has all 25 commands incl. `config`/`completions`; on persisted user PATH. Re-confirmed 2026-07-14 via install.ps1 (release rebuild a no-op, source current). The loose `target\release\box.exe` (17:05) is a stale dev artifact, NOT the installed binary — safe to ignore. | resolved |
 
 ---
 
