@@ -44,39 +44,68 @@ use crate::core::errors::BoxError;
 /// weather.location` locks against). The one-time break to any hand-authored flat
 /// `config.toml` is accepted (a stray top-level `default_hash_algo` is now an
 /// unknown key → exit 2).
-#[derive(Debug, Default, serde::Deserialize)]
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
-    /// `[hash]` — the `hash` command's config defaults.
+    /// `[hash]` — the `hash` command's config defaults. Skipped on serialize when
+    /// empty (all-`None`) so a single-key `config set` write never emits a bare
+    /// `[hash]` header (D-02 minimal-write; the empty table re-parses clean either
+    /// way — this just keeps the on-disk file tidy).
+    #[serde(skip_serializing_if = "HashConfig::is_empty")]
     pub hash: HashConfig,
     /// `[weather]` — the `weather` command's config defaults (consumed by 10-05).
+    /// Skipped on serialize when empty (all-`None`) — see [`Config::hash`].
+    #[serde(skip_serializing_if = "WeatherConfig::is_empty")]
     pub weather: WeatherConfig,
 }
 
 /// The `[hash]` table (D-13). Carries the BLAKE3-default escape hatch:
 /// `[hash] default_algo = "sha256"` restores SHA-256 (config beats the built-in
 /// BLAKE3; CLI still beats config).
-#[derive(Debug, Default, serde::Deserialize)]
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct HashConfig {
     /// The default `hash` algorithm restored from config — the `[hash] default_algo`
-    /// escape hatch for the BLAKE3-default breaking change.
+    /// escape hatch for the BLAKE3-default breaking change. Skipped on serialize
+    /// when unset (D-02) so `config set weather.units …` never writes a stray empty
+    /// `default_algo` key.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub default_algo: Option<Algo>,
+}
+
+impl HashConfig {
+    /// True when every leaf is unset — used by [`Config`]'s `skip_serializing_if`
+    /// so an all-`None` `[hash]` table is omitted entirely on write (D-02).
+    fn is_empty(&self) -> bool {
+        self.default_algo.is_none()
+    }
 }
 
 /// The `[weather]` table (D-13). Holds the stored-default location and unit system
 /// the weather depth work (10-05) resolves through the config-precedence chain.
 /// `units` is the typed [`Units`] enum (imported exactly like [`Algo`]) so an
 /// invalid value is a loud config error rather than a silently-ignored string.
-#[derive(Debug, Default, serde::Deserialize)]
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct WeatherConfig {
     /// `[weather] location` — the stored default city / `lat,lon` used when the
     /// CLI positional is omitted (10-05 wires the `cli.or(config)` resolution).
+    /// Skipped on serialize when unset (D-02).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub location: Option<String>,
     /// `[weather] units` — the stored default unit system (`metric`/`imperial`),
-    /// deserialized via the lowercase serde rename on [`Units`].
+    /// deserialized via the lowercase serde rename on [`Units`]. Skipped on
+    /// serialize when unset (D-02).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub units: Option<Units>,
+}
+
+impl WeatherConfig {
+    /// True when every leaf is unset — used by [`Config`]'s `skip_serializing_if`
+    /// so an all-`None` `[weather]` table is omitted entirely on write (D-02).
+    fn is_empty(&self) -> bool {
+        self.location.is_none() && self.units.is_none()
+    }
 }
 
 /// Process-global config, set once by [`init_config`].
@@ -138,7 +167,7 @@ fn load() -> anyhow::Result<Config> {
 /// per-process-overridable Windows roaming-appdata location (identical
 /// `%APPDATA%\box\config.toml` target) while keeping `dirs` for the non-Windows /
 /// `APPDATA`-unset case.
-fn config_path() -> Option<std::path::PathBuf> {
+pub fn config_path() -> Option<std::path::PathBuf> {
     if let Some(appdata) = std::env::var_os("APPDATA") {
         return Some(
             std::path::PathBuf::from(appdata)
@@ -147,6 +176,47 @@ fn config_path() -> Option<std::path::PathBuf> {
         );
     }
     dirs::config_dir().map(|p| p.join("box").join("config.toml"))
+}
+
+/// The closed set of keys `box config get`/`set` may touch (D-04/D-13). Exactly the
+/// three leaves of the typed [`Config`] schema — `set` rejects any key outside this
+/// registry with [`BoxError::ConfigUsage`] (exit 2, NOTHING written) BEFORE
+/// touching the disk, and the same list is the "did you mean" surface for both
+/// `set` and `get`. A key is only settable if it has a backing `Config` field to
+/// round-trip against (D-05: `color` is deliberately absent — no schema field
+/// exists for it).
+pub const SETTABLE_KEYS: [&str; 3] = ["hash.default_algo", "weather.location", "weather.units"];
+
+/// Validate-before-write a single config key (D-03/D-04): the CFG-01 `config set`
+/// write path.
+///
+/// Steps, in order, so a self-inflicted exit-2 lockout is **structurally
+/// impossible** (T-11-02):
+/// 1. Reject any `key` not in [`SETTABLE_KEYS`] with [`BoxError::ConfigUsage`] whose
+///    message names the unknown key and lists the settable keys (→ exit 2, nothing
+///    written).
+/// 2. Reconstruct the target document from the startup-loaded [`config`] snapshot,
+///    insert `field = value` under its sub-table, and re-serialize.
+/// 3. Re-parse the reconstructed text through the SAME `toml::from_str::<Config>`
+///    the startup `load` uses. Any parse / invalid-enum / unknown-key failure maps
+///    to [`BoxError::Config`] (→ exit 2) and writes NOTHING — the typed `Algo`/
+///    `Units` enums + `deny_unknown_fields` do the value/key validation for free.
+/// 4. ONLY on a clean re-parse, [`crate::core::fs::atomic_write`] the validated text
+///    to [`config_path`] (temp-write + rename; parent dir created). A `None` path
+///    is an `anyhow` error (exit 1).
+pub fn set_value(key: &str, value: &str) -> anyhow::Result<()> {
+    todo!("set_value implemented in the GREEN step")
+}
+
+/// The pure core of [`set_value`] (D-03): validate `key`, splice `value` into a
+/// reconstruction of `base`, re-parse it through the SAME `toml::from_str::<Config>`
+/// startup uses, and return the validated TOML text — WITHOUT touching the disk.
+/// Returns [`BoxError::ConfigUsage`] for an unknown key and [`BoxError::Config`] for
+/// a bad value / bad TOML, so `set_value` can `atomic_write` the returned text
+/// knowing it is already startup-safe. Pure + `config()`-free so the whole
+/// validation contract is unit-testable without `init_config` or a real file.
+fn build_config_toml(base: &Config, key: &str, value: &str) -> anyhow::Result<String> {
+    todo!("build_config_toml implemented in the GREEN step")
 }
 
 /// The canonical config-precedence resolver (SPINE-05): **CLI > env > config >
@@ -253,5 +323,82 @@ mod tests {
         is_config_err(map("[hash]\nbogus = 1"), "unknown nested key");
         // An invalid units enum value — kelvin is not metric|imperial.
         is_config_err(map("[weather]\nunits = \"kelvin\""), "invalid units value");
+    }
+
+    // --- CFG-01 (11-01): set_value validate-before-write (D-03/D-04) -----------
+    //
+    // These drive the PURE `build_config_toml` core with `&Config::default()` as the
+    // base, so the full validation contract is exercised without `init_config` /
+    // `config()` / a real file. `set_value` itself (which calls `config()` +
+    // `atomic_write`) is covered black-box in `tests/config_cmd.rs` (Task 3).
+
+    /// D-03 — a valid `weather.units` set produces TOML that re-parses (via the SAME
+    /// `toml::from_str::<Config>` startup uses) to the typed `Some(Units::Imperial)`.
+    #[test]
+    fn build_config_toml_valid_units_roundtrips() {
+        let text = build_config_toml(&Config::default(), "weather.units", "imperial").unwrap();
+        let cfg: Config = toml::from_str(&text).unwrap();
+        assert_eq!(cfg.weather.units, Some(Units::Imperial));
+    }
+
+    /// D-03 — a valid `hash.default_algo` set re-parses to `Some(Algo::Sha256)`.
+    #[test]
+    fn build_config_toml_valid_algo_roundtrips() {
+        let text = build_config_toml(&Config::default(), "hash.default_algo", "sha256").unwrap();
+        let cfg: Config = toml::from_str(&text).unwrap();
+        assert_eq!(cfg.hash.default_algo, Some(Algo::Sha256));
+    }
+
+    /// D-03 — a valid `weather.location` set re-parses to the stored string.
+    #[test]
+    fn build_config_toml_valid_location_roundtrips() {
+        let text = build_config_toml(&Config::default(), "weather.location", "London").unwrap();
+        let cfg: Config = toml::from_str(&text).unwrap();
+        assert_eq!(cfg.weather.location.as_deref(), Some("London"));
+    }
+
+    /// D-03 / T-11-02 — an invalid enum value (`weather.units = kelvin`) is caught by
+    /// the re-parse round-trip: `build_config_toml` returns a `BoxError::Config`
+    /// error and produces NO text to write, so a self-inflicted exit-2 lockout is
+    /// structurally impossible.
+    #[test]
+    fn build_config_toml_invalid_enum_errs() {
+        let err = build_config_toml(&Config::default(), "weather.units", "kelvin").unwrap_err();
+        assert!(
+            matches!(err.downcast_ref::<BoxError>(), Some(BoxError::Config { .. })),
+            "invalid enum must map to BoxError::Config, got: {err:#}"
+        );
+    }
+
+    /// D-04 — an unknown key is rejected BEFORE any reconstruction with
+    /// `BoxError::ConfigUsage` whose message lists the settable keys; nothing is
+    /// built (so `set_value` never reaches `atomic_write`).
+    #[test]
+    fn build_config_toml_unknown_key_errs_config_usage() {
+        let err = build_config_toml(&Config::default(), "nope.key", "1").unwrap_err();
+        assert!(
+            matches!(err.downcast_ref::<BoxError>(), Some(BoxError::ConfigUsage { .. })),
+            "unknown key must map to BoxError::ConfigUsage, got: {err:#}"
+        );
+        let msg = format!("{err}");
+        for key in SETTABLE_KEYS {
+            assert!(
+                msg.contains(key),
+                "the unknown-key message must list the settable key {key}, got: {msg}"
+            );
+        }
+    }
+
+    /// D-04 — every key in [`SETTABLE_KEYS`] is a real `table.field` pair (a sanity
+    /// guard so the registry can never drift out of `table.field` shape).
+    #[test]
+    fn settable_keys_are_dotted_pairs() {
+        assert_eq!(
+            SETTABLE_KEYS,
+            ["hash.default_algo", "weather.location", "weather.units"]
+        );
+        for key in SETTABLE_KEYS {
+            assert!(key.split_once('.').is_some(), "{key} must be table.field");
+        }
     }
 }

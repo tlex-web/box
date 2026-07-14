@@ -115,6 +115,21 @@ pub fn safe_copy(src: &Path, dst: &Path) -> anyhow::Result<u64> {
     Ok(bytes)
 }
 
+/// Atomically write `contents` to `path` (CFG-01 / T-11-01): the `config set` write
+/// primitive.
+///
+/// Unlike [`safe_copy`] (which uses `create_new` to refuse an overwrite), this
+/// **replaces** an existing target — the correct semantics for rewriting a config
+/// file. The write is crash-safe: `contents` goes to a temp sibling (`<path>.tmp`)
+/// first, then `std::fs::rename` swaps it over `path` in one atomic same-volume
+/// operation (Windows `MoveFileEx`-style replace), so a crash mid-write can never
+/// leave a torn/partial `config.toml` that would brick every subsequent startup.
+/// The parent directory (`%APPDATA%\box\`) is created if absent. Every fallible I/O
+/// call carries `.context(...)`, mirroring [`safe_copy`]'s per-call discipline.
+pub fn atomic_write(path: &Path, contents: &str) -> anyhow::Result<()> {
+    todo!("atomic_write implemented in the GREEN step")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -257,6 +272,50 @@ mod tests {
         assert!(
             msg.contains("refusing to overwrite") || msg.contains("already"),
             "expected an overwrite-refusal error, got: {msg}"
+        );
+    }
+
+    /// CFG-01 / T-11-01 — `atomic_write` creates a MISSING parent dir (the
+    /// `%APPDATA%\box\` case), lands the exact bytes at the target after the rename,
+    /// and leaves no leftover `.tmp` sibling.
+    #[test]
+    fn atomic_write_creates_parent_and_lands_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        // The `box/` parent does NOT exist yet — atomic_write must create it.
+        let target = dir.path().join("box").join("config.toml");
+        assert!(!target.parent().unwrap().exists());
+
+        let contents = "[weather]\nunits = \"imperial\"\n";
+        atomic_write(&target, contents).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(&target).unwrap(),
+            contents,
+            "atomic_write must land the exact bytes at the target"
+        );
+        // No leftover temp sibling after the rename.
+        let mut tmp = target.as_os_str().to_os_string();
+        tmp.push(".tmp");
+        assert!(
+            !PathBuf::from(tmp).exists(),
+            "the temp sibling must be gone after the rename"
+        );
+    }
+
+    /// CFG-01 — `atomic_write` REPLACES an existing target (unlike `safe_copy`'s
+    /// create-new refusal) — the correct semantics for rewriting a config file.
+    #[test]
+    fn atomic_write_replaces_existing() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("config.toml");
+        std::fs::write(&target, "old = 1\n").unwrap();
+
+        atomic_write(&target, "new = 2\n").unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(&target).unwrap(),
+            "new = 2\n",
+            "atomic_write must overwrite an existing target"
         );
     }
 }

@@ -64,7 +64,13 @@ const BASE_URL_ENV: &str = "BOX_WEATHER_BASE_URL";
 /// `WeatherConfig`; `PartialEq, Eq` make it assertable in the config round-trip
 /// tests. The lowercase serde spellings match the `ValueEnum` variant names, so
 /// `--units`, config, and any future env tier all share ONE spelling table.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, serde::Deserialize)]
+///
+/// `serde::Serialize` (added in 11-01, mirroring `hash::Algo`) round-trips the OTHER
+/// direction: it lets `WeatherConfig`/`Config` derive `Serialize` for
+/// `config set`'s typed round-trip write (D-02) and serializes `Units::Metric` to
+/// the lowercase `"metric"` literal in `box config show --json`'s effective doc
+/// (D-06 human/JSON parity).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Units {
     /// °C and km/h (the default; no extra request params).

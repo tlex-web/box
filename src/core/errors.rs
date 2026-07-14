@@ -64,4 +64,20 @@ pub enum BoxError {
     /// `main()`. Live as of Plan 10-05 (WTHR-V2-01 / D-12).
     #[error("no location: pass a location or set weather.location in config")]
     MissingLocation,
+
+    /// A `box config get/set <key>` USAGE error — a key outside the closed
+    /// [`crate::core::config::SETTABLE_KEYS`] registry (D-04), so it can never be
+    /// read or written. `main()` downcasts this variant and maps it to exit code 2
+    /// (a usage error), joining [`BoxError::Config`] / [`BoxError::MissingLocation`]
+    /// in the downcast set. Distinct from [`BoxError::Config`] (a bad-VALUE / bad-
+    /// TOML round-trip failure): both exit 2, but this one names the offending key
+    /// and lists the settable keys so the user can correct the call. The `message`
+    /// carries the full "did you mean" text. NOTHING is written when it fires
+    /// (rejected before any atomic write — D-03/D-04).
+    ///
+    /// Constructed in `core::config::set_value` (unknown-key branch) and
+    /// `commands::config` (get unknown-key branch), downcast-mapped to exit 2 in
+    /// `main()`. Live as of Plan 11-01 (CFG-01).
+    #[error("{message}")]
+    ConfigUsage { message: String },
 }
