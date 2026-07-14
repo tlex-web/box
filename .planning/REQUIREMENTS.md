@@ -77,13 +77,13 @@ Each maps to exactly one roadmap phase. REQ-IDs continue the per-command mnemoni
 
 ### Fun & system depth
 
-- [ ] **COW-V2-01**: `cowsay` gains multiple figures and think-mode.
-- [ ] **FORT-V2-01**: `fortune` gains selectable categories.
-- [ ] **8BAL-V2-01**: `8ball` gains ASCII-art presentation and sentiment color.
-- [ ] **ROST-V2-01**: `roast` gains `--language`.
-- [ ] **POMO-V2-01**: `pomodoro` gains a session counter, auto-break cycling, and `--label`.
-- [ ] **POMO-V2-02**: `pomodoro --sound` plays a completion beep via Win32 `MessageBeep` (zero-weight, no audio stack).
-- [ ] **WTHR-V2-01**: `weather` gains `--forecast` (multi-day), a response cache, and a stored default location (reads the config default).
+- [x] **COW-V2-01**: `cowsay` gains multiple figures and think-mode.
+- [x] **FORT-V2-01**: `fortune` gains selectable categories.
+- [x] **8BAL-V2-01**: `8ball` gains ASCII-art presentation and sentiment color.
+- [x] **ROST-V2-01**: `roast` gains `--language`.
+- [x] **POMO-V2-01**: `pomodoro` gains a session counter, auto-break cycling, and `--label`.
+- [x] **POMO-V2-02**: `pomodoro --sound` plays a completion beep via Win32 `MessageBeep` (zero-weight, no audio stack).
+- [x] **WTHR-V2-01**: `weather` gains `--forecast` (multi-day), a response cache, and a stored default location (reads the config default).
 
 ---
 
@@ -146,13 +146,13 @@ Each requirement maps to exactly one roadmap phase (finalized 2026-06-25 by road
 | MTRX-V2-01 | 9 | Complete |
 | QR-V2-01 | 9 | Complete |
 | ASCI-V2-01 | 9 | Complete |
-| COW-V2-01 | 10 | Pending |
-| FORT-V2-01 | 10 | Pending |
-| 8BAL-V2-01 | 10 | Pending |
-| ROST-V2-01 | 10 | Pending |
-| POMO-V2-01 | 10 | Pending |
-| POMO-V2-02 | 10 | Pending |
-| WTHR-V2-01 | 10 | Pending |
+| COW-V2-01 | 10 | Complete |
+| FORT-V2-01 | 10 | Complete |
+| 8BAL-V2-01 | 10 | Complete |
+| ROST-V2-01 | 10 | Complete |
+| POMO-V2-01 | 10 | Complete |
+| POMO-V2-02 | 10 | Complete |
+| WTHR-V2-01 | 10 | Complete |
 | CFG-01 | 11 | Pending |
 | CMP-01 | 11 | Pending |
 
