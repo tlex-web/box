@@ -81,81 +81,219 @@ pub enum Units {
 /// When the service is unreachable a graceful error is printed to stderr (exit 1).
 #[derive(Debug, Args)]
 pub struct WeatherArgs {
-    /// A city name (`London`) or a `lat,lon` pair (`51.5,-0.13`).
-    pub location: String,
-    /// Unit system for the forecast.
-    #[arg(long, value_enum, default_value_t = Units::Metric)]
-    pub units: Units,
+    /// A city name (`London`) or a `lat,lon` pair (`51.5,-0.13`). Optional: when
+    /// omitted, the stored `[weather] location` config value is used; if neither is
+    /// set, the command exits 2 with a hint (D-12).
+    pub location: Option<String>,
+    /// Unit system for the forecast. NO clap default (Anti-Pattern 3) so the
+    /// `[weather] units` config can win when `--units` is absent; the metric builtin
+    /// is applied by the resolver as the final fallback.
+    #[arg(long, value_enum)]
+    pub units: Option<Units>,
+    /// Also show a 7-day daily forecast (date, min/max temp, conditions).
+    #[arg(long)]
+    pub forecast: bool,
 }
 
 impl RunCommand for WeatherArgs {
     fn run(self) -> anyhow::Result<()> {
-        // Parse-shape disambiguation (D-12): a range-checked `lat,lon` is used
-        // directly; anything else is geocoded as a city name.
-        let (lat, lon, label) = match parse_lat_lon(&self.location) {
-            Some((lat, lon)) => (lat, lon, format!("{lat:.4},{lon:.4}")),
-            None => geocode(&self.location)?,
-        };
+        // Resolve the location: CLI positional > [weather] location config (D-12).
+        // Still-`None` (no positional AND no config) is a usage error → exit 2.
+        let location = resolve_location(
+            self.location.clone(),
+            crate::core::config::config().weather.location.clone(),
+        )
+        .ok_or(crate::core::errors::BoxError::MissingLocation)?;
 
-        // Echo the resolved location to stderr so a wrong geocode match is visible
-        // (D-12). messages → stderr (never stdout, which stays clean for the data).
-        eprintln!(
-            "Resolved \"{}\" → {label} ({lat:.2}, {lon:.2})",
-            self.location
+        // Resolve the unit system: CLI --units > [weather] units config > metric
+        // builtin (the settled SPINE-05 precedence, D-12).
+        let units = resolve_units(self.units, crate::core::config::config().weather.units);
+
+        // The LOGICAL cache key (location, units, forecast-or-not). It is handed to
+        // core::cache, which blake3-hashes it into the filename — the raw location
+        // string NEVER becomes a path component (T-10-05-CACHE-KEY, mitigated in
+        // 10-04). Distinct forecast/current + metric/imperial keys never collide.
+        let cache_key = format!(
+            "{location}|{}|{}",
+            units_key(units),
+            if self.forecast { "forecast" } else { "current" }
         );
 
-        // Forecast: server-side unit params on imperial only (D-11/D-13).
-        let url = build_forecast_url(lat, lon, self.units);
-        let forecast: ForecastResp = fetch(&url)?;
+        // Try the cache FIRST (D-11, transparent). A hit whose payload also
+        // deserializes into the current projection shape skips ALL network (geocode
+        // + forecast GET); a miss/stale/malformed entry (cache::get → None) OR a
+        // payload that no longer matches this shape (schema drift → the `.ok()`
+        // None) transparently falls through to a fresh fetch. The cache NEVER fails
+        // the command (T-10-05-CACHE-POISON).
+        let weather = match crate::core::cache::get(&cache_key)
+            .and_then(|payload| serde_json::from_str::<CachedWeather>(&payload).ok())
+        {
+            Some(cached) => cached,
+            None => {
+                let fresh = fetch_weather(&location, units, self.forecast)?;
+                // Best-effort write so a repeat within the TTL is a hit. A failed
+                // serialize/write is a silent no-op — never fails the command.
+                if let Ok(payload) = serde_json::to_string(&fresh) {
+                    crate::core::cache::put(&cache_key, &payload);
+                }
+                fresh
+            }
+        };
 
-        let conditions = wmo_to_str(forecast.current.weather_code);
-        // AUTHORITATIVE unit labels from current_units — NEVER hardcoded (D-11).
-        // The imperial wind label is "mp/h", not the "mph" request param.
-        let temp_unit = &forecast.current_units.temperature_2m;
-        let wind_unit = &forecast.current_units.wind_speed_10m;
-        let temp = forecast.current.temperature_2m;
-        let wind = forecast.current.wind_speed_10m;
-        let humidity = forecast.current.relative_humidity_2m;
+        // Echo the resolved location to stderr so a wrong geocode/config match is
+        // visible (D-12). stderr ONLY — stdout stays a clean single document even
+        // under --json, and the cache adds NOTHING to stdout (T-10-05-JSON-PURITY).
+        eprintln!(
+            "Resolved \"{location}\" → {} ({:.2}, {:.2})",
+            weather.label, weather.lat, weather.lon
+        );
 
-        // Fork on --json FIRST (Pitfall 1). Under --json emit the current-only
-        // WeatherOutput (D-17) — built from the already-parsed `forecast`, with the
-        // unit labels read straight from `current_units` (never hardcoded). The
-        // f64 fields come directly from the API response (finite real data, never a
-        // hand-computed NaN/Inf — Pitfall 2). The resolved-location echo above is
-        // already on stderr, so stdout stays a clean single document.
-        if crate::core::output::is_json_on() {
-            let doc = WeatherOutput {
-                location: label,
-                temperature: temp,
-                unit: temp_unit.clone(),
-                conditions: conditions.to_string(),
-                wind_speed: wind,
-                wind_unit: wind_unit.clone(),
-                humidity,
-            };
-            return crate::core::output::emit_json(&doc);
-        }
-
-        // Aligned labeled block → stdout (data). Conditions are optionally colored,
-        // gated SOLELY on is_color_on() so piped output is byte-identical minus
-        // ANSI (D-00/D-13). No second color path, no global override.
-        //
-        // The plain lines route through `out_line` so the human render tees to
-        // CLIP_BUF when `--clip` is on (WR-01) — matching every other spine
-        // command. The colored `Conditions` branch stays a direct `println!`
-        // because `is_color_on()` is forced false under `--clip` (init_output),
-        // so that branch is unreachable when clip is active and never needs to
-        // tee (mirrors the `color` swatch pattern).
-        if is_color_on() {
-            println!("  Conditions  : {}", conditions.cyan());
-        } else {
-            crate::core::output::out_line(&format!("  Conditions  : {conditions}"));
-        }
-        crate::core::output::out_line(&format!("  Temperature : {temp}{temp_unit}"));
-        crate::core::output::out_line(&format!("  Wind        : {wind} {wind_unit}"));
-        crate::core::output::out_line(&format!("  Humidity    : {humidity}%"));
-        Ok(())
+        render(&weather)
     }
+}
+
+/// Resolve the location: CLI positional > `[weather] location` config (D-12). Pure so
+/// the precedence is unit-testable; `None` means neither tier supplied one (the
+/// caller maps that to [`BoxError::MissingLocation`] → exit 2).
+fn resolve_location(cli: Option<String>, cfg: Option<String>) -> Option<String> {
+    cli.or(cfg)
+}
+
+/// Resolve the unit system: CLI `--units` > `[weather] units` config > metric builtin
+/// — the settled SPINE-05 `cli.or(cfg).unwrap_or(builtin)` shape (D-12). Pure → the
+/// precedence is a known-answer unit test.
+fn resolve_units(cli: Option<Units>, cfg: Option<Units>) -> Units {
+    cli.or(cfg).unwrap_or(Units::Metric)
+}
+
+/// The stable cache-key token for a unit system (`"metric"`/`"imperial"`), matching
+/// the lowercase serde spelling so the key stays human-legible and collision-free.
+fn units_key(units: Units) -> &'static str {
+    match units {
+        Units::Metric => "metric",
+        Units::Imperial => "imperial",
+    }
+}
+
+/// Fetch + project a fresh weather response into the [`CachedWeather`] projection (the
+/// cache-MISS path). Disambiguates the location by shape (D-12: a range-checked
+/// `lat,lon` used directly, else geocoded), runs the current (+ optional daily) GET
+/// via the reused [`fetch`], and reads EVERY unit label from the authoritative
+/// `current_units`/`daily_units` objects (never hardcoded — D-11). A malformed daily
+/// block is a clean error, never a panic (T-10-05-HTTP).
+fn fetch_weather(location: &str, units: Units, forecast: bool) -> anyhow::Result<CachedWeather> {
+    // Parse-shape disambiguation (D-12): a range-checked `lat,lon` is used directly;
+    // anything else is geocoded as a city name.
+    let (lat, lon, label) = match parse_lat_lon(location) {
+        Some((lat, lon)) => (lat, lon, format!("{lat:.4},{lon:.4}")),
+        None => geocode(location)?,
+    };
+
+    // Server-side unit params on imperial only (D-11/D-13); the daily block is
+    // requested ONLY under `--forecast` (D-10).
+    let url = build_forecast_url(lat, lon, units, forecast);
+    let resp: ForecastResp = fetch(&url)?;
+
+    // Under `--forecast`, project the parallel daily arrays into the bounded 7-day
+    // rows (D-10). An absent/short/mismatched daily block is a plain error → exit 1,
+    // NEVER a panic (T-10-05-HTTP). The daily temp label is read from `daily_units`
+    // (the SAME authoritative-label rule as `current_units`).
+    let (forecast_days, daily_temp_unit) = if forecast {
+        let daily = resp
+            .daily
+            .as_ref()
+            .context("forecast response missing the daily block")?;
+        let daily_units = resp
+            .daily_units
+            .as_ref()
+            .context("forecast response missing the daily_units block")?;
+        (
+            Some(build_day_forecasts(daily)?),
+            Some(daily_units.temperature_2m_max.clone()),
+        )
+    } else {
+        (None, None)
+    };
+
+    Ok(CachedWeather {
+        label,
+        lat,
+        lon,
+        temperature: resp.current.temperature_2m,
+        // AUTHORITATIVE unit labels from current_units — NEVER hardcoded (D-11). The
+        // imperial wind label is "mp/h", not the "mph" request param.
+        temp_unit: resp.current_units.temperature_2m.clone(),
+        conditions: wmo_to_str(resp.current.weather_code).to_string(),
+        wind_speed: resp.current.wind_speed_10m,
+        wind_unit: resp.current_units.wind_speed_10m.clone(),
+        humidity: resp.current.relative_humidity_2m,
+        daily_temp_unit,
+        forecast: forecast_days,
+    })
+}
+
+/// Render a [`CachedWeather`] to stdout — the SHARED path for both a cache hit and a
+/// fresh fetch, so a hit is byte-identical to a miss. Forks on `--json` FIRST
+/// (Pitfall 1): under it, emit the [`WeatherOutput`] document (the current-only shape
+/// stays byte-unchanged because `forecast` is `None` off `--forecast`,
+/// `skip_serializing_if`); otherwise print the aligned human block. Colour is gated
+/// SOLELY on `is_color_on()` (piped/`--json` output is byte-identical minus ANSI) and
+/// plain lines route through `out_line` so `--clip` tees them. Cache/echo add NOTHING
+/// to stdout (T-10-05-JSON-PURITY).
+fn render(w: &CachedWeather) -> anyhow::Result<()> {
+    if crate::core::output::is_json_on() {
+        let doc = WeatherOutput {
+            location: w.label.clone(),
+            temperature: w.temperature,
+            unit: w.temp_unit.clone(),
+            conditions: w.conditions.clone(),
+            wind_speed: w.wind_speed,
+            wind_unit: w.wind_unit.clone(),
+            humidity: w.humidity,
+            forecast: w.forecast.clone(),
+        };
+        return crate::core::output::emit_json(&doc);
+    }
+
+    // Aligned labeled current block → stdout. The colored `Conditions` branch stays a
+    // direct `println!` because `is_color_on()` is forced false under `--clip`
+    // (init_output), so that branch is unreachable when clip is active (mirrors the
+    // `color` swatch pattern); the plain lines route through `out_line` to tee.
+    if is_color_on() {
+        println!("  Conditions  : {}", w.conditions.cyan());
+    } else {
+        crate::core::output::out_line(&format!("  Conditions  : {}", w.conditions));
+    }
+    crate::core::output::out_line(&format!("  Temperature : {}{}", w.temperature, w.temp_unit));
+    crate::core::output::out_line(&format!("  Wind        : {} {}", w.wind_speed, w.wind_unit));
+    crate::core::output::out_line(&format!("  Humidity    : {}%", w.humidity));
+
+    // The daily section (D-10) — additive AFTER the current block, only under
+    // `--forecast`. The temp label is the authoritative `daily_units` value carried
+    // in the projection; the conditions colour is gated exactly like the current
+    // block (plain lines through `out_line` so `--clip` tees them).
+    if let Some(days) = &w.forecast {
+        let unit = w.daily_temp_unit.as_deref().unwrap_or("");
+        crate::core::output::out_line("");
+        crate::core::output::out_line("  7-day forecast:");
+        for d in days {
+            if is_color_on() {
+                println!(
+                    "    {}  {}{unit} / {}{unit}  {}",
+                    d.date,
+                    d.temp_min,
+                    d.temp_max,
+                    d.conditions.cyan()
+                );
+            } else {
+                crate::core::output::out_line(&format!(
+                    "    {}  {}{unit} / {}{unit}  {}",
+                    d.date, d.temp_min, d.temp_max, d.conditions
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The `--json` document for `weather` (D-17): the CURRENT-ONLY conditions, a
@@ -181,6 +319,65 @@ struct WeatherOutput {
     wind_unit: String,
     /// Relative humidity as a percentage value.
     humidity: f64,
+    /// The 7-day daily outlook (D-10), present ONLY under `--forecast`.
+    /// `skip_serializing_if` omits the key entirely on the current-only path, so
+    /// the pre-Phase-10 `--json` document is byte-unchanged. Each temp is in the
+    /// SAME unit as the current `temperature` (the server-side unit param applies to
+    /// current AND daily), so no per-day unit label is needed in the machine shape.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    forecast: Option<Vec<DayForecast>>,
+}
+
+/// One day of the 7-day daily outlook (D-10) in the `--json` `forecast` array:
+/// a flat `{date, temp_min, temp_max, conditions}` object (snake_case house style).
+/// `temp_min`/`temp_max` are the raw daily extremes from the API (finite real data);
+/// `conditions` is the WMO-mapped text for that day's `weather_code`. `Deserialize`
+/// + `Clone` let the response cache (10-05 Task 2) round-trip this projection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DayForecast {
+    /// The ISO-8601 calendar date for this daily entry (e.g. `"2026-06-24"`).
+    date: String,
+    /// The day's minimum temperature, in the top-level `unit`.
+    temp_min: f64,
+    /// The day's maximum temperature, in the top-level `unit`.
+    temp_max: f64,
+    /// The WMO-mapped conditions text for the day (e.g. `"Clear sky"`).
+    conditions: String,
+}
+
+/// The response-cache projection (D-11): the fully-resolved values a render needs,
+/// serialized as the cache payload. Caching the PROJECTION (not the raw Open-Meteo
+/// JSON) means a cache hit skips geocoding too — the resolved `label`/`lat`/`lon` are
+/// stored — and keeps the render path identical for a hit and a fresh fetch. Every
+/// unit label was already read from the authoritative `current_units`/`daily_units`
+/// (D-11) at fetch time. Round-trips via serde (`Serialize` on the cache write,
+/// `Deserialize` on the read); a stored payload that no longer matches this shape is
+/// treated as a MISS (a fresh fetch), never a trust of an unvalidated shape.
+#[derive(Serialize, Deserialize)]
+struct CachedWeather {
+    /// The resolved location label (the `lat,lon` echo or the geocoded name).
+    label: String,
+    /// The resolved latitude (cached so a hit needs no geocode for the echo).
+    lat: f64,
+    /// The resolved longitude (cached so a hit needs no geocode for the echo).
+    lon: f64,
+    /// Current temperature, in the unit named by `temp_unit`.
+    temperature: f64,
+    /// The authoritative current temperature unit label (`°C`/`°F`).
+    temp_unit: String,
+    /// The WMO-mapped current conditions text.
+    conditions: String,
+    /// Current wind speed, in the unit named by `wind_unit`.
+    wind_speed: f64,
+    /// The authoritative current wind unit label (`km/h`/`mp/h`).
+    wind_unit: String,
+    /// Relative humidity as a percentage value.
+    humidity: f64,
+    /// The authoritative daily temp unit label for the human forecast render —
+    /// `Some` only under `--forecast`.
+    daily_temp_unit: Option<String>,
+    /// The 7-day daily outlook — `Some` only under `--forecast`.
+    forecast: Option<Vec<DayForecast>>,
 }
 
 /// Geocode a city `name` to `(lat, lon, "City, Region, Country")` via the
@@ -273,16 +470,47 @@ fn parse_lat_lon(s: &str) -> Option<(f64, f64)> {
 ///
 /// The forecast origin comes from [`forecast_origin`] (the real Open-Meteo host,
 /// or `BOX_WEATHER_BASE_URL` when the offline test seam is set).
-fn build_forecast_url(lat: f64, lon: f64, units: Units) -> String {
+fn build_forecast_url(lat: f64, lon: f64, units: Units, forecast: bool) -> String {
     let mut url = format!(
         "{}/v1/forecast?latitude={lat}&longitude={lon}\
          &current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m",
         forecast_origin(),
     );
+    // `--forecast` (D-10): request the fixed 7-day daily block ALONGSIDE the current
+    // block. The imperial `temperature_unit` param below applies to BOTH the current
+    // and daily temps, so no separate daily-unit param is needed.
+    if forecast {
+        url.push_str("&daily=temperature_2m_max,temperature_2m_min,weather_code");
+    }
     if matches!(units, Units::Imperial) {
         url.push_str("&temperature_unit=fahrenheit&wind_speed_unit=mph");
     }
     url
+}
+
+/// Project the parallel `daily` arrays into the bounded 7-day rows (D-10). Zips the
+/// `time`/`temperature_2m_max`/`temperature_2m_min`/`weather_code` vectors by index,
+/// mapping each `weather_code` through [`wmo_to_str`]. A short/mismatched daily block
+/// (unequal array lengths, or an empty span) is a plain `Err` → exit 1, NEVER a panic
+/// or an out-of-bounds index (T-10-05-HTTP: a malformed remote block is an error, not
+/// a crash). Pure over its input → unit-testable from the offline fixtures.
+fn build_day_forecasts(daily: &Daily) -> anyhow::Result<Vec<DayForecast>> {
+    let n = daily.time.len();
+    anyhow::ensure!(
+        n > 0
+            && daily.temperature_2m_max.len() == n
+            && daily.temperature_2m_min.len() == n
+            && daily.weather_code.len() == n,
+        "malformed daily forecast: mismatched or empty daily arrays"
+    );
+    Ok((0..n)
+        .map(|i| DayForecast {
+            date: daily.time[i].clone(),
+            temp_min: daily.temperature_2m_min[i],
+            temp_max: daily.temperature_2m_max[i],
+            conditions: wmo_to_str(daily.weather_code[i]).to_string(),
+        })
+        .collect())
 }
 
 /// Percent-encode a query-string value so reserved characters (`&`/`=`/spaces/
@@ -339,11 +567,47 @@ struct GeoHit {
 }
 
 /// Forecast response: the `current` values plus the AUTHORITATIVE `current_units`
-/// label object (read the suffix from here, never hardcode — D-11).
+/// label object (read the suffix from here, never hardcode — D-11). The `daily` +
+/// `daily_units` blocks are present ONLY when the request asked for them (`--forecast`,
+/// D-10); `#[serde(default)]` keeps the current-only response (no daily key)
+/// deserializing into `None` rather than a missing-field error.
 #[derive(Debug, Deserialize)]
 struct ForecastResp {
     current: Current,
     current_units: CurrentUnits,
+    /// The 7-day daily block — `Some` only under `--forecast`.
+    #[serde(default)]
+    daily: Option<Daily>,
+    /// The daily unit-label object — `Some` only under `--forecast`.
+    #[serde(default)]
+    daily_units: Option<DailyUnits>,
+}
+
+/// The 7-day daily forecast arrays (D-10). Each field is a parallel `Vec` indexed by
+/// day; the typed shape bounds the deserialize to these four arrays (never an
+/// open-ended stream — T-10-05-HTTP). `build_day_forecasts` validates the lengths
+/// match before zipping them, so a short/mismatched block is an error not a panic.
+#[derive(Debug, Deserialize)]
+struct Daily {
+    /// ISO-8601 dates, one per forecast day.
+    time: Vec<String>,
+    /// Per-day maximum temperature (in the requested unit).
+    temperature_2m_max: Vec<f64>,
+    /// Per-day minimum temperature (in the requested unit).
+    temperature_2m_min: Vec<f64>,
+    /// Per-day WMO weather code (mapped to text via `wmo_to_str`).
+    weather_code: Vec<u32>,
+}
+
+/// The daily unit-label object: e.g. `"°C"`/`"°F"` for the temps. Read the
+/// authoritative temp label from here, NEVER hardcode (the SAME rule as
+/// [`CurrentUnits`], D-11). Only `temperature_2m_max` is captured — the daily min
+/// shares its unit, and this struct has no `deny_unknown_fields` so the extra
+/// `temperature_2m_min` label in the JSON is harmlessly ignored.
+#[derive(Debug, Deserialize)]
+struct DailyUnits {
+    /// The authoritative daily temp unit label (`"°C"`/`"°F"`), used for both extremes.
+    temperature_2m_max: String,
 }
 
 /// The current-weather values. `relative_humidity_2m` comes back as an integer
@@ -412,7 +676,7 @@ mod tests {
     /// temperature_unit AND wind_speed_unit params for imperial (D-11).
     #[test]
     fn build_forecast_url_unit_params() {
-        let metric = build_forecast_url(51.5, -0.13, Units::Metric);
+        let metric = build_forecast_url(51.5, -0.13, Units::Metric, false);
         assert!(
             !metric.contains("temperature_unit=fahrenheit"),
             "metric must NOT request fahrenheit: {metric}"
@@ -428,7 +692,7 @@ mod tests {
             "metric must request the current set: {metric}"
         );
 
-        let imperial = build_forecast_url(51.5, -0.13, Units::Imperial);
+        let imperial = build_forecast_url(51.5, -0.13, Units::Imperial, false);
         assert!(
             imperial.contains("temperature_unit=fahrenheit"),
             "imperial must request fahrenheit: {imperial}"
@@ -437,6 +701,150 @@ mod tests {
             imperial.contains("wind_speed_unit=mph"),
             "imperial must request mph: {imperial}"
         );
+    }
+
+    /// `build_forecast_url` requests the 7-day `daily=` block ONLY under `--forecast`
+    /// (D-10); the current-only path omits it entirely (so the pre-Phase-10 response
+    /// shape is unchanged). The imperial unit param still rides alongside the daily
+    /// block (one `temperature_unit` covers current AND daily).
+    #[test]
+    fn build_forecast_url_daily_param() {
+        let daily_param = "daily=temperature_2m_max,temperature_2m_min,weather_code";
+
+        // No --forecast → NO daily block (current-only shape unchanged).
+        let current = build_forecast_url(51.5, -0.13, Units::Metric, false);
+        assert!(
+            !current.contains(daily_param),
+            "current-only must NOT request the daily block: {current}"
+        );
+
+        // --forecast → the daily block is appended.
+        let forecast = build_forecast_url(51.5, -0.13, Units::Metric, true);
+        assert!(
+            forecast.contains(daily_param),
+            "--forecast must request the daily block: {forecast}"
+        );
+
+        // --forecast + imperial → both the daily block AND the imperial unit param.
+        let imperial = build_forecast_url(51.5, -0.13, Units::Imperial, true);
+        assert!(
+            imperial.contains(daily_param) && imperial.contains("temperature_unit=fahrenheit"),
+            "--forecast imperial must request daily + fahrenheit: {imperial}"
+        );
+    }
+
+    /// The metric 7-day fixture deserializes into `ForecastResp` with a `daily` +
+    /// `daily_units` block; `build_day_forecasts` projects exactly 7 rows, mapping
+    /// each `weather_code` through `wmo_to_str`, and the AUTHORITATIVE daily temp
+    /// label is `"°C"` read from `daily_units` (D-10/D-11 — never hardcoded).
+    #[test]
+    fn forecast_metric_7day_fixture_projects_7_rows() {
+        let raw = include_str!("../../../tests/fixtures/weather/forecast_metric_7day.json");
+        let f: ForecastResp = serde_json::from_str(raw).expect("metric 7-day forecast parses");
+
+        let daily = f.daily.as_ref().expect("daily block present");
+        let daily_units = f.daily_units.as_ref().expect("daily_units block present");
+        assert_eq!(
+            daily_units.temperature_2m_max, "°C",
+            "the daily temp label is read from daily_units (authoritative, never hardcoded)"
+        );
+
+        let days = build_day_forecasts(daily).expect("daily arrays project");
+        assert_eq!(days.len(), 7, "a fixed 7-day span");
+        assert_eq!(days[0].date, "2026-06-24");
+        assert_eq!(days[0].temp_min, 12.0);
+        assert_eq!(days[0].temp_max, 22.0);
+        // weather_code 0 → "Clear sky"; code 95 (day 6) → "Thunderstorm".
+        assert_eq!(days[0].conditions, "Clear sky");
+        assert_eq!(days[5].conditions, "Thunderstorm");
+    }
+
+    /// The imperial 7-day fixture's daily temp label is `"°F"` — proving the daily
+    /// render reads `daily_units`, not a hardcoded suffix (Pitfall WTHR-3 applied to
+    /// the daily block).
+    #[test]
+    fn forecast_imperial_7day_fixture_label_is_fahrenheit() {
+        let raw = include_str!("../../../tests/fixtures/weather/forecast_imperial_7day.json");
+        let f: ForecastResp = serde_json::from_str(raw).expect("imperial 7-day forecast parses");
+        let daily_units = f.daily_units.as_ref().expect("daily_units block present");
+        assert_eq!(
+            daily_units.temperature_2m_max, "°F",
+            "the imperial daily temp label is °F, read from daily_units"
+        );
+    }
+
+    /// A malformed daily block (mismatched array lengths) is an `Err`, NEVER a panic
+    /// or an out-of-bounds index (T-10-05-HTTP — a bad remote block degrades to a
+    /// clean exit-1 error).
+    #[test]
+    fn build_day_forecasts_rejects_mismatched_arrays() {
+        let bad = Daily {
+            time: vec!["2026-06-24".into(), "2026-06-25".into()],
+            temperature_2m_max: vec![22.0], // shorter than `time`
+            temperature_2m_min: vec![12.0, 11.0],
+            weather_code: vec![0, 1],
+        };
+        assert!(
+            build_day_forecasts(&bad).is_err(),
+            "a mismatched daily block must be an error, not a panic"
+        );
+    }
+
+    /// A current-only forecast fixture (no `daily` key) still deserializes: the
+    /// `#[serde(default)]` on `daily`/`daily_units` yields `None` rather than a
+    /// missing-field error, so the non-`--forecast` path is unaffected.
+    #[test]
+    fn current_only_fixture_has_no_daily() {
+        let raw = include_str!("../../../tests/fixtures/weather/forecast_metric.json");
+        let f: ForecastResp = serde_json::from_str(raw).expect("current-only forecast parses");
+        assert!(f.daily.is_none(), "current-only response has no daily block");
+        assert!(f.daily_units.is_none(), "current-only response has no daily_units");
+    }
+
+    /// D-12 — `resolve_units` proves CLI > config > metric builtin as a known-answer
+    /// matrix (the SPINE-05 `cli.or(cfg).unwrap_or(builtin)` shape), terminal-free.
+    #[test]
+    fn resolve_units_precedence() {
+        // CLI wins over config and the builtin.
+        assert_eq!(
+            resolve_units(Some(Units::Imperial), Some(Units::Metric)),
+            Units::Imperial
+        );
+        assert_eq!(resolve_units(Some(Units::Metric), None), Units::Metric);
+        // With no CLI, the config value wins over the builtin.
+        assert_eq!(resolve_units(None, Some(Units::Imperial)), Units::Imperial);
+        // Neither → the metric builtin.
+        assert_eq!(resolve_units(None, None), Units::Metric);
+    }
+
+    /// D-12 — `resolve_location` proves the CLI positional beats the config location,
+    /// config is used when the positional is absent, and neither → `None` (which the
+    /// caller maps to the exit-2 `MissingLocation`).
+    #[test]
+    fn resolve_location_precedence() {
+        assert_eq!(
+            resolve_location(Some("London".into()), Some("Paris".into())).as_deref(),
+            Some("London"),
+            "the CLI positional beats the config location"
+        );
+        assert_eq!(
+            resolve_location(None, Some("Paris".into())).as_deref(),
+            Some("Paris"),
+            "with no positional, the config location is used"
+        );
+        assert_eq!(
+            resolve_location(None, None),
+            None,
+            "neither → None (the caller maps this to exit 2)"
+        );
+    }
+
+    /// The cache-key unit tokens are the stable lowercase spellings, so a
+    /// metric key and an imperial key for the same location never collide.
+    #[test]
+    fn units_key_tokens() {
+        assert_eq!(units_key(Units::Metric), "metric");
+        assert_eq!(units_key(Units::Imperial), "imperial");
     }
 
     /// `url_encode` percent-encodes reserved chars (space/`&`/`=`) so a hostile

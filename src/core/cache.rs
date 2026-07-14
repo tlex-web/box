@@ -24,12 +24,11 @@
 //! An entry older than [`TTL_SECS`] (~10 min) is a MISS. Staleness is decided by the
 //! pure [`is_fresh`] helper so the boundary is unit-testable without touching the clock.
 
-// Forward-compat FOUNDATION (mirrors `config.rs`'s `#[allow(dead_code)]` on
-// `resolve_algo` before `hash` adopted it — "allow-then-remove"): this module has NO
-// live caller in the bin build yet. Plan 10-05 wires `get`/`put` into `weather`, which
-// makes every item reachable and lets this module-level allow be removed then. Until
-// then it keeps the `cargo clippy --all-targets -- -D warnings` gate green.
-#![allow(dead_code)]
+// The `#![allow(dead_code)]` forward-compat allow (10-04) is REMOVED here (10-05):
+// `weather::run` is now the live caller of `get`/`put`, which makes every item in this
+// module reachable in the bin build — restoring the strict
+// `cargo clippy --all-targets -- -D warnings` dead-code gate ("allow-then-remove",
+// mirroring `config.rs`'s `resolve_algo` history).
 
 /// The freshness window: an entry whose age (`now - fetched_at`) is `>= TTL_SECS`
 /// is stale and treated as a MISS (~10 minutes, D-11).
