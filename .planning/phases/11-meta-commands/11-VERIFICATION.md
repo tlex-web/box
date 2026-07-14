@@ -1,38 +1,25 @@
 ---
 phase: 11-meta-commands
-verified: 2026-07-14T20:00:00Z
-status: gaps_found
-score: 4/6 must-haves verified
+verified: 2026-07-14T21:00:00Z
+status: human_needed
+score: 6/6 must-haves verified
 overrides_applied: 0
-gaps:
-  - truth: "`config show`/`config get hash.default_algo` accurately reflect the SAME value `box hash` will actually consume — i.e. the full CLI>env>config>builtin resolver (D-06 parity, as documented in the `commands/config/mod.rs` module doc: \"config show can never lie about what box hash/box weather will consume\")"
-    status: failed
-    reason: "Empirically reproduced: with BOX_HASH_DEFAULT_ALGO=md5 set and no config file, `box hash <file>` emits an MD5 digest, but `box config get hash.default_algo` prints `blake3` and `box config show --json` reports `.hash.default_algo == \"blake3\"` — both silently drop the live env tier. `effective()`/`get`'s hash arm resolve only `config().hash.default_algo.unwrap_or(Algo::Blake3)`, a 2-tier (config>builtin) resolution, while `hash::run_compute` resolves `cli.or(env).or(config).unwrap_or(builtin)` (4-tier). Weather has no env tier so its parity holds; this is specific to `hash.default_algo`. Matches code-review WR-01 (11-REVIEW.md), left unresolved (not marked RESOLVED, unlike the analogous Phase 10 WR-01/WR-02 which were closed via a dedicated 10-06 gap-closure plan before that phase's verification)."
-    artifacts:
-      - path: "src/commands/config/mod.rs"
-        issue: "`effective()` (lines 109-120) and `get`'s `\"hash.default_algo\"` arm (line 159-162) omit the `BOX_HASH_DEFAULT_ALGO` env-var tier that `src/commands/hash/mod.rs`'s `run_compute` (line 301-308) consults"
-    missing:
-      - "Resolve `effective()`'s/`get`'s hash arm through the SAME env>config>builtin chain `run_compute` uses (e.g. via a shared/pub(crate) `parse_algo` + `std::env::var(\"BOX_HASH_DEFAULT_ALGO\")` lookup before falling back to `config().hash.default_algo`), OR explicitly narrow the module doc / `box config --help` text so it no longer claims parity with \"what box hash will consume\" when an env override is scoped out."
-  - truth: "A malformed `%APPDATA%\\box\\config.toml` still leaves the config meta-commands usable as a repair path (`config path`/`config set`), and does not break `box completions` when registered into $PROFILE via `install.ps1 -RegisterCompletions`"
-    status: failed
-    reason: "Empirically reproduced: with a malformed config.toml (unknown top-level key), `main()`'s `init_config()` gate fires for EVERY subcommand before dispatch (`src/main.rs:81-84`), so `box config path`, `box config set hash.default_algo blake3` (the intended repair action), `box config show`, and `box completions powershell` all exit 2 with the same `error: config error in ...` line — none can locate/repair the file, and the install-registered `box completions powershell | Out-String | Invoke-Expression` line in $PROFILE would print that error on EVERY new PowerShell session. This directly undercuts the phase's stated core value (\"frictionless PS7\") even though the literal ROADMAP SC4 wording (\"a malformed config file produces a clear error rather than a panic\") is technically satisfied — the error IS clear and not a panic, just applied indiscriminately to commands that need no config at all. Matches code-review WR-02 (11-REVIEW.md), left unresolved."
-    artifacts:
-      - path: "src/main.rs"
-        issue: "Lines 81-84: `init_config()` gates ALL dispatch (`.and_then(|()| { ... match cli.command { ... } })`), including `Config`/`Completions`, which do not need a successfully-parsed config to run `path`/`set`/`completions`"
-    missing:
-      - "Decouple config-independent commands from the global config gate — e.g. dispatch `Commands::Config`/`Commands::Completions` before/around `init_config()`, or make `config`'s `path`/`set` handlers tolerant of a load failure (load-or-default, surfacing the parse error only on `show`/`get` which need the effective value)."
-human_verification:
-  - test: "Run `box completions powershell | Out-String | Invoke-Expression` in a real PowerShell 7 session, then type `box <TAB>` and `box weather --<TAB>`"
-    expected: "Subcommand names (incl. `config`/`completions`) and flag names (incl. `--json`/`--clip`/depth flags) tab-complete correctly"
-    why_human: "Actual PSReadLine tab-completion behavior in a live terminal cannot be verified by grep/byte-pattern checks — only the generated script's textual content (Register-ArgumentCompleter, flag/subcommand names) was verified programmatically"
+re_verification:
+  previous_status: gaps_found
+  previous_score: 4/6
+  gaps_closed:
+    - "WR-01 (D-06 env-tier parity): `config get`/`config show --json` now resolve `hash.default_algo` through the SAME `pub(crate) hash::effective_default_algo()` (env>config>builtin) that `run_compute` consumes — reproduced live with `BOX_HASH_DEFAULT_ALGO=md5` + no config: `config get` → `md5`, `config show --json` → `.hash.default_algo == \"md5\"`, `box hash` → MD5 digest. All three agree."
+    - "WR-02 (SC4 robustness): a malformed `%APPDATA%\\box\\config.toml` no longer bricks `config path`/`config set`/`completions powershell` (all exit 0 live), `config set` repairs the file (verified: file content changes from `bogus_key = 1` to a clean `[hash]\\ndefault_algo = \"blake3\"`, and a subsequent `get` reads it back), while `box hash` and `config show`/`get` still exit 2 under the same malformed file (no tolerance hole) — reproduced live via direct binary execution."
+  gaps_remaining: []
+  regressions: []
 ---
 
 # Phase 11: Meta-Commands Verification Report
 
-**Phase Goal:** Ship the two frictionless-PS7 meta-commands last, generated against the now-final and complete `Cli` arg surface so `completions` reflects every flag added in Phases 6-10.
-**Verified:** 2026-07-14T20:00:00Z
-**Status:** gaps_found
-**Re-verification:** No — initial verification
+**Phase Goal:** Ship the two frictionless-PS7 meta-commands (`box config` + `box completions`) last, generated against the now-final and complete `Cli` arg surface so `completions` reflects every flag added in Phases 6-10.
+**Verified:** 2026-07-14T21:00:00Z
+**Status:** human_needed
+**Re-verification:** Yes — after gap closure (11-03-PLAN.md)
 
 ## Goal Achievement
 
@@ -40,77 +27,64 @@ human_verification:
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 (SC1) | `box config show/get <key>/set <key> <value>/path` read/edit/locate `%APPDATA%\box\config.toml`; `show --json` emits effective config as JSON | ✓ VERIFIED | `cargo test --test config_cmd` 10/10 pass; manual run: `config show --json` → `{"hash":{"default_algo":"blake3"},"weather":{"location":null,"units":"metric"}}`, exit 0; `config get`/`set`/`path` all exercised live |
-| 2 (SC2, literal) | `box config set hash.default_algo sha256` then bare `box hash file.bin` emits SHA-256 | ✓ VERIFIED | `set_then_hash_roundtrips_sha256` integration test passes; manually reproduced: `set hash.default_algo sha256` → `hash <file>` emits the `BOX_SHA256` row |
-| 3 (SC3) | `box completions powershell` emits a static PS7 script tab-completing subcommands/flags/hints incl. global `--json`/`--clip` and every Phase-8/9/10 depth flag, generated from the live final `Cli` | ✓ VERIFIED | Generated script (520 lines) contains `Register-ArgumentCompleter`, `config`/`completions` subcommands, global `--json`/`--clip`/`--no-color`, and depth flags from every phase: `--extensions`/`--move`/`--on-disk`/`--dirs-only`/`--backup` (Ph.8), `--v7`/`--tz`/`--sort-keys`/`--braille` (Ph.9), `--think`/`--sound`/`--forecast`/`--label` (Ph.10) — all present via `clap::CommandFactory` reflection, not manual enumeration |
-| 4 (SC4, literal) | First-time user with no config runs every command unchanged; malformed config produces a clear error, not a panic | ✓ VERIFIED | Existing `tests/config.rs` missing-config coverage unaffected (full suite green); manually reproduced a malformed config → `error: config error in ...`, exit 2 (not a panic) for every command tested |
-| 5 (derived, D-06 parity) | `config show`/`config get hash.default_algo` report the SAME value `box hash` will actually use, across ALL precedence tiers (the module's own documented guarantee) | ✗ FAILED | See `gaps[0]` — env-tier (`BOX_HASH_DEFAULT_ALGO`) is silently dropped by `config show`/`get`, reproduced live |
-| 6 (derived, SC4 robustness) | A malformed config does not brick the config-repair path (`config set`/`path`) or the install-registered `completions` shell-start line | ✗ FAILED | See `gaps[1]` — `init_config()` gates ALL dispatch including `Config`/`Completions`, reproduced live |
+| 1 (SC1) | `box config show/get <key>/set <key> <value>/path` read/edit/locate `%APPDATA%\box\config.toml`; `show --json` emits effective config as JSON | ✓ VERIFIED | `cargo test --test config_cmd` 14/14 pass (regression, unaffected by 11-03); live manual run confirms `show --json` → clean JSON object, exit 0 |
+| 2 (SC2, literal) | `box config set hash.default_algo sha256` then bare `box hash file.bin` emits SHA-256 | ✓ VERIFIED | `set_then_hash_roundtrips_sha256` passes; unaffected by 11-03's changes (CLI/`--algo` unset path is algebraically identical) |
+| 3 (SC3) | `box completions powershell` emits a static PS7 script tab-completing subcommands/flags/hints incl. global `--json`/`--clip` and every Phase-8/9/10 depth flag, generated from the live final `Cli` | ✓ VERIFIED | `cargo test --test completions` 6/6 pass; live run of `box completions powershell` under a malformed config still emits `Register-ArgumentCompleter` (now decoupled from the config gate per WR-02) |
+| 4 (SC4, literal) | First-time user with no config runs every command unchanged; malformed config produces a clear error, not a panic | ✓ VERIFIED | Regression: `tests/config.rs` malformed-config tests stay green; a normal command under a malformed config still prints `error: config error in ...` and exits 2 (not a panic) — reproduced live |
+| 5 (WR-01, D-06 env-tier parity) | `config show`/`config get hash.default_algo` report the SAME value `box hash` actually consumes, across ALL precedence tiers (env included) | ✓ VERIFIED (was FAILED) | Reproduced live with `BOX_HASH_DEFAULT_ALGO=md5` + no config: `config get hash.default_algo` → `md5`, `config show --json` → `.hash.default_algo == "md5"`, `box hash <file>` → `34be958a921e43d813a2075297d8e862  <path>` (the known MD5 of `b"box"`). All three agree. Also confirmed by `env_tier_parity_hash_default_algo` (config_cmd.rs) passing. Source: `hash::effective_default_algo()` is the single resolver, consumed by both `run_compute` (`cli_algo.unwrap_or_else(effective_default_algo)`, hash/mod.rs:320) and config's `effective()`/`get` (config/mod.rs:135, :184). `grep -rl BOX_HASH_DEFAULT_ALGO src/` returns only `hash/mod.rs` — no second lookup exists. |
+| 6 (WR-02, SC4 robustness) | A malformed config does not brick the config-repair path (`config set`/`path`) or the install-registered `completions` shell-start line, while normal commands and `config show`/`get` still exit 2 (no tolerance hole) | ✓ VERIFIED (was FAILED) | Reproduced live with a malformed `bogus_key = 1` config: `config path` → exit 0; `config set hash.default_algo blake3` → exit 0 AND rewrites the file to a clean `[hash]\ndefault_algo = "blake3"` (confirmed by direct file read + a subsequent `config get` reading `blake3`, exit 0); `completions powershell` → exit 0, emits the registration script. Under the SAME malformed file: `box hash <file>` → exit 2 with `error: config error in ...`; `config show`/`get` → exit 2. Also confirmed by `malformed_config_path_and_completions_exit0`, `malformed_config_set_repairs_file`, `malformed_config_still_bricks_normal_command` (config_cmd.rs) all passing. Source: `main.rs`'s `config_independent` predicate (`Commands::Completions(_) => true`, `Commands::Config(args) => args.tolerates_malformed_config()`) gates a fallback to `core::config::init_config_default()` only for the tolerant set; `ConfigArgs::tolerates_malformed_config()` returns true only for `Path`/`Set` (config/mod.rs:78-83). |
 
-**Score:** 4/6 truths verified (2 FAILED — both correspond to unresolved code-review warnings WR-01/WR-02)
+**Score:** 6/6 truths verified (0 FAILED — both previously-failing truths reproduced VERIFIED live)
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `src/commands/config/mod.rs` | `ConfigArgs`/`ConfigCommand` nested subcommand; show/get/set/path handlers | ✓ VERIFIED | 229 lines (≥180 min); `is_json_on()`-first fork present in `show`/`get`/`emit_value` |
-| `src/core/config.rs` | `pub config_path()`; `Serialize`+`skip_serializing_if`; `SETTABLE_KEYS`; `pub set_value()` | ✓ VERIFIED | All present; `set_value`/`build_config_toml` implement validate-before-write; 11 passing unit tests incl. `build_config_toml_invalid_enum_errs`, `build_config_toml_unknown_key_errs_config_usage` |
-| `src/core/fs.rs` | `pub atomic_write(path, contents)` — parent-dir create, temp-write, rename | ✓ VERIFIED | Present (lines 132-152); unit tests `atomic_write_creates_parent_and_lands_bytes`/`atomic_write_replaces_existing` pass |
-| `tests/config_cmd.rs` | Integration proofs incl. SC2 round-trip, D-06 human/JSON parity, exit-code contract | ✓ VERIFIED | 285 lines (≥120 min); 10/10 tests pass |
-| `src/commands/completions/mod.rs` | `CompletionsArgs` (required positional `clap_complete::Shell`) + `generate()` against `Cli::command()` | ✓ VERIFIED | 129 lines (≥40 min); required positional (no `Option`), inert header + `clap_complete::generate` call present |
-| `Cargo.toml` | `clap_complete` pinned to match clap 4.6 | ✓ VERIFIED | `clap_complete = "4.6"` beside `clap = { version = "4.6", ... }` |
-| `install.ps1` | registration hint + opt-in idempotent `-RegisterCompletions` | ✓ VERIFIED | `param([switch]$RegisterCompletions)` first statement; default path only prints hint; `-RegisterCompletions` path is `Select-String`-guarded, appends sentinel + oneliner |
-| `tests/completions.rs` | purity + live-Cli-reflection + shell-validation + `--help` recipe proofs | ✓ VERIFIED | 158 lines (≥60 min); 6/6 tests pass |
+| `src/commands/hash/mod.rs` | `pub(crate) fn effective_default_algo()` — env>config>builtin resolver; `run_compute` layers CLI over it | ✓ VERIFIED | Present at line 144-150; `run_compute` line 320: `cli_algo.unwrap_or_else(effective_default_algo)`; `parse_algo` stays private (line 132) |
+| `src/commands/config/mod.rs` | `effective()`/`get` hash arm call `hash::effective_default_algo()`; `ConfigArgs::tolerates_malformed_config()` | ✓ VERIFIED | Both call sites present (lines 135, 184); `tolerates_malformed_config()` present (lines 78-83), body matches `ConfigCommand::Path \| ConfigCommand::Set { .. }` exactly |
+| `src/core/config.rs` | `pub fn init_config_default()` — default-fallback initializer | ✓ VERIFIED | Present at line 146-148, idempotent `CONFIG.set(Config::default())` |
+| `src/main.rs` | Command-aware config gate: malformed config falls back to `Config::default()` ONLY for `Completions` + `Config` path/set | ✓ VERIFIED | `config_independent` computed pre-move (lines 75-79); gate logic at lines 95-105; shared `dispatch(cli)` fn (lines 156-187) runs the identical spine for both branches |
+| `tests/config_cmd.rs` | Env-tier parity regression test (WR-01) + malformed-config robustness tests (WR-02) | ✓ VERIFIED | `env_tier_parity_hash_default_algo`, `malformed_config_path_and_completions_exit0`, `malformed_config_set_repairs_file`, `malformed_config_still_bricks_normal_command` all present and pass; 14/14 tests in the file pass |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 |------|----|----|--------|---------|
-| `commands/config/mod.rs` `set()` | `core::config::set_value` | direct call | ✓ WIRED | `set_value(key, value)?` at line 189 |
-| `core/config.rs` `build_config_toml` | `toml::from_str::<Config>` | re-parse before write | ✓ WIRED | Line 270, same call `load()` uses |
-| `core/config.rs` `set_value` | `core::fs::atomic_write` | persist validated text only | ✓ WIRED | Line 222, gated behind the successful re-parse |
-| `cli.rs` `Commands::Config` | `main.rs` dispatch | `args.run()` arm | ✓ WIRED | `main.rs:109` |
-| `commands/completions/mod.rs` | `clap_complete::generate` | direct call against `Cli::command()` | ✓ WIRED | Lines 63-68 |
-| `commands/completions/mod.rs` | `crate::cli::Cli::command()` | `CommandFactory` | ✓ WIRED | Line 65 |
-| `cli.rs` `Commands::Completions` | `main.rs` dispatch | `args.run()` arm | ✓ WIRED | `main.rs:110` |
-| `install.ps1 -RegisterCompletions` | `$PROFILE` | sentinel-guarded `Add-Content` | ✓ WIRED | Lines 98-107, `Select-String -Pattern '# box completions'` guard |
+| `hash/mod.rs::run_compute` | `hash/mod.rs::effective_default_algo` | `cli_algo.unwrap_or_else(effective_default_algo)` | ✓ WIRED | Line 320 |
+| `config/mod.rs::effective` | `hash::effective_default_algo` | direct call | ✓ WIRED | Line 135 |
+| `config/mod.rs::get` (hash arm) | `hash::effective_default_algo` | direct call | ✓ WIRED | Line 184 |
+| `main.rs` dispatch gate | `core::config::init_config_default` | malformed-but-independent fallback branch | ✓ WIRED | Line 99, gated by `config_independent` (lines 75-79, 98) |
+| `main.rs` `config_independent` | `ConfigArgs::tolerates_malformed_config` | `Commands::Config(args) => args.tolerates_malformed_config()` | ✓ WIRED | main.rs:77 → config/mod.rs:78-83 |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| config show/get/set/path full cycle | `cargo test --test config_cmd` | 10/10 pass | ✓ PASS |
-| completions purity/reflection/help/shell-validation | `cargo test --test completions` | 6/6 pass | ✓ PASS |
-| help snapshot (25 commands, incl. config/completions) | `cargo test --test cli trycmd` | pass | ✓ PASS |
-| SC2 live reproduction | `config set hash.default_algo sha256` → `hash <file>` | emits SHA-256 row | ✓ PASS |
-| SC3 depth-flag coverage | grep generated PS script for Ph.8/9/10 flags | all present | ✓ PASS |
-| WR-01 reproduction | `BOX_HASH_DEFAULT_ALGO=md5` + `config get hash.default_algo` vs `box hash` | `get` reports `blake3`, `hash` emits MD5 — mismatch confirmed | ✗ FAIL (gap) |
-| WR-02 reproduction | malformed config.toml + `config path`/`config set`/`completions powershell` | all exit 2 with the same config-parse error | ✗ FAIL (gap) |
-| Full workspace test suite | `cargo test` | 31+ binaries, 0 failures | ✓ PASS |
+| WR-01 live reproduction | `BOX_HASH_DEFAULT_ALGO=md5` (no config) + `config get`/`config show --json`/`box hash` | all three report/emit `md5` — agree | ✓ PASS |
+| WR-02 live reproduction (independent commands) | malformed config + `config path`/`config set hash.default_algo blake3`/`completions powershell` | all exit 0; `set` rewrites file to clean `[hash]\ndefault_algo = "blake3"` | ✓ PASS |
+| WR-02 live reproduction (no-hole guard) | SAME malformed config + `box hash <file>`/`config show`/`config get` | all exit 2 with `error: config error in ...` | ✓ PASS |
+| `config_cmd` full suite | `cargo test --test config_cmd` | 14/14 pass (10 pre-existing + 4 new WR-01/WR-02 tests) | ✓ PASS |
+| `completions` suite (regression) | `cargo test --test completions` | 6/6 pass | ✓ PASS |
+| Full workspace test suite | `cargo test` | all binaries, 0 failures | ✓ PASS |
 | Lint gate | `cargo clippy --bin box --all-targets -- -D warnings` | clean | ✓ PASS |
-| Release build config | `cargo build --bin box` | succeeds | ✓ PASS |
+| Source assertions (WR-01) | `grep -rl BOX_HASH_DEFAULT_ALGO src/` | returns only `src/commands/hash/mod.rs` | ✓ PASS |
+| Source assertions (WR-02) | `grep -n init_config_default\|tolerates_malformed_config\|config_independent src/main.rs src/core/config.rs src/commands/config/mod.rs` | all match | ✓ PASS |
+| Commit provenance | `git cat-file -t <hash>` for 7d18396/d5728b5/137a403/12f277a/bde5158 | all resolve to real commits, correct RED→GREEN→style order in `git log` | ✓ PASS |
 
 ### Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |-------------|-------------|-------------|--------|----------|
-| CFG-01 | 11-01 | `box config show/get/set/path` reads/edits/locates config, with `--json` | ✓ SATISFIED (with gap) | Core CRUD verified live and by tests; the "effective config" guarantee (D-06 parity, part of the requirement's spirit) has a real gap for `hash.default_algo` under the env tier (see gap #1) |
-| CMP-01 | 11-02 | `box completions powershell` emits a static completion script from the live `Cli` | ✓ SATISFIED | Fully verified — script content, purity, and live-Cli reflection all confirmed |
+| CFG-01 | 11-01, 11-03 | `box config show/get/set/path` reads/edits/locates config, with `--json`; effective view (incl. env tier) never drifts from consumption | ✓ SATISFIED | Core CRUD verified live and by tests; the D-06 env-tier parity gap is now closed (WR-01) — `REQUIREMENTS.md` line 43 marks CFG-01 `[x]` Complete, mapped to Phase 11 |
+| CMP-01 | 11-02, 11-03 | `box completions powershell` emits a static completion script from the live `Cli`; not bricked by a malformed config | ✓ SATISFIED | Script content, purity, live-Cli reflection all confirmed; WR-02 decoupling verified live — `REQUIREMENTS.md` line 44 marks CMP-01 `[x]` Complete, mapped to Phase 11 |
 
-No orphaned requirements — `REQUIREMENTS.md`'s traceability table maps exactly CFG-01/CMP-01 to Phase 11, both accounted for in the two plan frontmatters.
+No orphaned requirements — `REQUIREMENTS.md`'s traceability table (lines 156-157) maps exactly CFG-01/CMP-01 to Phase 11, both accounted for in the 11-01/11-02/11-03 plan frontmatters.
 
 ### Anti-Patterns Found
 
-| File | Line | Pattern | Severity | Impact |
-|------|------|---------|----------|--------|
-| `src/main.rs` | 81-84 | `init_config()` gates ALL dispatch unconditionally | 🛑 Blocker-adjacent (gap #2) | Malformed config bricks the very repair/inspection commands (`config path`/`set`) meant to fix it, and breaks shell-start `completions` if registered |
-| `src/commands/config/mod.rs` | 109-120, 159-162 | `effective()`/`get` hash resolution omits the env tier | 🛑 Blocker-adjacent (gap #1) | `config show`/`get` can report a value that differs from what `box hash` actually uses |
-| `src/core/fs.rs` | 141-143 | `atomic_write`'s temp sibling name is a fixed `<path>.tmp` | ℹ️ Info (pre-existing WR-03, not newly required by this task) | Two concurrent `config set` processes could interleave writes to the same temp path; a failed rename can leave a stray `.tmp`. Single-user local CLI use makes this low-probability but non-zero. |
-| `install.ps1` | 76-81 | Smoke test `& box --help` under `$ErrorActionPreference='Stop'` throws instead of reaching the graceful "open a new terminal" else-branch | ℹ️ Info (pre-existing WR-04, not newly required by this task) | Cosmetic — an unhandled exception message instead of the intended warning, only on first install before PATH refresh |
-| `src/core/config.rs` | 261, 270 | `config set` enum values are case-sensitive (`Imperial` rejected) while `--units`/`BOX_HASH_DEFAULT_ALGO` are case-insensitive | ℹ️ Info (pre-existing IN-02) | UX inconsistency across the three precedence tiers, not a correctness bug (loud, not silent) |
-| `src/commands/config/mod.rs` | 157-182 | `get`'s hardcoded 3-arm match can drift from `SETTABLE_KEYS` if a 4th key is ever added | ℹ️ Info (pre-existing IN-03) | Latent maintenance risk, not a current defect (`SETTABLE_KEYS` has exactly 3 entries today, both matched) |
+No `TBD`/`FIXME`/`XXX`/`TODO`/`HACK`/`PLACEHOLDER` debt markers found in any file modified by 11-03 (`src/commands/hash/mod.rs`, `src/commands/config/mod.rs`, `src/core/config.rs`, `src/main.rs`, `tests/config_cmd.rs`).
 
-No `TBD`/`FIXME`/`XXX`/`TODO`/`HACK`/`PLACEHOLDER` debt markers found in any Phase-11-created or -modified file.
+The three pre-existing ℹ️ Info items from the initial verification (`atomic_write` fixed temp-name, `install.ps1` smoke-test exception path, case-sensitive `config set` enum values) are unchanged by 11-03 and remain out of scope for this gap-closure plan (not required by CFG-01/CMP-01, not flagged as blockers in either verification pass).
 
 ### Human Verification Required
 
@@ -118,21 +92,21 @@ No `TBD`/`FIXME`/`XXX`/`TODO`/`HACK`/`PLACEHOLDER` debt markers found in any Pha
 
 **Test:** Run `box completions powershell | Out-String | Invoke-Expression` in a real PowerShell 7 session, then type `box <TAB>` repeatedly and `box weather --<TAB>`.
 **Expected:** Subcommand names (including `config`/`completions`) and flag names (including `--json`/`--clip`/`--forecast` etc.) cycle through via tab-completion.
-**Why human:** PSReadLine's actual tab-completion UX in a live terminal session cannot be verified by grep/byte-pattern checks. The generated script's textual content (the `Register-ArgumentCompleter` registration call and the presence of every subcommand/flag name) was verified programmatically and is strong indirect evidence, but the interactive behavior itself needs a human at a real prompt.
+**Why human:** PSReadLine's actual tab-completion UX in a live terminal session cannot be verified by grep/byte-pattern checks. The generated script's textual content (the `Register-ArgumentCompleter` registration call and the presence of every subcommand/flag name) was verified programmatically and is strong indirect evidence, but the interactive behavior itself needs a human at a real prompt. This item is carried forward unchanged from the initial verification — 11-03 did not touch `commands/completions/mod.rs` and this check was never part of the WR-01/WR-02 gap-closure scope.
 
 ## Gaps Summary
 
-Both Phase-11 meta-commands are functionally shipped and pass every automated test (31+ test binaries, 0 failures; `config_cmd` 10/10; `completions` 6/6; `cli trycmd` including the 25-command help snapshot; clippy clean). The four literal ROADMAP success criteria (SC1-SC4) all hold as worded.
+Both gaps from the initial verification are closed and independently reproduced here by direct binary execution (not just trusting SUMMARY.md or the test suite):
 
-However, two defects flagged by the Phase-11 code review (11-REVIEW.md WR-01/WR-02) remain unresolved and were independently reproduced here by direct execution against the built binary:
+1. **WR-01 (env-tier parity) — CLOSED.** `config get hash.default_algo` and `config show --json` now resolve through the same `pub(crate) hash::effective_default_algo()` function `box hash` consumes. Live repro with `BOX_HASH_DEFAULT_ALGO=md5` and no config file: all three commands agree on `md5`. Source assertion confirms `BOX_HASH_DEFAULT_ALGO` is looked up in exactly one file (`src/commands/hash/mod.rs`).
 
-1. **`config show`/`config get hash.default_algo` silently omit the `BOX_HASH_DEFAULT_ALGO` env tier** that `box hash` actually consults. The module's own doc comment claims `config show` "can never lie about what box hash/box weather will consume" — this is demonstrably false for `hash.default_algo` when the env var is set (config reports `blake3`, `box hash` computes MD5 in the reproduction above). Weather has no env tier, so its parity holds; the gap is narrowly scoped to the one hash field.
+2. **WR-02 (malformed-config robustness) — CLOSED.** Under a malformed `config.toml`, `config path`, `config set hash.default_algo blake3`, and `completions powershell` all now exit 0 (live-verified), and `config set` demonstrably rewrites the malformed file to a clean, re-parseable one. The no-hole guard also holds live: `box hash` and `config show`/`get` still exit 2 under the identical malformed file.
 
-2. **A malformed `config.toml` bricks every command, including the config meta-commands meant to inspect/repair it** (`config path`, `config set`) and the `completions` command that `install.ps1 -RegisterCompletions` wires into every new PowerShell session's `$PROFILE`. `main()`'s `init_config()` gate runs before dispatch unconditionally, so there is no way to run `box config set hash.default_algo blake3` (or even `box config path` to locate the broken file) once the file is externally corrupted, and a registered shell would print a config-parse error on every new terminal until the user manually finds and fixes/deletes the file outside `box`.
+Full regression: the 507-test-plus workspace suite passes with 0 failures (`cargo test`), `config_cmd` is 14/14, `completions` is 6/6, and `cargo clippy --bin box --all-targets -- -D warnings` is clean. All five files 11-03 touched were reviewed directly (not just the SUMMARY's description of them) and match the plan's `must_haves` exactly, including the specific function names, call sites, and doc-comment corrections.
 
-Both are real, reproducible correctness/robustness gaps rather than uncertain judgment calls. This project has an established precedent (Phase 10's WR-01/WR-02, closed via a dedicated 10-06 gap-closure plan before that phase's verification) of treating this class of code-review warning as blocking follow-up work rather than accepted scope. Recommend a similar Phase-11 gap-closure plan (e.g. 11-03) addressing both before the v2.0 milestone is considered fully closed — or, alternatively, an explicit override decision from the developer accepting the narrower scope (documenting that `config show`/`get` is a config-file view rather than a full-precedence view, and that config repair happens by hand-editing/deleting the file outside `box` until repaired).
+The ONLY open item is a human-verification requirement carried forward unchanged from the initial report: confirming live PSReadLine tab-completion behavior in a real PowerShell 7 session. This was never a code gap — it is an inherent limitation of static analysis against interactive terminal UX — and is unrelated to the WR-01/WR-02 fixes. Per the standard verification decision tree, an open human-verification item routes the status to `human_needed` rather than `passed`, even though all 6 observable truths and all requirements are now fully verified in code.
 
 ---
 
-_Verified: 2026-07-14T20:00:00Z_
+_Verified: 2026-07-14T21:00:00Z_
 _Verifier: Claude (gsd-verifier)_
