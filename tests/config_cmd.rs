@@ -46,6 +46,18 @@ fn config_file(appdata: &assert_fs::TempDir) -> std::path::PathBuf {
     appdata.child("box").child("config.toml").path().to_path_buf()
 }
 
+/// Write a MALFORMED (unknown top-level key under `deny_unknown_fields`) config to
+/// `<APPDATA>/box/config.toml`, creating the `box/` dir — an EXTERNALLY-corrupted
+/// file (bad hand-edit / partial write from another tool) the config-independent
+/// repair/locate/shell-start commands must still tolerate (WR-02).
+fn write_malformed_config(appdata: &assert_fs::TempDir) {
+    appdata
+        .child("box")
+        .child("config.toml")
+        .write_str("bogus_key = 1\n")
+        .unwrap();
+}
+
 /// SC1 / D-06 — `box config show --json` exits 0 and emits EXACTLY one JSON object:
 /// `.hash.default_algo == "blake3"`, `.weather.units == "metric"`,
 /// `.weather.location == null` on an empty config. NO ANSI, NO UTF-8 BOM (the uuid
@@ -338,5 +350,111 @@ fn path_prints_config_path() {
     assert!(
         !config_file(&appdata).exists(),
         "config path must not create the config file"
+    );
+}
+
+/// WR-02 — under a MALFORMED config, the config-INDEPENDENT commands still run:
+/// `box config path` locates the file (exit 0) and `box completions powershell`
+/// emits the registration script (exit 0). The malformed→exit-2 gate no longer
+/// bricks the repair-locate / shell-start path (a registered `$PROFILE` no longer
+/// errors on every new PowerShell session).
+#[test]
+fn malformed_config_path_and_completions_exit0() {
+    let appdata = assert_fs::TempDir::new().unwrap();
+    write_malformed_config(&appdata);
+
+    // `config path` locates the file despite the malformed content (exit 0).
+    let out = box_cmd(&appdata, &["config", "path"])
+        .output()
+        .expect("run box config path");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "config path must exit 0 under a malformed config, stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stdout).trim_end().ends_with("config.toml"),
+        "config path stdout must end with config.toml, got: {}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+
+    // `completions` needs no config at all → exit 0, emits the PS registration call.
+    let out = box_cmd(&appdata, &["completions", "powershell"])
+        .output()
+        .expect("run box completions powershell");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "completions must exit 0 under a malformed config, stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("Register-ArgumentCompleter"),
+        "completions must emit the PS registration script under a malformed config"
+    );
+}
+
+/// WR-02 — `box config set` is the intended repair action: under a MALFORMED config
+/// it exits 0 and REPLACES the malformed file with a clean, re-parseable one, so a
+/// subsequent `box config get hash.default_algo` reads back the value (exit 0). The
+/// validate-before-write round-trip still holds (D-03), just seeded from
+/// `Config::default()` instead of the unparseable file.
+#[test]
+fn malformed_config_set_repairs_file() {
+    let appdata = assert_fs::TempDir::new().unwrap();
+    write_malformed_config(&appdata);
+
+    box_cmd(&appdata, &["config", "set", "hash.default_algo", "blake3"])
+        .assert()
+        .success()
+        .code(0);
+
+    // The file was overwritten with a clean one — get now re-parses it, exit 0.
+    box_cmd(&appdata, &["config", "get", "hash.default_algo"])
+        .assert()
+        .success()
+        .code(0)
+        .stdout("blake3\n");
+}
+
+/// WR-02 no-hole guard — the decoupling opens NO tolerance hole: under the SAME
+/// malformed config, a normal command (`box hash <file>`) STILL exits 2 with an
+/// `error:` line, and `box config show` (which needs the effective value) STILL
+/// exits 2. Only the config-independent `path`/`set`/`completions` are decoupled.
+#[test]
+fn malformed_config_still_bricks_normal_command() {
+    let appdata = assert_fs::TempDir::new().unwrap();
+    write_malformed_config(&appdata);
+
+    // A `b"box"` fixture in its own temp dir (separate from the APPDATA dir).
+    let work = assert_fs::TempDir::new().unwrap();
+    let f = work.child("box.bin");
+    f.write_binary(b"box").unwrap();
+    let path = f.path().to_str().unwrap();
+
+    // A normal command still aborts before dispatch → exit 2 + an `error:` line.
+    let out = box_cmd(&appdata, &["hash", path])
+        .output()
+        .expect("run box hash under a malformed config");
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "a normal command must still exit 2 under a malformed config, got {:?}",
+        out.status.code()
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("error:"),
+        "the bricked normal command must print an `error:` line on stderr"
+    );
+
+    // `config show` reports the effective value → still needs a parseable file → exit 2.
+    let out = box_cmd(&appdata, &["config", "show"])
+        .output()
+        .expect("run box config show under a malformed config");
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "config show must still exit 2 under a malformed config (needs the effective value)"
     );
 }
