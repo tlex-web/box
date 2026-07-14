@@ -62,18 +62,18 @@ Each maps to exactly one roadmap phase. REQ-IDs continue the per-command mnemoni
 
 ### Dev-transform depth
 
-- [ ] **UUID-V2-01**: `uuid` gains v7 time-ordered output (`--v7`) and format flags (`--upper`, `--no-hyphens`, `--braces`, `--urn`).
-- [ ] **EPOC-V2-01**: `epoch` gains relative time ("3 hours ago") and timezone output (`--tz <zone>`, via `chrono-tz`).
-- [ ] **COLR-V2-01**: `color` gains CSS named-color lookup (both directions) and HSL input.
-- [ ] **JSON-V2-01**: `json --sort-keys` sorts object keys (opt-in; `preserve_order` remains the default — never sorted implicitly).
-- [ ] **PASS-V2-01**: `passgen` gains an entropy-bits estimate, `--no-similar` (drops `il1Lo0O`), and `--separator` for passphrases.
+- [x] **UUID-V2-01**: `uuid` gains v7 time-ordered output (`--v7`) and format flags (`--upper`, `--no-hyphens`, `--braces`, `--urn`).
+- [x] **EPOC-V2-01**: `epoch` gains relative time ("3 hours ago") and timezone output (`--tz <zone>`, via `chrono-tz`).
+- [x] **COLR-V2-01**: `color` gains CSS named-color lookup (both directions) and HSL input.
+- [x] **JSON-V2-01**: `json --sort-keys` sorts object keys (opt-in; `preserve_order` remains the default — never sorted implicitly).
+- [x] **PASS-V2-01**: `passgen` gains an entropy-bits estimate, `--no-similar` (drops `il1Lo0O`), and `--separator` for passphrases.
 
 ### Visual depth
 
-- [ ] **LOL-V2-01**: `lolcat` gains `--animate`, `--freq`, and `--seed` (animation TTY-gated — static render when piped or under `--json`; RAII terminal restore; single-flush-per-frame; Press-only quit filter).
-- [ ] **MTRX-V2-01**: `matrix` gains `--color`, `--speed`, and `--charset`.
-- [ ] **QR-V2-01**: `qr` gains `--save <file>` (PNG / SVG) and `--error-correction L|M|Q|H`.
-- [ ] **ASCI-V2-01**: `ascii` gains truecolor output, `--braille` (2×4 dot density), and `--invert`.
+- [x] **LOL-V2-01**: `lolcat` gains `--animate`, `--freq`, and `--seed` (animation TTY-gated — static render when piped or under `--json`; RAII terminal restore; single-flush-per-frame; Press-only quit filter).
+- [x] **MTRX-V2-01**: `matrix` gains `--color`, `--speed`, and `--charset`.
+- [x] **QR-V2-01**: `qr` gains `--save <file>` (PNG / SVG) and `--error-correction L|M|Q|H`.
+- [x] **ASCI-V2-01**: `ascii` gains truecolor output, `--braille` (2×4 dot density), and `--invert`.
 
 ### Fun & system depth
 
@@ -137,15 +137,15 @@ Each requirement maps to exactly one roadmap phase (finalized 2026-06-25 by road
 | TREE-V2-01 | 8 | Complete |
 | DU-V2-01 | 8 | Complete |
 | DU-V2-02 | 8 | Complete |
-| UUID-V2-01 | 9 | Pending |
-| EPOC-V2-01 | 9 | Pending |
-| COLR-V2-01 | 9 | Pending |
-| JSON-V2-01 | 9 | Pending |
-| PASS-V2-01 | 9 | Pending |
-| LOL-V2-01 | 9 | Pending |
-| MTRX-V2-01 | 9 | Pending |
-| QR-V2-01 | 9 | Pending |
-| ASCI-V2-01 | 9 | Pending |
+| UUID-V2-01 | 9 | Complete |
+| EPOC-V2-01 | 9 | Complete |
+| COLR-V2-01 | 9 | Complete |
+| JSON-V2-01 | 9 | Complete |
+| PASS-V2-01 | 9 | Complete |
+| LOL-V2-01 | 9 | Complete |
+| MTRX-V2-01 | 9 | Complete |
+| QR-V2-01 | 9 | Complete |
+| ASCI-V2-01 | 9 | Complete |
 | COW-V2-01 | 10 | Pending |
 | FORT-V2-01 | 10 | Pending |
 | 8BAL-V2-01 | 10 | Pending |
