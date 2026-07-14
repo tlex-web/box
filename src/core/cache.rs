@@ -24,6 +24,13 @@
 //! An entry older than [`TTL_SECS`] (~10 min) is a MISS. Staleness is decided by the
 //! pure [`is_fresh`] helper so the boundary is unit-testable without touching the clock.
 
+// Forward-compat FOUNDATION (mirrors `config.rs`'s `#[allow(dead_code)]` on
+// `resolve_algo` before `hash` adopted it — "allow-then-remove"): this module has NO
+// live caller in the bin build yet. Plan 10-05 wires `get`/`put` into `weather`, which
+// makes every item reachable and lets this module-level allow be removed then. Until
+// then it keeps the `cargo clippy --all-targets -- -D warnings` gate green.
+#![allow(dead_code)]
+
 /// The freshness window: an entry whose age (`now - fetched_at`) is `>= TTL_SECS`
 /// is stale and treated as a MISS (~10 minutes, D-11).
 const TTL_SECS: u64 = 600;
@@ -44,43 +51,80 @@ struct Envelope {
 /// Every failure mode — absent file, unreadable file, malformed JSON, or an entry
 /// older than the TTL — returns `None` (a MISS). NEVER returns an `Err`, NEVER
 /// panics: a broken cache degrades to a fresh fetch, not a command failure.
-pub fn get(_key: &str) -> Option<String> {
-    todo!("10-04 Task 2 GREEN: tolerant read + TTL check")
+pub fn get(key: &str) -> Option<String> {
+    let path = entry_path(key)?;
+    // Any IO error (absent/unreadable) → None (the `.ok()?` MISS). TOCTOU-free:
+    // we read directly and treat every failure as a miss, never `exists()`-then-read.
+    let raw = std::fs::read_to_string(&path).ok()?;
+    // A body that does not parse into the envelope shape is a MISS, never a trust
+    // of unvalidated JSON (T-10-04-CACHE-PARSE).
+    let envelope: Envelope = serde_json::from_str(&raw).ok()?;
+    // Stale (age >= TTL) is a MISS → the caller fetches fresh.
+    is_fresh(envelope.fetched_at, now_unix(), TTL_SECS).then_some(envelope.payload)
 }
 
 /// Best-effort write of `payload` under `key`. Creates the cache dir and writes the
 /// JSON envelope; swallows ALL errors (a read-only or missing cache dir is a silent
 /// no-op). NEVER panics, NEVER propagates — a failed write must not fail the caller.
-pub fn put(_key: &str, _payload: &str) {
-    todo!("10-04 Task 2 GREEN: best-effort envelope write")
+pub fn put(key: &str, payload: &str) {
+    // Every step is best-effort: a `None`/`Err` at any point is a silent no-op, so a
+    // read-only or missing cache dir NEVER fails the caller.
+    let Some(path) = entry_path(key) else { return };
+    let Some(parent) = path.parent() else { return };
+    if std::fs::create_dir_all(parent).is_err() {
+        return;
+    }
+    let envelope = Envelope {
+        fetched_at: now_unix(),
+        payload: payload.to_string(),
+    };
+    let Ok(serialized) = serde_json::to_string(&envelope) else {
+        return;
+    };
+    // A failed write is swallowed — no panic, no propagation.
+    let _ = std::fs::write(&path, serialized);
 }
 
 /// Pure staleness predicate: `true` iff the entry's age (`now - fetched_at`) is
 /// STRICTLY LESS than `ttl`. An age of exactly `ttl` is stale. A `fetched_at` in the
 /// future (clock skew) saturates to age 0 → fresh. Pure so the boundary is testable
 /// without the clock.
-fn is_fresh(_fetched_at: u64, _now: u64, _ttl: u64) -> bool {
-    todo!("10-04 Task 2 GREEN: now.saturating_sub(fetched_at) < ttl")
+fn is_fresh(fetched_at: u64, now: u64, ttl: u64) -> bool {
+    // saturating_sub: a future `fetched_at` (clock skew) yields age 0 → fresh.
+    now.saturating_sub(fetched_at) < ttl
 }
 
 /// Current unix time in whole seconds; `0` if the system clock predates the epoch
 /// (the cache tolerates it — a bogus clock just makes entries look stale).
 fn now_unix() -> u64 {
-    todo!("10-04 Task 2 GREEN: SystemTime since UNIX_EPOCH")
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 /// The cache directory: `%LOCALAPPDATA%\box\cache\` when `LOCALAPPDATA` is set (the
 /// env-var-FIRST branch — load-bearing for per-process test isolation, mirroring
 /// [`crate::core::config`]'s `config_path`), else `dirs::cache_dir()/box/cache`.
 fn cache_dir() -> Option<std::path::PathBuf> {
-    todo!("10-04 Task 2 GREEN: LOCALAPPDATA-first cache dir")
+    // LOCALAPPDATA env var FIRST (per-process test isolation — see the module doc and
+    // config_path's rationale), dirs::cache_dir() as the fallback.
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        return Some(std::path::PathBuf::from(local).join("box").join("cache"));
+    }
+    dirs::cache_dir().map(|p| p.join("box").join("cache"))
 }
 
 /// The on-disk path for `key`: `cache_dir()/{blake3-hex(key)}.json`. The key is
 /// HASHED into the filename (the T-10-04-TRAVERSAL mitigation) — the raw key is
 /// never part of the path, so it cannot contain separators that escape the dir.
-fn entry_path(_key: &str) -> Option<std::path::PathBuf> {
-    todo!("10-04 Task 2 GREEN: cache_dir + blake3-hex(key).json")
+fn entry_path(key: &str) -> Option<std::path::PathBuf> {
+    let dir = cache_dir()?;
+    // Hash the logical key into a fixed 64-char hex filename. The raw key (which may
+    // contain `..`/`/`/`\`) is NEVER interpolated into the path — this IS the
+    // path-traversal mitigation (T-10-04-TRAVERSAL).
+    let hashed = blake3::hash(key.as_bytes()).to_hex().to_string();
+    Some(dir.join(format!("{hashed}.json")))
 }
 
 #[cfg(test)]
