@@ -105,6 +105,14 @@ impl RunCommand for WeatherArgs {
         )
         .ok_or(crate::core::errors::BoxError::MissingLocation)?;
 
+        // Normalize ONCE (WR-02): trim so incidental surrounding whitespace never
+        // leaks into a geocode URL OR a cache key. This single trimmed value is the
+        // source for BOTH the cache key (via `location_key`) AND `fetch_weather`
+        // (parse_lat_lon/geocode). Casing is preserved here — the geocode lookup and
+        // the resolved-location stderr echo keep the caller's casing; only the
+        // cache-key token lowercases city names.
+        let location = location.trim().to_string();
+
         // Resolve the unit system: CLI --units > [weather] units config > metric
         // builtin (the settled SPINE-05 precedence, D-12).
         let units = resolve_units(self.units, crate::core::config::config().weather.units);
@@ -114,7 +122,8 @@ impl RunCommand for WeatherArgs {
         // string NEVER becomes a path component (T-10-05-CACHE-KEY, mitigated in
         // 10-04). Distinct forecast/current + metric/imperial keys never collide.
         let cache_key = format!(
-            "{location}|{}|{}",
+            "{}|{}|{}",
+            location_key(&location),
             units_key(units),
             if self.forecast { "forecast" } else { "current" }
         );
@@ -172,6 +181,24 @@ fn units_key(units: Units) -> &'static str {
     match units {
         Units::Metric => "metric",
         Units::Imperial => "imperial",
+    }
+}
+
+/// The stable cache-key token for a location (WR-02) — mirrors [`units_key`] as the
+/// location component of the logical cache key. Trims once, then lowercases CITY names
+/// only so incidental whitespace/case variants (`" London "`, `"London"`, `"london"`)
+/// collapse to ONE token and share the ~10-min cache window. A `lat,lon` pair is
+/// trimmed but NEVER lowercased (digits are case-free, and keeping it verbatim means
+/// `parse_lat_lon` on the fetch path still sees the exact numeric value — D-12). Pure →
+/// known-answer unit-testable. This normalizes only the LOGICAL key; the raw location
+/// still never becomes a path component (core::cache blake3-hashes it —
+/// T-10-05-CACHE-KEY).
+fn location_key(location: &str) -> String {
+    let trimmed = location.trim();
+    if parse_lat_lon(trimmed).is_some() {
+        trimmed.to_string()
+    } else {
+        trimmed.to_lowercase()
     }
 }
 
@@ -476,11 +503,14 @@ fn build_forecast_url(lat: f64, lon: f64, units: Units, forecast: bool) -> Strin
          &current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m",
         forecast_origin(),
     );
-    // `--forecast` (D-10): request the fixed 7-day daily block ALONGSIDE the current
-    // block. The imperial `temperature_unit` param below applies to BOTH the current
-    // and daily temps, so no separate daily-unit param is needed.
+    // `--forecast` (D-10): request the 7-day daily block ALONGSIDE the current block.
+    // The span is PINNED server-side with `&forecast_days=7` (WR-01) so Open-Meteo's
+    // runtime default can never drift the day count away from the bounded 7 the render
+    // header and `build_day_forecasts` bound both assume. The imperial
+    // `temperature_unit` param below applies to BOTH the current and daily temps, so no
+    // separate daily-unit param is needed.
     if forecast {
-        url.push_str("&daily=temperature_2m_max,temperature_2m_min,weather_code");
+        url.push_str("&daily=temperature_2m_max,temperature_2m_min,weather_code&forecast_days=7");
     }
     if matches!(units, Units::Imperial) {
         url.push_str("&temperature_unit=fahrenheit&wind_speed_unit=mph");
@@ -490,18 +520,22 @@ fn build_forecast_url(lat: f64, lon: f64, units: Units, forecast: bool) -> Strin
 
 /// Project the parallel `daily` arrays into the bounded 7-day rows (D-10). Zips the
 /// `time`/`temperature_2m_max`/`temperature_2m_min`/`weather_code` vectors by index,
-/// mapping each `weather_code` through [`wmo_to_str`]. A short/mismatched daily block
-/// (unequal array lengths, or an empty span) is a plain `Err` → exit 1, NEVER a panic
-/// or an out-of-bounds index (T-10-05-HTTP: a malformed remote block is an error, not
-/// a crash). Pure over its input → unit-testable from the offline fixtures.
+/// mapping each `weather_code` through [`wmo_to_str`]. The 7-day bound is ENFORCED
+/// here defensively (`n <= 7`, WR-01) as the belt to `build_forecast_url`'s
+/// server-side `forecast_days=7` suspenders: a short, mismatched, empty, OR oversized
+/// (>7-day) daily block is a plain `Err` → exit 1, NEVER a panic, an out-of-bounds
+/// index, or an over-length render under the "7-day forecast:" header (T-10-05-HTTP:
+/// a malformed remote block is bounded in BOTH shape and size, not a crash). Pure over
+/// its input → unit-testable from the offline fixtures.
 fn build_day_forecasts(daily: &Daily) -> anyhow::Result<Vec<DayForecast>> {
     let n = daily.time.len();
     anyhow::ensure!(
         n > 0
+            && n <= 7
             && daily.temperature_2m_max.len() == n
             && daily.temperature_2m_min.len() == n
             && daily.weather_code.len() == n,
-        "malformed daily forecast: mismatched or empty daily arrays"
+        "malformed daily forecast: mismatched, empty, or oversized daily arrays"
     );
     Ok((0..n)
         .map(|i| DayForecast {
@@ -585,8 +619,11 @@ struct ForecastResp {
 
 /// The 7-day daily forecast arrays (D-10). Each field is a parallel `Vec` indexed by
 /// day; the typed shape bounds the deserialize to these four arrays (never an
-/// open-ended stream — T-10-05-HTTP). `build_day_forecasts` validates the lengths
-/// match before zipping them, so a short/mismatched block is an error not a panic.
+/// open-ended stream — T-10-05-HTTP). The 7-day span is doubly enforced: the request
+/// pins `forecast_days=7` (`build_forecast_url`) AND `build_day_forecasts` rejects any
+/// block whose length is not in `1..=7` or whose arrays are mismatched, so a
+/// short/mismatched/oversized block is a clean error, not a panic or an over-length
+/// render (WR-01).
 #[derive(Debug, Deserialize)]
 struct Daily {
     /// ISO-8601 dates, one per forecast day.
@@ -725,11 +762,27 @@ mod tests {
             "--forecast must request the daily block: {forecast}"
         );
 
+        // WR-01: the span is PINNED server-side — the --forecast URL carries
+        // `forecast_days=7` so Open-Meteo's runtime default can never drift.
+        assert!(
+            forecast.contains("forecast_days=7"),
+            "--forecast must pin the span with forecast_days=7: {forecast}"
+        );
+        // The current-only path must NOT pin a daily span.
+        assert!(
+            !current.contains("forecast_days=7"),
+            "current-only must NOT request forecast_days=7: {current}"
+        );
+
         // --forecast + imperial → both the daily block AND the imperial unit param.
         let imperial = build_forecast_url(51.5, -0.13, Units::Imperial, true);
         assert!(
             imperial.contains(daily_param) && imperial.contains("temperature_unit=fahrenheit"),
             "--forecast imperial must request daily + fahrenheit: {imperial}"
+        );
+        assert!(
+            imperial.contains("forecast_days=7"),
+            "--forecast imperial must still pin forecast_days=7: {imperial}"
         );
     }
 
@@ -790,6 +843,28 @@ mod tests {
         );
     }
 
+    /// WR-01 — an OVERSIZED daily block (all four arrays a matched length 8) is an
+    /// `Err`, not projected: the "bounded 7-day" invariant is now defensively
+    /// enforced (`n <= 7`), so an over-7-day (or anomalously large) well-formed
+    /// response is a clean exit-1 error, never rendered under the "7-day forecast:"
+    /// header or serialized into the `--json` `forecast` array (T-10-05-HTTP: bound
+    /// the SIZE, not just the shape).
+    #[test]
+    fn build_day_forecasts_rejects_oversized_arrays() {
+        let dates: Vec<String> = (24..32).map(|d| format!("2026-06-{d}")).collect();
+        let oversized = Daily {
+            time: dates,                              // 8 days
+            temperature_2m_max: vec![22.0; 8],        // matched length 8
+            temperature_2m_min: vec![12.0; 8],        // matched length 8
+            weather_code: vec![0; 8],                 // matched length 8
+        };
+        assert_eq!(oversized.time.len(), 8, "the fixture is an 8-day block");
+        assert!(
+            build_day_forecasts(&oversized).is_err(),
+            "an 8-day (oversized) daily block must be an error, not a 7-day-bound violation"
+        );
+    }
+
     /// A current-only forecast fixture (no `daily` key) still deserializes: the
     /// `#[serde(default)]` on `daily`/`daily_units` yields `None` rather than a
     /// missing-field error, so the non-`--forecast` path is unaffected.
@@ -845,6 +920,21 @@ mod tests {
     fn units_key_tokens() {
         assert_eq!(units_key(Units::Metric), "metric");
         assert_eq!(units_key(Units::Imperial), "imperial");
+    }
+
+    /// WR-02 — `location_key` is the cache-key location token: it trims, then
+    /// lowercases CITY names so `" London "`, `"London"`, and `"london"` collapse to
+    /// ONE token (sharing the ~10-min cache window), while a `lat,lon` pair is trimmed
+    /// but NEVER lowercased (parse_lat_lon must still see the numeric value verbatim).
+    #[test]
+    fn location_key_tokens() {
+        // City names: trimmed + lowercased → one shared token.
+        assert_eq!(location_key(" London "), "london");
+        assert_eq!(location_key("London"), "london");
+        assert_eq!(location_key("london"), "london");
+        assert_eq!(location_key("New York"), "new york");
+        // A lat,lon pair: trimmed but NOT lowercased.
+        assert_eq!(location_key(" 51.5,-0.13 "), "51.5,-0.13");
     }
 
     /// `url_encode` percent-encodes reserved chars (space/`&`/`=`) so a hostile
