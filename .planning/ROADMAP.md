@@ -43,7 +43,7 @@ Full phase details, decisions, and outcomes archived in [`milestones/v1.0-ROADMA
 - [ ] **Phase 8: Filesystem Depth** - Add the deferred depth flags to the six filesystem commands (`hash`, `flatten`, `dupes`, `bulk-rename`, `tree`, `du`), including the three destructive flags under adversarial review.
 - [x] **Phase 9: Dev-Transform & Visual Depth** - Add depth to the dev-transform (`uuid`, `epoch`, `color`, `json`, `passgen`) and visual (`lolcat`, `matrix`, `qr`, `ascii`) commands.
  (completed 2026-07-14)
-- [ ] **Phase 10: Fun & System Depth** - Add depth to the fun (`cowsay`, `fortune`, `8ball`, `roast`) and system (`pomodoro`, `weather`) commands.
+- [x] **Phase 10: Fun & System Depth** - Add depth to the fun (`cowsay`, `fortune`, `8ball`, `roast`) and system (`pomodoro`, `weather`) commands. (completed 2026-07-14)
 - [ ] **Phase 11: Meta-Commands** - Ship `box config` and `box completions powershell`, generated against the final, complete arg surface.
 
 ## Phase Details
@@ -183,7 +183,7 @@ Plans:
 
 **Wave 2** *(depends on 10-04's nested config + cache module)*
 
-- [ ] 10-05-PLAN.md — `weather` depth: `--forecast` 7-day daily outlook + `forecast` JSON array (D-10); optional location + `[weather]` config default + units resolver + `BoxError::MissingLocation` (D-12); transparent response cache wiring (D-11) (WTHR-V2-01). [wave 2, depends_on 10-04]
+- [x] 10-05-PLAN.md — `weather` depth: `--forecast` 7-day daily outlook + `forecast` JSON array (D-10); optional location + `[weather]` config default + units resolver + `BoxError::MissingLocation` (D-12); transparent response cache wiring (D-11) (WTHR-V2-01). [wave 2, depends_on 10-04]
 
 ### Phase 11: Meta-Commands
 
@@ -220,7 +220,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Spine Rollout | v2.0 | 3/3 | Complete   | 2026-06-25 |
 | 8. Filesystem Depth | v2.0 | 6/6 | In Progress|  |
 | 9. Dev-Transform & Visual Depth | v2.0 | 3/3 | Complete   | 2026-07-14 |
-| 10. Fun & System Depth | v2.0 | 4/5 | In Progress|  |
+| 10. Fun & System Depth | v2.0 | 5/5 | Complete   | 2026-07-14 |
 | 11. Meta-Commands | v2.0 | 0/2 | Not started | - |
 
 ---
