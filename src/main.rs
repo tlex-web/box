@@ -66,51 +66,43 @@ fn main() -> ExitCode {
         }
     };
 
-    // Spine wiring in the LOAD-BEARING order (Pitfall 7), all folded into a single
+    // WR-02: decide, BEFORE consuming `cli`, whether this command can run WITHOUT a
+    // successfully-parsed config. `completions` reads no config at all; `config
+    // path`/`set` locate/repair the file (`tolerates_malformed_config()`), so a
+    // malformed file must NOT brick them. Every other command — AND `config
+    // show`/`get`, which report the effective value — needs a parseable file, so a
+    // malformed config still aborts them (exit 2), opening no tolerance hole.
+    let config_independent = match &cli.command {
+        Commands::Completions(_) => true,
+        Commands::Config(args) => args.tolerates_malformed_config(),
+        _ => false,
+    };
+
+    // Spine wiring in the LOAD-BEARING order (Pitfall 7), folded into a single
     // `result` so config-load errors AND dispatch errors flow through the SAME
     // exit-code downcast below (D-10 — a malformed config must still print the
-    // `error:` line, so we never `return ExitCode::from(2)` inline here):
-    //   1. init_config FIRST — its Err short-circuits the `and_then` chain and is
-    //      routed to exit 2 by the BoxError::Config downcast (config never reaches
-    //      `config()` on a malformed file, so dispatch never runs).
-    //   2. init_color (unconditional TTY/NO_COLOR decision).
-    //   3. init_output LAST so its json||clip force-off overwrites color's decision.
-    //   4. dispatch the subcommand.
-    //   5. flush_clip ONLY on the Ok dispatch branch (chained via `.and_then`, so a
-    //      failed command never clobbers the clipboard — D-08, Pitfall 6).
-    let result = crate::core::config::init_config()
-        .and_then(|()| {
-            crate::core::output::init_color(cli.no_color);
-            crate::core::output::init_output(cli.json, cli.clip);
-            match cli.command {
-                Commands::Flatten(args) => args.run(),
-                Commands::Uuid(args) => args.run(),
-                Commands::Base64(args) => args.run(),
-                Commands::Epoch(args) => args.run(),
-                Commands::Color(args) => args.run(),
-                Commands::Passgen(args) => args.run(),
-                Commands::Cowsay(args) => args.run(),
-                Commands::Fortune(args) => args.run(),
-                Commands::EightBall(args) => args.run(),
-                Commands::Roast(args) => args.run(),
-                Commands::Hash(args) => args.run(),
-                Commands::Tree(args) => args.run(),
-                Commands::Du(args) => args.run(),
-                Commands::Dupes(args) => args.run(),
-                Commands::BulkRename(args) => args.run(),
-                Commands::Lolcat(args) => args.run(),
-                Commands::Matrix(args) => args.run(),
-                Commands::Ascii(args) => args.run(),
-                Commands::Json(args) => args.run(),
-                Commands::Qr(args) => args.run(),
-                Commands::Clip(args) => args.run(),
-                Commands::Pomodoro(args) => args.run(),
-                Commands::Weather(args) => args.run(),
-                Commands::Config(args) => args.run(),
-                Commands::Completions(args) => args.run(),
+    // `error:` line for a config-DEPENDENT command, so we never
+    // `return ExitCode::from(2)` inline here):
+    //   1. init_config FIRST. On `Ok` dispatch as normal. On `Err` (malformed
+    //      file) with a config-INDEPENDENT command, fall back to
+    //      `init_config_default()` (a `Config::default()` base so `config()` never
+    //      panics) and dispatch anyway, DISCARDING the parse error — so
+    //      `path`/`set`/`completions` stay usable (WR-02). On `Err` otherwise,
+    //      propagate it so the `BoxError::Config` downcast routes to exit 2 (the
+    //      normal-command contract is UNCHANGED).
+    //   2. dispatch(): init_color → init_output → subcommand → flush_clip (all
+    //      shared, so the config-independent fallback runs the identical spine).
+    let result = match crate::core::config::init_config() {
+        Ok(()) => dispatch(cli),
+        Err(e) => {
+            if config_independent {
+                crate::core::config::init_config_default();
+                dispatch(cli)
+            } else {
+                Err(e)
             }
-        })
-        .and_then(|()| crate::core::output::flush_clip());
+        }
+    };
 
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -151,4 +143,45 @@ fn main() -> ExitCode {
             }
         }
     }
+}
+
+/// Run the subcommand in the LOAD-BEARING spine order (Pitfall 7), shared by BOTH
+/// the normal `init_config` Ok path and the WR-02 config-independent fallback so the
+/// spine is never duplicated:
+///   1. `init_color` (unconditional TTY/NO_COLOR decision).
+///   2. `init_output` LAST so its `json || clip` force-off overwrites color's decision.
+///   3. dispatch the subcommand via its `RunCommand::run`.
+///   4. `flush_clip` ONLY on the Ok dispatch branch (chained via `.and_then`, so a
+///      failed command never clobbers the clipboard — D-08, Pitfall 6).
+fn dispatch(cli: Cli) -> anyhow::Result<()> {
+    crate::core::output::init_color(cli.no_color);
+    crate::core::output::init_output(cli.json, cli.clip);
+    let ran = match cli.command {
+        Commands::Flatten(args) => args.run(),
+        Commands::Uuid(args) => args.run(),
+        Commands::Base64(args) => args.run(),
+        Commands::Epoch(args) => args.run(),
+        Commands::Color(args) => args.run(),
+        Commands::Passgen(args) => args.run(),
+        Commands::Cowsay(args) => args.run(),
+        Commands::Fortune(args) => args.run(),
+        Commands::EightBall(args) => args.run(),
+        Commands::Roast(args) => args.run(),
+        Commands::Hash(args) => args.run(),
+        Commands::Tree(args) => args.run(),
+        Commands::Du(args) => args.run(),
+        Commands::Dupes(args) => args.run(),
+        Commands::BulkRename(args) => args.run(),
+        Commands::Lolcat(args) => args.run(),
+        Commands::Matrix(args) => args.run(),
+        Commands::Ascii(args) => args.run(),
+        Commands::Json(args) => args.run(),
+        Commands::Qr(args) => args.run(),
+        Commands::Clip(args) => args.run(),
+        Commands::Pomodoro(args) => args.run(),
+        Commands::Weather(args) => args.run(),
+        Commands::Config(args) => args.run(),
+        Commands::Completions(args) => args.run(),
+    };
+    ran.and_then(|()| crate::core::output::flush_clip())
 }

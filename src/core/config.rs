@@ -133,6 +133,20 @@ pub fn init_config() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Initialize `CONFIG` to the BUILT-IN defaults, ignoring any on-disk file (WR-02).
+///
+/// The config-INDEPENDENT fallback: when [`init_config`] fails because the file is
+/// malformed, `main` calls this ONLY for the commands that do not need the effective
+/// value — `completions` (needs no config at all) and `config path`/`set` (locate /
+/// repair the broken file). It installs a `Config::default()` base so `config()`
+/// never panics on that path (e.g. `config set`'s `set_value(config(), …)` has a
+/// base to splice into) and the parse error is surfaced ONLY by commands that read
+/// the effective value (every normal command + `config show`/`get`). Idempotent — a
+/// no-op if `CONFIG` is already set (`OnceLock::set` returns `Err`, discarded).
+pub fn init_config_default() {
+    let _ = CONFIG.set(Config::default());
+}
+
 /// Resolve `config_path()`, then read + parse it. Missing file → `Config::default()`
 /// (TOCTOU-free: match `NotFound`, never `exists()`-then-read); malformed →
 /// [`BoxError::Config`]; any other I/O error → a contextual `anyhow` error (exit 1).

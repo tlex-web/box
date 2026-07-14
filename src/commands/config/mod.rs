@@ -68,6 +68,21 @@ pub enum ConfigCommand {
     Path,
 }
 
+impl ConfigArgs {
+    /// True for the config-INDEPENDENT subcommands that must stay usable even when
+    /// `%APPDATA%\box\config.toml` is malformed (WR-02): `path` (locate the broken
+    /// file) and `set` (the intended repair — it re-round-trips through the D-03
+    /// validate-before-write, replacing the bad file). `Show`/`Get` deliberately
+    /// return `false`: they report the EFFECTIVE value, which requires a parseable
+    /// file, so they must keep exiting 2 on a malformed config (no tolerance hole).
+    pub fn tolerates_malformed_config(&self) -> bool {
+        matches!(
+            self.command,
+            ConfigCommand::Path | ConfigCommand::Set { .. }
+        )
+    }
+}
+
 impl RunCommand for ConfigArgs {
     fn run(self) -> anyhow::Result<()> {
         match self.command {
