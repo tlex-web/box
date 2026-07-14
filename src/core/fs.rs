@@ -126,8 +126,31 @@ pub fn safe_copy(src: &Path, dst: &Path) -> anyhow::Result<u64> {
 /// leave a torn/partial `config.toml` that would brick every subsequent startup.
 /// The parent directory (`%APPDATA%\box\`) is created if absent. Every fallible I/O
 /// call carries `.context(...)`, mirroring [`safe_copy`]'s per-call discipline.
+///
+/// Forward-compat `#[allow(dead_code)]`: `config set` (Task 2, via
+/// [`crate::core::config::set_value`]) is the live consumer; exercised by unit tests
+/// now. The allow is removed when the command wires it (allow-then-remove).
+#[allow(dead_code)]
 pub fn atomic_write(path: &Path, contents: &str) -> anyhow::Result<()> {
-    todo!("atomic_write implemented in the GREEN step")
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("creating directory {}", parent.display()))?;
+    }
+    // Temp sibling on the SAME volume as `path` so the rename is a true atomic
+    // replace (a cross-volume rename would fall back to copy+delete, losing
+    // atomicity). Appending `.tmp` keeps it next to the target without colliding
+    // with a real `config.toml`.
+    let mut tmp = path.as_os_str().to_os_string();
+    tmp.push(".tmp");
+    let tmp = PathBuf::from(tmp);
+
+    std::fs::write(&tmp, contents)
+        .with_context(|| format!("writing temp file {}", tmp.display()))?;
+    // rename OVERWRITES an existing target (unlike safe_copy's create_new) — exactly
+    // what a config replace needs.
+    std::fs::rename(&tmp, path)
+        .with_context(|| format!("renaming {} -> {}", tmp.display(), path.display()))?;
+    Ok(())
 }
 
 #[cfg(test)]

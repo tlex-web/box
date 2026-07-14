@@ -185,6 +185,11 @@ pub fn config_path() -> Option<std::path::PathBuf> {
 /// `set` and `get`. A key is only settable if it has a backing `Config` field to
 /// round-trip against (D-05: `color` is deliberately absent — no schema field
 /// exists for it).
+///
+/// Forward-compat `#[allow(dead_code)]`: exercised by unit tests now; the `config`
+/// command (Task 2) consumes it as the live `get`/`set` registry, at which point the
+/// allow is removed (allow-then-remove, mirroring [`resolve_algo`]).
+#[allow(dead_code)]
 pub const SETTABLE_KEYS: [&str; 3] = ["hash.default_algo", "weather.location", "weather.units"];
 
 /// Validate-before-write a single config key (D-03/D-04): the CFG-01 `config set`
@@ -204,8 +209,19 @@ pub const SETTABLE_KEYS: [&str; 3] = ["hash.default_algo", "weather.location", "
 /// 4. ONLY on a clean re-parse, [`crate::core::fs::atomic_write`] the validated text
 ///    to [`config_path`] (temp-write + rename; parent dir created). A `None` path
 ///    is an `anyhow` error (exit 1).
+///
+/// Forward-compat `#[allow(dead_code)]`: the `config set` command (Task 2) is the
+/// live consumer; the allow is removed there (allow-then-remove).
+#[allow(dead_code)]
 pub fn set_value(key: &str, value: &str) -> anyhow::Result<()> {
-    todo!("set_value implemented in the GREEN step")
+    // Validate (unknown key OR bad value) and reconstruct the full document from the
+    // startup-loaded snapshot BEFORE any disk touch — the returned text is already
+    // startup-safe (D-03).
+    let text = build_config_toml(config(), key, value)?;
+    // Only a validated document reaches the disk. A `None` path (no %APPDATA%, no
+    // dirs fallback) is a runtime error → exit 1, not a usage error.
+    let path = config_path().context("could not resolve the config file path")?;
+    crate::core::fs::atomic_write(&path, &text)
 }
 
 /// The pure core of [`set_value`] (D-03): validate `key`, splice `value` into a
@@ -215,8 +231,56 @@ pub fn set_value(key: &str, value: &str) -> anyhow::Result<()> {
 /// a bad value / bad TOML, so `set_value` can `atomic_write` the returned text
 /// knowing it is already startup-safe. Pure + `config()`-free so the whole
 /// validation contract is unit-testable without `init_config` or a real file.
+///
+/// Forward-compat `#[allow(dead_code)]`: reachable via [`set_value`] once the
+/// `config` command wires it (Task 2); exercised by unit tests now.
+#[allow(dead_code)]
 fn build_config_toml(base: &Config, key: &str, value: &str) -> anyhow::Result<String> {
-    todo!("build_config_toml implemented in the GREEN step")
+    // 1. Closed-registry gate (D-04): reject an unknown key BEFORE any work, naming
+    //    it and listing the settable keys — exit 2 via ConfigUsage, nothing built.
+    if !SETTABLE_KEYS.contains(&key) {
+        return Err(BoxError::ConfigUsage {
+            message: format!(
+                "unknown config key '{key}'; settable keys: {}",
+                SETTABLE_KEYS.join(", ")
+            ),
+        }
+        .into());
+    }
+    // A SETTABLE_KEYS entry is always a `table.field` pair (guarded by a unit test).
+    let (table_name, field) = key
+        .split_once('.')
+        .expect("SETTABLE_KEYS entries are table.field pairs");
+
+    // 2. Reconstruct the current document as a TOML table (so existing keys in other
+    //    tables/fields are preserved), then splice in the new leaf as a string. The
+    //    typed enums validate the VALUE in step 3's re-parse, not here.
+    let base_text = toml::to_string(base).context("serializing the current config")?;
+    let mut doc: toml::Table =
+        toml::from_str(&base_text).context("re-parsing the current config")?;
+    let sub = doc
+        .entry(table_name)
+        .or_insert_with(|| toml::Value::Table(toml::Table::new()));
+    let sub_table = sub
+        .as_table_mut()
+        .with_context(|| format!("config section [{table_name}] is not a table"))?;
+    sub_table.insert(field.to_string(), toml::Value::String(value.to_string()));
+
+    let text = toml::to_string(&doc).context("serializing the updated config")?;
+
+    // 3. Validate-before-write (D-03): re-parse through the SAME
+    //    `toml::from_str::<Config>` the startup `load` uses. Any parse / invalid-enum
+    //    / unknown-key failure maps to BoxError::Config (exit 2) and returns Err, so
+    //    the caller NEVER writes — a self-inflicted exit-2 lockout is structurally
+    //    impossible (T-11-02).
+    toml::from_str::<Config>(&text).map_err(|e| BoxError::Config {
+        path: config_path()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "config.toml".to_string()),
+        message: e.to_string(),
+    })?;
+
+    Ok(text)
 }
 
 /// The canonical config-precedence resolver (SPINE-05): **CLI > env > config >

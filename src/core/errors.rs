@@ -78,6 +78,12 @@ pub enum BoxError {
     /// Constructed in `core::config::set_value` (unknown-key branch) and
     /// `commands::config` (get unknown-key branch), downcast-mapped to exit 2 in
     /// `main()`. Live as of Plan 11-01 (CFG-01).
+    ///
+    /// Forward-compat `#[allow(dead_code)]`: constructed via the (not-yet-reachable)
+    /// `set_value` unknown-key path in Task 1; the `config` command (Task 2) makes it
+    /// reachable and wires the exit-2 downcast, at which point the allow is removed
+    /// (allow-then-remove, mirroring `MissingInput`).
+    #[allow(dead_code)]
     #[error("{message}")]
     ConfigUsage { message: String },
 }
