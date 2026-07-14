@@ -132,6 +132,7 @@ pub fn resolve_algo(cli: Option<Algo>, env: Option<Algo>, cfg: Option<Algo>) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::weather::Units;
 
     /// SPINE-05 / Pitfall 3 — prove CLI > env > config > builtin as a known-answer
     /// matrix, terminal-free and without touching a real config file. Runnable via
@@ -157,21 +158,42 @@ mod tests {
         assert_eq!(resolve_algo(None, None, None), Algo::Blake3);
     }
 
-    /// A valid config round-trips the lowercase TOML value into the `Option<Algo>`
-    /// field (the `#[serde(rename_all = "lowercase")]` on `Algo` doing its job).
+    /// A valid NESTED config round-trips the lowercase TOML values into the typed
+    /// `Option` fields (D-13): `[hash] default_algo` parses into `Option<Algo>`
+    /// (the `#[serde(rename_all = "lowercase")]` on `Algo` doing its job), and an
+    /// empty config leaves every nested field `None` (silent default).
     #[test]
     fn valid_config_parses() {
-        let cfg: Config = toml::from_str("default_hash_algo = \"sha256\"").unwrap();
-        assert_eq!(cfg.default_hash_algo, Some(Algo::Sha256));
+        let cfg: Config = toml::from_str("[hash]\ndefault_algo = \"sha256\"").unwrap();
+        assert_eq!(cfg.hash.default_algo, Some(Algo::Sha256));
 
-        // An empty config is valid: the missing key → None (silent default).
+        // An empty config is valid: every nested key → None (silent default).
         let empty: Config = toml::from_str("").unwrap();
-        assert_eq!(empty.default_hash_algo, None);
+        assert_eq!(empty.hash.default_algo, None);
+        assert_eq!(empty.weather.location, None);
+        assert_eq!(empty.weather.units, None);
     }
 
-    /// D-10 — malformed TOML (and an unknown key under `deny_unknown_fields`) maps
-    /// to [`BoxError::Config`] via the same `load`-style mapping, so `main()`'s
-    /// downcast routes it to exit 2. Asserts the downcast is `BoxError::Config`.
+    /// D-13 — `[weather] location`/`units` parse into the nested `WeatherConfig`;
+    /// the units value round-trips through the lowercase serde rename on
+    /// `weather::Units` (mirroring `hash::Algo`), so `[weather] units = "imperial"`
+    /// deserializes to `Some(Units::Imperial)`.
+    #[test]
+    fn weather_nested_parses() {
+        let cfg: Config =
+            toml::from_str("[weather]\nlocation = \"London\"\nunits = \"imperial\"").unwrap();
+        assert_eq!(cfg.weather.location.as_deref(), Some("London"));
+        assert_eq!(cfg.weather.units, Some(Units::Imperial));
+
+        // The other spelling round-trips too.
+        let metric: Config = toml::from_str("[weather]\nunits = \"metric\"").unwrap();
+        assert_eq!(metric.weather.units, Some(Units::Metric));
+    }
+
+    /// D-10 / D-13 — malformed TOML, an unknown key (top-level OR nested under
+    /// `deny_unknown_fields`), and an invalid enum value (`units = "kelvin"`) all
+    /// map to [`BoxError::Config`] via the same `load`-style mapping, so `main()`'s
+    /// downcast routes each to exit 2. Asserts the downcast is `BoxError::Config`.
     #[test]
     fn malformed_maps_to_config_error() {
         // Mirror `load`'s mapping: toml::from_str error → BoxError::Config.
@@ -183,25 +205,20 @@ mod tests {
                 message: err.to_string(),
             })
         };
+        let is_config_err = |err: anyhow::Error, what: &str| {
+            assert!(
+                matches!(err.downcast_ref::<BoxError>(), Some(BoxError::Config { .. })),
+                "{what} must downcast to BoxError::Config, got: {err:#}"
+            );
+        };
 
-        // Syntactically invalid TOML.
-        let err = map("default_hash_algo = ");
-        assert!(
-            matches!(
-                err.downcast_ref::<BoxError>(),
-                Some(BoxError::Config { .. })
-            ),
-            "malformed TOML must downcast to BoxError::Config, got: {err:#}"
-        );
-
-        // An unknown key under deny_unknown_fields.
-        let err = map("bogus_key = 1");
-        assert!(
-            matches!(
-                err.downcast_ref::<BoxError>(),
-                Some(BoxError::Config { .. })
-            ),
-            "unknown key must downcast to BoxError::Config, got: {err:#}"
-        );
+        // Syntactically invalid TOML (a value is missing).
+        is_config_err(map("[hash]\ndefault_algo = "), "malformed TOML");
+        // An unknown TOP-LEVEL key under deny_unknown_fields.
+        is_config_err(map("bogus_key = 1"), "unknown top-level key");
+        // An unknown key NESTED inside a known table (HashConfig also denies).
+        is_config_err(map("[hash]\nbogus = 1"), "unknown nested key");
+        // An invalid units enum value — kelvin is not metric|imperial.
+        is_config_err(map("[weather]\nunits = \"kelvin\""), "invalid units value");
     }
 }
