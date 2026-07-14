@@ -599,17 +599,15 @@ struct Daily {
     weather_code: Vec<u32>,
 }
 
-/// The daily unit-label object: e.g. `"°C"`/`"°F"` for the max/min temps. Read the
+/// The daily unit-label object: e.g. `"°C"`/`"°F"` for the temps. Read the
 /// authoritative temp label from here, NEVER hardcode (the SAME rule as
-/// [`CurrentUnits`], D-11). `temperature_2m_min` shares the unit but is captured for
-/// shape completeness.
+/// [`CurrentUnits`], D-11). Only `temperature_2m_max` is captured — the daily min
+/// shares its unit, and this struct has no `deny_unknown_fields` so the extra
+/// `temperature_2m_min` label in the JSON is harmlessly ignored.
 #[derive(Debug, Deserialize)]
 struct DailyUnits {
-    /// The authoritative daily-max temp unit label (`"°C"`/`"°F"`).
+    /// The authoritative daily temp unit label (`"°C"`/`"°F"`), used for both extremes.
     temperature_2m_max: String,
-    /// The authoritative daily-min temp unit label (same unit as max).
-    #[allow(dead_code)]
-    temperature_2m_min: String,
 }
 
 /// The current-weather values. `relative_humidity_2m` comes back as an integer
