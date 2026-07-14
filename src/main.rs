@@ -135,7 +135,10 @@ fn main() -> ExitCode {
                     crate::core::errors::BoxError::MissingInput
                     | crate::core::errors::BoxError::UnsupportedHashLength { .. }
                     | crate::core::errors::BoxError::UnknownFigure { .. }
-                    | crate::core::errors::BoxError::Config { .. },
+                    | crate::core::errors::BoxError::Config { .. }
+                    // `MissingLocation`: bare `box weather` with no positional AND no
+                    // `[weather] location` config (D-12) — a usage mistake, exit 2.
+                    | crate::core::errors::BoxError::MissingLocation,
                 ) => ExitCode::from(2),
                 _ => ExitCode::from(1),
             }

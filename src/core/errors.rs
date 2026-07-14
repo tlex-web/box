@@ -50,4 +50,18 @@ pub enum BoxError {
     /// Constructed in `core::config::load` on a `toml::from_str` failure.
     #[error("config error in {path}: {message}")]
     Config { path: String, message: String },
+
+    /// A bare `box weather` with NO positional location AND no `[weather] location`
+    /// in config (D-12). `main()` downcasts this variant and maps it to exit code 2
+    /// (a usage error), joining [`BoxError::MissingInput`] /
+    /// [`BoxError::UnsupportedHashLength`] / [`BoxError::UnknownFigure`] /
+    /// [`BoxError::Config`] — the invocation named no place to fetch weather for, so
+    /// it is a mistake in HOW the command was called, not a runtime/data failure. The
+    /// message points the user at either a positional or the `weather.location`
+    /// config key.
+    ///
+    /// Constructed in `commands::weather::run` and downcast-mapped to exit 2 in
+    /// `main()`. Live as of Plan 10-05 (WTHR-V2-01 / D-12).
+    #[error("no location: pass a location or set weather.location in config")]
+    MissingLocation,
 }

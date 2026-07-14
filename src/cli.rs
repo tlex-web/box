@@ -110,11 +110,14 @@ pub enum Commands {
     Pomodoro(crate::commands::pomodoro::PomodoroArgs),
     /// Fetch the weather for a location
     ///
-    /// `box weather <LOCATION>` shows the current temperature, conditions, wind,
+    /// `box weather [LOCATION]` shows the current temperature, conditions, wind,
     /// and humidity from the keyless Open-Meteo API. `LOCATION` is either a
     /// `lat,lon` pair (`51.5,-0.13`, used directly) or a city name (`London`,
-    /// geocoded — the resolved match is echoed to stderr). `--units imperial`
-    /// switches to °F/mph; the default is metric °C/km/h. No API key is required.
-    /// When the service is unreachable a graceful error prints to stderr (exit 1).
+    /// geocoded — the resolved match is echoed to stderr). It is optional: when
+    /// omitted the stored `[weather] location` config value is used, and with
+    /// neither set the command exits 2 with a hint. `--forecast` adds a 7-day daily
+    /// outlook; `--units imperial` switches to °F/mph (or set `[weather] units`).
+    /// Responses are cached ~10 min. No API key is required; when the service is
+    /// unreachable a graceful error prints to stderr (exit 1).
     Weather(crate::commands::weather::WeatherArgs),
 }
