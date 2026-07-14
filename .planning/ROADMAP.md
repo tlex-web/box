@@ -41,7 +41,7 @@ Full phase details, decisions, and outcomes archived in [`milestones/v1.0-ROADMA
 - [x] **Phase 6: Scriptable-Core Foundation** - Build the entire shared `--json`/`--clip`/config spine once, proven on the two simplest pilot commands (`uuid` + `hash`), and flip `hash` to BLAKE3-default with a config escape hatch. ✅ 2026-06-25
 - [x] **Phase 7: Spine Rollout** - Apply the frozen Phase-6 template to roll `--json` and `--clip` across every remaining applicable value-producing command. (completed 2026-06-25)
 - [ ] **Phase 8: Filesystem Depth** - Add the deferred depth flags to the six filesystem commands (`hash`, `flatten`, `dupes`, `bulk-rename`, `tree`, `du`), including the three destructive flags under adversarial review.
-- [ ] **Phase 9: Dev-Transform & Visual Depth** - Add depth to the dev-transform (`uuid`, `epoch`, `color`, `json`, `passgen`) and visual (`lolcat`, `matrix`, `qr`, `ascii`) commands.
+- [x] **Phase 9: Dev-Transform & Visual Depth** - Add depth to the dev-transform (`uuid`, `epoch`, `color`, `json`, `passgen`) and visual (`lolcat`, `matrix`, `qr`, `ascii`) commands. (completed 2026-07-14)
 - [ ] **Phase 10: Fun & System Depth** - Add depth to the fun (`cowsay`, `fortune`, `8ball`, `roast`) and system (`pomodoro`, `weather`) commands.
 - [ ] **Phase 11: Meta-Commands** - Ship `box config` and `box completions powershell`, generated against the final, complete arg surface.
 
@@ -149,7 +149,7 @@ Plans:
 **Wave 1**
 
 - [x] 09-01-PLAN.md — dev transforms: `uuid` v7 + format flags (UUID-V2-01); `epoch` relative + `--tz` (EPOC-V2-01); `color` CSS names + HSL input (COLR-V2-01); `json --sort-keys` (JSON-V2-01); `passgen` entropy + `--no-similar` + `--separator` (PASS-V2-01). [wave 1]
-- [ ] 09-03-PLAN.md — **HUMAN-VERIFY (PS7):** `lolcat` `--animate`/`--freq`/`--seed`/`--duration` with verbatim matrix RAII restore + mandatory `is_terminal()` AND-gate static fallback (LOL-V2-01). [wave 1]
+- [x] 09-03-PLAN.md — **HUMAN-VERIFY (PS7):** `lolcat` `--animate`/`--freq`/`--seed`/`--duration` with verbatim matrix RAII restore + mandatory `is_terminal()` AND-gate static fallback (LOL-V2-01). [wave 1]
 
 **Wave 2** *(blocked on Wave 1 — shares Cargo.toml; needs the qrcode `["image","svg"]` feature re-enable that lands after 09-01)*
 
@@ -210,7 +210,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Scriptable-Core Foundation | v2.0 | 2/2 | Complete | 2026-06-25 |
 | 7. Spine Rollout | v2.0 | 3/3 | Complete   | 2026-06-25 |
 | 8. Filesystem Depth | v2.0 | 6/6 | In Progress|  |
-| 9. Dev-Transform & Visual Depth | v2.0 | 2/3 | In Progress|  |
+| 9. Dev-Transform & Visual Depth | v2.0 | 3/3 | Complete   | 2026-07-14 |
 | 10. Fun & System Depth | v2.0 | 0/2 | Not started | - |
 | 11. Meta-Commands | v2.0 | 0/2 | Not started | - |
 
