@@ -134,6 +134,10 @@ None. Both features are fully wired (no placeholder data, no TODO/coming-soon pa
 - Both commands' final flag surface (`--figure`/`--list-figures`/`--think`, `sentiment` JSON) is settled — Phase 11 `completions` can generate against it.
 - No blockers. This plan is Wave-1 (`depends_on: []`) and shares no files with the other Wave-1 plans, so it merges cleanly.
 
+## Self-Check: PASSED
+
+All 6 modified files and the SUMMARY exist on disk; all task commits (`280cef7`, `8f18008`, `d334317`, `e8f2c57`) and the metadata commit (`e6b7c12`) are present in git history. Working tree clean.
+
 ---
 *Phase: 10-fun-system-depth*
 *Completed: 2026-07-14*
