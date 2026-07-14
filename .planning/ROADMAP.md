@@ -184,7 +184,7 @@ Plans:
 **Wave 2** *(depends on 10-04's nested config + cache module)*
 
 - [x] 10-05-PLAN.md — `weather` depth: `--forecast` 7-day daily outlook + `forecast` JSON array (D-10); optional location + `[weather]` config default + units resolver + `BoxError::MissingLocation` (D-12); transparent response cache wiring (D-11) (WTHR-V2-01). [wave 2, depends_on 10-04]
-- [ ] 10-06-PLAN.md — `weather` code-review gap closure: pin `forecast_days=7` + defensive `n <= 7` bound so --forecast is truly a bounded 7-day span (WR-01); trim + city-only lowercase the location so whitespace/case variants share the response cache (WR-02) (WTHR-V2-01). [gap closure, post 10-05]
+- [x] 10-06-PLAN.md — `weather` code-review gap closure: pin `forecast_days=7` + defensive `n <= 7` bound so --forecast is truly a bounded 7-day span (WR-01); trim + city-only lowercase the location so whitespace/case variants share the response cache (WR-02) (WTHR-V2-01). [gap closure, post 10-05]
 
 ### Phase 11: Meta-Commands
 
@@ -221,7 +221,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Spine Rollout | v2.0 | 3/3 | Complete   | 2026-06-25 |
 | 8. Filesystem Depth | v2.0 | 6/6 | In Progress|  |
 | 9. Dev-Transform & Visual Depth | v2.0 | 3/3 | Complete   | 2026-07-14 |
-| 10. Fun & System Depth | v2.0 | 5/5 | Complete   | 2026-07-14 |
+| 10. Fun & System Depth | v2.0 | 6/6 | Complete   | 2026-07-14 |
 | 11. Meta-Commands | v2.0 | 0/2 | Not started | - |
 
 ---
