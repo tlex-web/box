@@ -198,7 +198,7 @@ Plans:
   3. `box completions powershell` emits a static PS7 completion script that, once registered, tab-completes subcommands, flags, and value hints — including the global `--json`/`--clip` and *every* Phase-8/9/10 depth flag (the script is generated from the live, final `Cli`).
   4. A first-time user with no config file still runs every command unchanged (config remains purely additive), and a malformed config file produces a clear error rather than a panic.
 
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
 
@@ -209,6 +209,10 @@ Plans:
 **Wave 2** *(blocked on Wave 1 — shared cli.rs/main.rs/help.trycmd; adds clap_complete)*
 
 - [x] 11-02-PLAN.md — `box completions <shell>` via `clap_complete` against the final `Cli` (D-09/D-10) + `install.ps1` opt-in `-RegisterCompletions` (D-11) (CMP-01). [wave 2, depends_on 11-01]
+
+**Wave 3** *(gap closure — closes 11-VERIFICATION WR-01/WR-02; over already-shipped 11-01/11-02 modules)*
+
+- [ ] 11-03-PLAN.md — close verification gaps: WR-01 env-tier parity for `config get/show hash.default_algo` via one shared `effective_default_algo` resolver, + WR-02 decouple `config path/set` + `completions` from the malformed-config gate (CFG-01, CMP-01). [wave 1, depends_on none]
 
 ## Progress
 
