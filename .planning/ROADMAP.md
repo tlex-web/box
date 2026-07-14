@@ -198,12 +198,17 @@ Plans:
   3. `box completions powershell` emits a static PS7 completion script that, once registered, tab-completes subcommands, flags, and value hints — including the global `--json`/`--clip` and *every* Phase-8/9/10 depth flag (the script is generated from the live, final `Cli`).
   4. A first-time user with no config file still runs every command unchanged (config remains purely additive), and a malformed config file produces a clear error rather than a panic.
 
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
 
-- [ ] 11-01: TBD — `box config` show/get/set/path with `--json` (CFG-01).
-- [ ] 11-02: TBD — `box completions powershell` via `clap_complete` against the final `Cli` + `install.ps1` registration hint + BLAKE3 breaking-change help/PROJECT note (CMP-01).
+**Wave 1**
+
+- [ ] 11-01-PLAN.md — `box config` show/get/set/path with `--json`: effective-config view (D-06), D-03 validate-before-write + atomic write, closed settable-key registry (D-04) (CFG-01). [wave 1]
+
+**Wave 2** *(blocked on Wave 1 — shared cli.rs/main.rs/help.trycmd; adds clap_complete)*
+
+- [ ] 11-02-PLAN.md — `box completions <shell>` via `clap_complete` against the final `Cli` (D-09/D-10) + `install.ps1` opt-in `-RegisterCompletions` (D-11) (CMP-01). [wave 2, depends_on 11-01]
 
 ## Progress
 
