@@ -170,7 +170,7 @@ Plans:
   3. `box weather --forecast` returns a multi-day forecast, repeated calls are served from a response cache, and with `weather.location` set in config, bare `box weather` uses the stored default location (reading the config resolver from Phase 6).
   4. The new colored/sentiment output (`8ball` sentiment color) stays gated on `is_color_on()`, and every applicable command here still emits a clean `--json` document with the new fields.
 
-**Plans**: 5 plans
+**Plans**: 6 plans (5 shipped + 1 code-review gap closure)
 
 Plans:
 
@@ -184,6 +184,7 @@ Plans:
 **Wave 2** *(depends on 10-04's nested config + cache module)*
 
 - [x] 10-05-PLAN.md — `weather` depth: `--forecast` 7-day daily outlook + `forecast` JSON array (D-10); optional location + `[weather]` config default + units resolver + `BoxError::MissingLocation` (D-12); transparent response cache wiring (D-11) (WTHR-V2-01). [wave 2, depends_on 10-04]
+- [ ] 10-06-PLAN.md — `weather` code-review gap closure: pin `forecast_days=7` + defensive `n <= 7` bound so --forecast is truly a bounded 7-day span (WR-01); trim + city-only lowercase the location so whitespace/case variants share the response cache (WR-02) (WTHR-V2-01). [gap closure, post 10-05]
 
 ### Phase 11: Meta-Commands
 
