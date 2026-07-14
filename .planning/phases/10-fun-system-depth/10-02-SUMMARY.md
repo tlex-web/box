@@ -126,6 +126,11 @@ No new trust boundaries introduced. The plan's threat register is satisfied: T-1
 - The `{text, category}` / `{text, language}` shapes are the schema Phase 11's `box config`/JSON consumers can rely on.
 - Taxonomy-enum pattern (ValueEnum + serde lowercase + Option-default) is reusable for the remaining fun-command depth flags (cowsay `--figure`, 8ball sentiment).
 
+## Self-Check: PASSED
+- All 7 created bucket files + both modified command modules + `.gitattributes` + SUMMARY.md present on disk.
+- All 5 commits (`a5d5690`, `f8b7832`, `c686376`, `0b56124`, `69529ac`) present in history.
+- Retired corpora (`src/data/fortunes.txt`, `src/data/roasts.txt`) removed; working tree clean.
+
 ---
 *Phase: 10-fun-system-depth*
 *Completed: 2026-07-14*
